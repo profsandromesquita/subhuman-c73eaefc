@@ -128,15 +128,26 @@
 
 /* Media preview cards */
 .media-preview-card {
-  @apply relative group rounded-lg overflow-hidden bg-secondary;
+  position: relative;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: hsl(var(--secondary));
 }
 
 .media-preview-card:hover .media-preview-overlay {
-  @apply opacity-100;
+  opacity: 1;
 }
 
 .media-preview-overlay {
-  @apply absolute inset-0 bg-black/50 opacity-0 transition-opacity flex items-center justify-center gap-2;
+  position: absolute;
+  inset: 0;
+  background-color: rgb(0 0 0 / 0.5);
+  opacity: 0;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 /* Post content display */
