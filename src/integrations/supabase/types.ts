@@ -211,9 +211,11 @@ export type Database = {
           created_at: string
           id: string
           is_published: boolean
+          media_type: string | null
           published_at: string | null
           scheduled_at: string | null
           space_id: string
+          thumbnail_url: string | null
           title: string
           updated_at: string
         }
@@ -223,9 +225,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_published?: boolean
+          media_type?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           space_id: string
+          thumbnail_url?: string | null
           title: string
           updated_at?: string
         }
@@ -235,9 +239,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_published?: boolean
+          media_type?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           space_id?: string
+          thumbnail_url?: string | null
           title?: string
           updated_at?: string
         }
@@ -325,6 +331,70 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      update_comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          update_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          update_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          update_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "update_comments_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "space_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      update_likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          update_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          update_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          update_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "update_likes_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "space_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

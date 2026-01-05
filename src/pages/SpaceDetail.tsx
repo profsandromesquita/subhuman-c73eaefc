@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { 
   ArrowLeft, 
   Clock, 
-  BookmarkSimple,
-  ShareNetwork,
   Brain,
   Megaphone,
   Code,
   FilmStrip,
   Heart,
+  ChatCircle,
+  PlayCircle,
   IconProps
 } from "@phosphor-icons/react";
 import { Link, useParams } from "react-router-dom";
@@ -39,34 +39,46 @@ const mockUpdates = [
   {
     id: 1,
     title: "Claude 3.5 Sonnet: O novo benchmark de performance",
-    excerpt: "A Anthropic lançou uma atualização impressionante do Claude que está superando GPT-4 em várias métricas de benchmark...",
     time: "2 horas atrás",
     readTime: "3 min",
-    saved: false,
+    thumbnail_url: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=200&fit=crop",
+    media_type: "image",
+    likes_count: 42,
+    comments_count: 8,
+    liked: false,
   },
   {
     id: 2,
     title: "Como usar o Cursor AI para dobrar sua produtividade",
-    excerpt: "O Cursor se tornou uma das ferramentas mais populares entre desenvolvedores. Veja como tirar o máximo proveito...",
     time: "5 horas atrás",
     readTime: "5 min",
-    saved: true,
+    thumbnail_url: "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=200&h=200&fit=crop",
+    media_type: "video",
+    likes_count: 128,
+    comments_count: 24,
+    liked: true,
   },
   {
     id: 3,
     title: "Gemini 2.0: O que muda com a nova versão do Google",
-    excerpt: "O Google atualizou seu modelo de IA com capacidades multimodais avançadas. Confira as principais novidades...",
     time: "8 horas atrás",
     readTime: "4 min",
-    saved: false,
+    thumbnail_url: null,
+    media_type: null,
+    likes_count: 67,
+    comments_count: 12,
+    liked: false,
   },
   {
     id: 4,
     title: "OpenAI lança GPT-4o: Mais rápido e mais barato",
-    excerpt: "A nova versão do modelo da OpenAI promete ser 2x mais rápida e 50% mais barata que o GPT-4 Turbo...",
     time: "1 dia atrás",
     readTime: "3 min",
-    saved: false,
+    thumbnail_url: "https://images.unsplash.com/photo-1679083216051-aa510a1a2c0e?w=200&h=200&fit=crop",
+    media_type: "image",
+    likes_count: 256,
+    comments_count: 45,
+    liked: false,
   },
 ];
 
@@ -110,32 +122,51 @@ export default function SpaceDetail() {
             >
               <Card className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer">
                 <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2 leading-snug">
-                    {update.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                    {update.excerpt}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {update.time}
-                      </span>
-                      <span>{update.readTime} de leitura</span>
+                  <div className="flex gap-3">
+                    {/* Conteúdo à esquerda */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold leading-snug line-clamp-2">
+                        {update.title}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {update.time}
+                        </span>
+                        <span>{update.readTime} de leitura</span>
+                      </div>
+                      {/* Botões de interação */}
+                      <div className="flex items-center gap-4 mt-3">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className={`gap-1.5 h-8 px-2 ${update.liked ? "text-red-500" : "text-muted-foreground"}`}
+                        >
+                          <Heart className="w-4 h-4" weight={update.liked ? "fill" : "regular"} />
+                          <span className="text-xs">{update.likes_count}</span>
+                        </Button>
+                        <Button variant="ghost" size="sm" className="gap-1.5 h-8 px-2 text-muted-foreground">
+                          <ChatCircle className="w-4 h-4" />
+                          <span className="text-xs">{update.comments_count}</span>
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className={update.saved ? "text-foreground" : "text-muted-foreground"}
-                      >
-                        <BookmarkSimple className={`w-4 h-4 ${update.saved ? "fill-current" : ""}`} weight={update.saved ? "fill" : "regular"} />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-                        <ShareNetwork className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    
+                    {/* Miniatura à direita */}
+                    {update.thumbnail_url && (
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                        <img 
+                          src={update.thumbnail_url} 
+                          alt="" 
+                          className="w-full h-full object-cover"
+                        />
+                        {update.media_type === 'video' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <PlayCircle className="w-8 h-8 text-white" weight="fill" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
