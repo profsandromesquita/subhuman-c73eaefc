@@ -11,6 +11,7 @@ import Plans from "./pages/Plans";
 import Home from "./pages/Home";
 import Spaces from "./pages/Spaces";
 import SpaceDetail from "./pages/SpaceDetail";
+import PostDetail from "./pages/PostDetail";
 import Channels from "./pages/Channels";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/home" element={<Home />} />
           <Route path="/spaces" element={<Spaces />} />
           <Route path="/spaces/:spaceId" element={<SpaceDetail />} />
+          <Route path="/spaces/:spaceId/post/:postId" element={<PostDetail />} />
           <Route path="/channels" element={<Channels />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
