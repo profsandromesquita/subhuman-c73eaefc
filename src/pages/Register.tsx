@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Eye, EyeSlash, Check } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -13,6 +14,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const passwordRequirements = [
     { label: "Mínimo 8 caracteres", met: password.length >= 8 },
@@ -29,24 +31,36 @@ export default function Register() {
     }
 
     setIsLoading(true);
-    
-    // Simulate registration - replace with actual auth
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    toast.success("Conta criada com sucesso!");
-    navigate("/plans");
-    setIsLoading(false);
+
+    try {
+      const { error } = await signUp(email, password, name);
+
+      if (error) {
+        if (error.message.includes("already registered")) {
+          toast.error("Este email já está cadastrado");
+        } else {
+          toast.error(error.message || "Erro ao criar conta");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      toast.success("Conta criada com sucesso!");
+      navigate("/plans");
+    } catch (err) {
+      toast.error("Erro inesperado ao criar conta");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Glow effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
       </div>
 
       <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -60,7 +74,6 @@ export default function Register() {
           </Link>
         </motion.div>
 
-        {/* Content */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -125,7 +138,6 @@ export default function Register() {
                 </button>
               </div>
 
-              {/* Password requirements */}
               {password.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}

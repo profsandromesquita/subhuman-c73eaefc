@@ -1,19 +1,27 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ArrowLeft, Eye, EyeSlash } from "@phosphor-icons/react";
-import { Link, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Eye, EyeSlash, Shield } from '@phosphor-icons/react';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 
-export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export default function AdminLogin() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { isAdminOrModerator, loading: authLoading } = useAdminAuth();
+
+  useEffect(() => {
+    if (!authLoading && isAdminOrModerator) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isAdminOrModerator, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,16 +31,15 @@ export default function Login() {
       const { error } = await signIn(email, password);
 
       if (error) {
-        toast.error(error.message || "Erro ao fazer login");
+        toast.error(error.message || 'Erro ao fazer login');
         setIsLoading(false);
         return;
       }
 
-      toast.success("Login realizado com sucesso!");
-      navigate("/home");
+      toast.success('Login realizado com sucesso!');
+      // The useEffect will handle navigation after roles are fetched
     } catch (err) {
-      toast.error("Erro inesperado ao fazer login");
-    } finally {
+      toast.error('Erro inesperado ao fazer login');
       setIsLoading(false);
     }
   };
@@ -65,11 +72,16 @@ export default function Login() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Bem-vindo de volta
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-lg bg-secondary">
+              <Shield className="w-6 h-6 text-foreground" weight="fill" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Área Administrativa
+            </h1>
+          </div>
           <p className="text-muted-foreground mb-8">
-            Entre na sua conta para continuar
+            Acesso restrito a administradores e moderadores
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -79,7 +91,7 @@ export default function Login() {
               </label>
               <Input
                 type="email"
-                placeholder="seu@email.com"
+                placeholder="admin@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -87,20 +99,12 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Senha
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Esqueceu a senha?
-                </Link>
-              </div>
+              <label className="text-sm font-medium text-muted-foreground">
+                Senha
+              </label>
               <div className="relative">
                 <Input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -127,17 +131,16 @@ export default function Login() {
               className="w-full mt-6"
               disabled={isLoading}
             >
-              {isLoading ? "Entrando..." : "Entrar"}
+              {isLoading ? 'Entrando...' : 'Acessar Painel'}
             </Button>
           </form>
 
           <p className="text-center text-muted-foreground mt-8">
-            Não tem uma conta?{" "}
             <Link
-              to="/register"
+              to="/"
               className="text-foreground font-medium hover:underline"
             >
-              Criar conta
+              Voltar ao site
             </Link>
           </p>
         </motion.div>
