@@ -16,6 +16,21 @@ import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
+// Admin Pages
+import AdminLogin from "./pages/admin/AdminLogin";
+import Dashboard from "./pages/admin/Dashboard";
+import Users from "./pages/admin/Users";
+import Subscriptions from "./pages/admin/Subscriptions";
+import AdminSpaces from "./pages/admin/Spaces";
+import SpaceContent from "./pages/admin/SpaceContent";
+import AdminChannels from "./pages/admin/Channels";
+import Moderation from "./pages/admin/Moderation";
+import GeneralSettings from "./pages/admin/settings/General";
+import SystemUsers from "./pages/admin/settings/SystemUsers";
+import NotificationSettings from "./pages/admin/settings/Notifications";
+import PaymentSettings from "./pages/admin/settings/Payments";
+import { AdminGuard } from "./components/admin/AdminGuard";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -25,6 +40,7 @@ const App = () => (
       <Sonner position="top-center" />
       <BrowserRouter>
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -36,6 +52,22 @@ const App = () => (
           <Route path="/channels" element={<Channels />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminGuard><Dashboard /></AdminGuard>} />
+          <Route path="/admin/users" element={<AdminGuard><Users /></AdminGuard>} />
+          <Route path="/admin/subscriptions" element={<AdminGuard><Subscriptions /></AdminGuard>} />
+          <Route path="/admin/spaces" element={<AdminGuard><AdminSpaces /></AdminGuard>} />
+          <Route path="/admin/content" element={<AdminGuard><SpaceContent /></AdminGuard>} />
+          <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
+          <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
+          <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
+          <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
+          <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
+          <Route path="/admin/settings/payments" element={<AdminGuard requireAdmin><PaymentSettings /></AdminGuard>} />
+
+          {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

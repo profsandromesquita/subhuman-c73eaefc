@@ -1,0 +1,415 @@
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { AdminLayout } from '@/components/admin/AdminLayout';
+import { DataTable } from '@/components/admin/DataTable';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Plus,
+  MagnifyingGlass,
+  DotsThree,
+  PencilSimple,
+  Trash,
+  Clock,
+  Check
+} from '@phosphor-icons/react';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
+
+interface SpaceUpdate {
+  id: string;
+  space_id: string;
+  title: string;
+  content: string | null;
+  is_published: boolean;
+  published_at: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+  space_name?: string;
+}
+
+interface Space {
+  id: string;
+  name: string;
+}
+
+export default function SpaceContent() {
+  const { user } = useAdminAuth();
+  const [updates, setUpdates] = useState<SpaceUpdate[]>([]);
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingUpdate, setEditingUpdate] = useState<SpaceUpdate | null>(null);
+  const [formData, setFormData] = useState({
+    space_id: '',
+    title: '',
+    content: '',
+    scheduled_at: ''
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      // Fetch spaces
+      const { data: spacesData } = await supabase
+        .from('spaces')
+        .select('id, name')
+        .eq('is_active', true);
+      setSpaces(spacesData || []);
+
+      // Fetch updates
+      const { data, error } = await supabase
+        .from('space_updates')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const updatesWithSpaces = (data || []).map(update => ({
+        ...update,
+        space_name: spacesData?.find(s => s.id === update.space_id)?.name || 'Desconhecido'
+      }));
+
+      setUpdates(updatesWithSpaces);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Erro ao carregar conteúdos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (publish = false) => {
+    try {
+      const updateData = {
+        space_id: formData.space_id,
+        title: formData.title,
+        content: formData.content,
+        author_id: user?.id,
+        is_published: publish,
+        published_at: publish ? new Date().toISOString() : null,
+        scheduled_at: formData.scheduled_at || null
+      };
+
+      if (editingUpdate) {
+        const { error } = await supabase
+          .from('space_updates')
+          .update(updateData)
+          .eq('id', editingUpdate.id);
+
+        if (error) throw error;
+        toast.success('Conteúdo atualizado!');
+      } else {
+        const { error } = await supabase
+          .from('space_updates')
+          .insert(updateData);
+
+        if (error) throw error;
+        toast.success(publish ? 'Conteúdo publicado!' : 'Rascunho salvo!');
+      }
+
+      setIsDialogOpen(false);
+      setEditingUpdate(null);
+      setFormData({ space_id: '', title: '', content: '', scheduled_at: '' });
+      fetchData();
+    } catch (error) {
+      console.error('Error saving content:', error);
+      toast.error('Erro ao salvar conteúdo');
+    }
+  };
+
+  const handleEdit = (update: SpaceUpdate) => {
+    setEditingUpdate(update);
+    setFormData({
+      space_id: update.space_id,
+      title: update.title,
+      content: update.content || '',
+      scheduled_at: update.scheduled_at || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handlePublish = async (update: SpaceUpdate) => {
+    try {
+      const { error } = await supabase
+        .from('space_updates')
+        .update({
+          is_published: true,
+          published_at: new Date().toISOString()
+        })
+        .eq('id', update.id);
+
+      if (error) throw error;
+      toast.success('Conteúdo publicado!');
+      fetchData();
+    } catch (error) {
+      console.error('Error publishing:', error);
+      toast.error('Erro ao publicar');
+    }
+  };
+
+  const handleDelete = async (update: SpaceUpdate) => {
+    if (!confirm('Tem certeza que deseja excluir este conteúdo?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('space_updates')
+        .delete()
+        .eq('id', update.id);
+
+      if (error) throw error;
+      toast.success('Conteúdo excluído!');
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast.error('Erro ao excluir');
+    }
+  };
+
+  const filteredUpdates = updates.filter(update =>
+    update.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const columns = [
+    {
+      key: 'title',
+      header: 'Título',
+      render: (item: SpaceUpdate) => (
+        <div>
+          <p className="font-medium text-foreground">{item.title}</p>
+          <p className="text-sm text-muted-foreground">{item.space_name}</p>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (item: SpaceUpdate) => {
+        if (item.is_published) {
+          return (
+            <span className="px-2 py-1 text-xs rounded-full bg-emerald-500/20 text-emerald-500 flex items-center gap-1 w-fit">
+              <Check className="w-3 h-3" />
+              Publicado
+            </span>
+          );
+        }
+        if (item.scheduled_at) {
+          return (
+            <span className="px-2 py-1 text-xs rounded-full bg-blue-500/20 text-blue-500 flex items-center gap-1 w-fit">
+              <Clock className="w-3 h-3" />
+              Agendado
+            </span>
+          );
+        }
+        return (
+          <span className="px-2 py-1 text-xs rounded-full bg-secondary text-muted-foreground">
+            Rascunho
+          </span>
+        );
+      }
+    },
+    {
+      key: 'created_at',
+      header: 'Criado em',
+      render: (item: SpaceUpdate) => (
+        <span className="text-muted-foreground">
+          {new Date(item.created_at).toLocaleDateString('pt-BR')}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (item: SpaceUpdate) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <DotsThree className="w-5 h-5" weight="bold" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleEdit(item)}>
+              <PencilSimple className="w-4 h-4 mr-2" />
+              Editar
+            </DropdownMenuItem>
+            {!item.is_published && (
+              <DropdownMenuItem onClick={() => handlePublish(item)}>
+                <Check className="w-4 h-4 mr-2" />
+                Publicar agora
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => handleDelete(item)}
+            >
+              <Trash className="w-4 h-4 mr-2" />
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+      className: 'w-12'
+    }
+  ];
+
+  return (
+    <AdminLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Conteúdos</h1>
+            <p className="text-muted-foreground">
+              Publique e agende conteúdos nos espaços
+            </p>
+          </div>
+          <Button
+            variant="glow"
+            onClick={() => {
+              setEditingUpdate(null);
+              setFormData({ space_id: '', title: '', content: '', scheduled_at: '' });
+              setIsDialogOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Conteúdo
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar conteúdos..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={filteredUpdates}
+          loading={loading}
+          emptyMessage="Nenhum conteúdo encontrado"
+        />
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {editingUpdate ? 'Editar Conteúdo' : 'Novo Conteúdo'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Espaço
+                </label>
+                <Select
+                  value={formData.space_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, space_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um espaço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {spaces.map((space) => (
+                      <SelectItem key={space.id} value={space.id}>
+                        {space.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Título
+                </label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  placeholder="Título do conteúdo"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Conteúdo
+                </label>
+                <Textarea
+                  value={formData.content}
+                  onChange={(e) =>
+                    setFormData({ ...formData, content: e.target.value })
+                  }
+                  placeholder="Escreva o conteúdo aqui..."
+                  rows={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Agendar para (opcional)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={formData.scheduled_at}
+                  onChange={(e) =>
+                    setFormData({ ...formData, scheduled_at: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => handleSave(false)}
+                  className="flex-1"
+                >
+                  Salvar Rascunho
+                </Button>
+                <Button
+                  variant="glow"
+                  onClick={() => handleSave(true)}
+                  className="flex-1"
+                >
+                  Publicar Agora
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </motion.div>
+    </AdminLayout>
+  );
+}
