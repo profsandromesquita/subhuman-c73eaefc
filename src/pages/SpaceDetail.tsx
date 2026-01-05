@@ -5,92 +5,162 @@ import { Button } from "@/components/ui/button";
 import { 
   ArrowLeft, 
   Clock, 
-  Brain,
-  Megaphone,
-  Code,
-  FilmStrip,
   Heart,
   ChatCircle,
-  PlayCircle,
-  IconProps
+  PlayCircle
 } from "@phosphor-icons/react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ForwardRefExoticComponent, RefAttributes } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { getIconComponent } from "@/components/admin/IconPicker";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
+interface Space {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+}
 
-const spaceIcons: Record<string, PhosphorIcon> = {
-  produtividade: Brain,
-  marketing: Megaphone,
-  programacao: Code,
-  audiovisual: FilmStrip,
-  "estilo-vida": Heart,
-};
-
-const spaceNames: Record<string, string> = {
-  produtividade: "Produtividade Pessoal",
-  marketing: "Marketing e Vendas",
-  programacao: "Programação e Automação",
-  audiovisual: "Audiovisual",
-  "estilo-vida": "Estilo de Vida",
-};
-
-const mockUpdates = [
-  {
-    id: 1,
-    title: "Claude 3.5 Sonnet: O novo benchmark de performance",
-    time: "2 horas atrás",
-    readTime: "3 min",
-    thumbnail_url: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=200&fit=crop",
-    media_type: "image",
-    likes_count: 42,
-    comments_count: 8,
-    liked: false,
-  },
-  {
-    id: 2,
-    title: "Como usar o Cursor AI para dobrar sua produtividade",
-    time: "5 horas atrás",
-    readTime: "5 min",
-    thumbnail_url: "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=200&h=200&fit=crop",
-    media_type: "video",
-    likes_count: 128,
-    comments_count: 24,
-    liked: true,
-  },
-  {
-    id: 3,
-    title: "Gemini 2.0: O que muda com a nova versão do Google",
-    time: "8 horas atrás",
-    readTime: "4 min",
-    thumbnail_url: null,
-    media_type: null,
-    likes_count: 67,
-    comments_count: 12,
-    liked: false,
-  },
-  {
-    id: 4,
-    title: "OpenAI lança GPT-4o: Mais rápido e mais barato",
-    time: "1 dia atrás",
-    readTime: "3 min",
-    thumbnail_url: "https://images.unsplash.com/photo-1679083216051-aa510a1a2c0e?w=200&h=200&fit=crop",
-    media_type: "image",
-    likes_count: 256,
-    comments_count: 45,
-    liked: false,
-  },
-];
+interface SpaceUpdate {
+  id: string;
+  title: string;
+  content: string | null;
+  thumbnail_url: string | null;
+  media_type: string | null;
+  published_at: string | null;
+  created_at: string;
+  likes_count: number;
+  comments_count: number;
+}
 
 export default function SpaceDetail() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
-  const SpaceIcon = spaceIcons[spaceId || ""] || Brain;
-  const spaceName = spaceNames[spaceId || ""] || "Espaço";
+  const [space, setSpace] = useState<Space | null>(null);
+  const [updates, setUpdates] = useState<SpaceUpdate[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleCardClick = (updateId: number) => {
+  useEffect(() => {
+    fetchSpaceAndUpdates();
+  }, [spaceId]);
+
+  const fetchSpaceAndUpdates = async () => {
+    if (!spaceId) return;
+    
+    setLoading(true);
+    
+    // Fetch space by slug
+    const { data: spaceData, error: spaceError } = await supabase
+      .from("spaces")
+      .select("*")
+      .eq("slug", spaceId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (spaceError || !spaceData) {
+      setLoading(false);
+      return;
+    }
+
+    setSpace(spaceData);
+
+    // Fetch published updates for this space
+    const { data: updatesData, error: updatesError } = await supabase
+      .from("space_updates")
+      .select("id, title, content, thumbnail_url, media_type, published_at, created_at")
+      .eq("space_id", spaceData.id)
+      .eq("is_published", true)
+      .order("published_at", { ascending: false });
+
+    if (!updatesError && updatesData) {
+      // Fetch likes and comments count for each update
+      const updatesWithCounts = await Promise.all(
+        updatesData.map(async (update) => {
+          const [likesResult, commentsResult] = await Promise.all([
+            supabase.from("update_likes").select("id", { count: "exact", head: true }).eq("update_id", update.id),
+            supabase.from("update_comments").select("id", { count: "exact", head: true }).eq("update_id", update.id),
+          ]);
+          
+          return {
+            ...update,
+            likes_count: likesResult.count || 0,
+            comments_count: commentsResult.count || 0,
+          };
+        })
+      );
+      
+      setUpdates(updatesWithCounts);
+    }
+
+    setLoading(false);
+  };
+
+  const handleCardClick = (updateId: string) => {
     navigate(`/spaces/${spaceId}/post/${updateId}`);
   };
+
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return "";
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: ptBR });
+  };
+
+  const estimateReadTime = (content: string | null): string => {
+    if (!content) return "1 min";
+    const words = content.split(/\s+/).length;
+    const minutes = Math.ceil(words / 200);
+    return `${minutes} min`;
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="max-w-lg mx-auto px-4 pt-4">
+          <div className="flex items-center gap-3 mb-6">
+            <Skeleton className="w-10 h-10 rounded-xl" />
+            <div>
+              <Skeleton className="h-5 w-40 mb-1" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Skeleton className="h-5 w-full mb-2" />
+                      <Skeleton className="h-4 w-3/4 mb-2" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                    <Skeleton className="w-20 h-20 rounded-lg" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!space) {
+    return (
+      <AppLayout>
+        <div className="max-w-lg mx-auto px-4 pt-4 text-center">
+          <p className="text-muted-foreground">Espaço não encontrado</p>
+          <Link to="/spaces" className="text-primary mt-2 inline-block">
+            Voltar para espaços
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const SpaceIcon = getIconComponent(space.icon);
 
   return (
     <AppLayout>
@@ -111,76 +181,88 @@ export default function SpaceDetail() {
             <SpaceIcon className="w-5 h-5 text-background" weight="bold" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">{spaceName}</h1>
-            <p className="text-xs text-muted-foreground">{mockUpdates.length} atualizações</p>
+            <h1 className="text-lg font-bold">{space.name}</h1>
+            <p className="text-xs text-muted-foreground">{updates.length} atualizações</p>
           </div>
         </motion.div>
 
         {/* Updates Feed */}
-        <div className="space-y-4">
-          {mockUpdates.map((update, index) => (
-            <motion.div
-              key={update.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <Card 
-                className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer active:scale-[0.98]"
-                onClick={() => handleCardClick(update.id)}
+        {updates.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Nenhuma publicação ainda</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {updates.map((update, index) => (
+              <motion.div
+                key={update.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
               >
-                <CardContent className="p-4">
-                  <div className="flex gap-3">
-                    {/* Conteúdo à esquerda */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold leading-snug line-clamp-2">
-                        {update.title}
-                      </h3>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {update.time}
-                        </span>
-                        <span>{update.readTime} de leitura</span>
+                <Card 
+                  className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer active:scale-[0.98]"
+                  onClick={() => handleCardClick(update.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex gap-3">
+                      {/* Conteúdo à esquerda */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold leading-snug line-clamp-2">
+                          {update.title}
+                        </h3>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTime(update.published_at || update.created_at)}
+                          </span>
+                          <span>{estimateReadTime(update.content)} de leitura</span>
+                        </div>
+                        {/* Botões de interação */}
+                        <div className="flex items-center gap-4 mt-3">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="gap-1.5 h-8 px-2 text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Heart className="w-4 h-4" weight="regular" />
+                            <span className="text-xs">{update.likes_count}</span>
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="gap-1.5 h-8 px-2 text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ChatCircle className="w-4 h-4" />
+                            <span className="text-xs">{update.comments_count}</span>
+                          </Button>
+                        </div>
                       </div>
-                      {/* Botões de interação */}
-                      <div className="flex items-center gap-4 mt-3">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className={`gap-1.5 h-8 px-2 ${update.liked ? "text-red-500" : "text-muted-foreground"}`}
-                        >
-                          <Heart className="w-4 h-4" weight={update.liked ? "fill" : "regular"} />
-                          <span className="text-xs">{update.likes_count}</span>
-                        </Button>
-                        <Button variant="ghost" size="sm" className="gap-1.5 h-8 px-2 text-muted-foreground">
-                          <ChatCircle className="w-4 h-4" />
-                          <span className="text-xs">{update.comments_count}</span>
-                        </Button>
-                      </div>
+                      
+                      {/* Miniatura à direita */}
+                      {update.thumbnail_url && (
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                          <img 
+                            src={update.thumbnail_url} 
+                            alt="" 
+                            className="w-full h-full object-cover"
+                          />
+                          {update.media_type === 'video' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                              <PlayCircle className="w-8 h-8 text-white" weight="fill" />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Miniatura à direita */}
-                    {update.thumbnail_url && (
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
-                        <img 
-                          src={update.thumbnail_url} 
-                          alt="" 
-                          className="w-full h-full object-cover"
-                        />
-                        {update.media_type === 'video' && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                            <PlayCircle className="w-8 h-8 text-white" weight="fill" />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );
