@@ -13,6 +13,8 @@ import Spaces from "./pages/Spaces";
 import SpaceDetail from "./pages/SpaceDetail";
 import PostDetail from "./pages/PostDetail";
 import Channels from "./pages/Channels";
+import ChannelDetail from "./pages/ChannelDetail";
+import ChannelPostDetail from "./pages/ChannelPostDetail";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -53,6 +55,8 @@ const App = () => (
           <Route path="/spaces/:spaceId" element={<SpaceDetail />} />
           <Route path="/spaces/:spaceId/post/:postId" element={<PostDetail />} />
           <Route path="/channels" element={<Channels />} />
+          <Route path="/channels/:channelId" element={<ChannelDetail />} />
+          <Route path="/channels/:channelId/post/:postId" element={<ChannelPostDetail />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/setup-admin" element={<SetupAdmin />} />
