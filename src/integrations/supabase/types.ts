@@ -38,6 +38,109 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_post_comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_post_comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "channel_post_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_post_comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          parent_id: string | null
+          post_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          parent_id?: string | null
+          post_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          parent_id?: string | null
+          post_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_post_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "channel_post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "channel_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_post_likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "channel_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_posts: {
         Row: {
           author_id: string | null
@@ -47,6 +150,7 @@ export type Database = {
           id: string
           is_moderated: boolean
           is_reported: boolean
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -57,6 +161,7 @@ export type Database = {
           id?: string
           is_moderated?: boolean
           is_reported?: boolean
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -67,6 +172,7 @@ export type Database = {
           id?: string
           is_moderated?: boolean
           is_reported?: boolean
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -81,29 +187,41 @@ export type Database = {
       }
       channels: {
         Row: {
+          access_type: string
           created_at: string
           description: string | null
+          icon: string | null
           id: string
           is_active: boolean
           name: string
+          required_plan: string | null
+          slug: string | null
           sort_order: number | null
           updated_at: string
         }
         Insert: {
+          access_type?: string
           created_at?: string
           description?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean
           name: string
+          required_plan?: string | null
+          slug?: string | null
           sort_order?: number | null
           updated_at?: string
         }
         Update: {
+          access_type?: string
           created_at?: string
           description?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          required_plan?: string | null
+          slug?: string | null
           sort_order?: number | null
           updated_at?: string
         }
@@ -519,6 +637,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_channel: {
+        Args: { _channel_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_any_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {
