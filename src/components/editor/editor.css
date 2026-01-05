@@ -1,0 +1,161 @@
+/* Rich Text Editor Styles */
+
+.tiptap-editor {
+  @apply prose prose-sm dark:prose-invert max-w-none;
+  @apply min-h-[200px] p-4 focus:outline-none;
+}
+
+.tiptap-editor:focus {
+  @apply outline-none;
+}
+
+.tiptap-editor p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground pointer-events-none float-left h-0;
+  content: attr(data-placeholder);
+}
+
+.tiptap-editor p {
+  @apply my-2;
+}
+
+.tiptap-editor h1 {
+  @apply text-2xl font-bold mt-6 mb-4;
+}
+
+.tiptap-editor h2 {
+  @apply text-xl font-bold mt-5 mb-3;
+}
+
+.tiptap-editor h3 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+
+.tiptap-editor ul {
+  @apply list-disc pl-6 my-3;
+}
+
+.tiptap-editor ol {
+  @apply list-decimal pl-6 my-3;
+}
+
+.tiptap-editor li {
+  @apply my-1;
+}
+
+.tiptap-editor blockquote {
+  @apply border-l-4 border-muted-foreground pl-4 italic my-4 text-muted-foreground;
+}
+
+.tiptap-editor code {
+  @apply bg-secondary px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.tiptap-editor pre {
+  @apply bg-secondary p-4 rounded-lg my-4 overflow-x-auto;
+}
+
+.tiptap-editor pre code {
+  @apply bg-transparent p-0;
+}
+
+.tiptap-editor a {
+  @apply text-primary underline underline-offset-2 hover:opacity-80 transition-opacity;
+}
+
+.tiptap-editor img {
+  @apply max-w-full h-auto rounded-lg my-4;
+}
+
+.tiptap-editor hr {
+  @apply border-border my-6;
+}
+
+.tiptap-editor strong {
+  @apply font-bold;
+}
+
+.tiptap-editor em {
+  @apply italic;
+}
+
+.tiptap-editor u {
+  @apply underline;
+}
+
+.tiptap-editor mark {
+  @apply bg-yellow-500/30 px-1 rounded;
+}
+
+/* YouTube Embed */
+.tiptap-editor iframe {
+  @apply w-full aspect-video rounded-lg my-4;
+}
+
+/* Selection styles */
+.tiptap-editor ::selection {
+  @apply bg-primary/20;
+}
+
+/* Editor toolbar */
+.editor-toolbar {
+  @apply flex flex-wrap items-center gap-1 p-2 border-b border-border bg-card/50;
+}
+
+.editor-toolbar-button {
+  @apply p-2 rounded-md hover:bg-secondary transition-colors;
+}
+
+.editor-toolbar-button.is-active {
+  @apply bg-secondary text-foreground;
+}
+
+.editor-toolbar-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.editor-toolbar-separator {
+  @apply w-px h-6 bg-border mx-1;
+}
+
+/* Color picker */
+.color-picker-trigger {
+  @apply relative p-2 rounded-md hover:bg-secondary transition-colors;
+}
+
+.color-picker-indicator {
+  @apply absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 rounded-full;
+}
+
+/* Media preview cards */
+.media-preview-card {
+  @apply relative group rounded-lg overflow-hidden bg-secondary;
+}
+
+.media-preview-card:hover .media-preview-overlay {
+  @apply opacity-100;
+}
+
+.media-preview-overlay {
+  @apply absolute inset-0 bg-black/50 opacity-0 transition-opacity flex items-center justify-center gap-2;
+}
+
+/* Post content display */
+.post-content {
+  @apply prose prose-sm dark:prose-invert max-w-none;
+}
+
+.post-content p {
+  @apply my-2;
+}
+
+.post-content img {
+  @apply max-w-full h-auto rounded-lg;
+}
+
+.post-content a {
+  @apply text-primary underline;
+}
+
+.post-content iframe {
+  @apply w-full aspect-video rounded-lg;
+}

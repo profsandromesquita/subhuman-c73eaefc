@@ -14,6 +14,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { MediaGallery } from "@/components/post/MediaGallery";
+import DOMPurify from "dompurify";
 
 interface Post {
   id: string;
@@ -46,6 +48,7 @@ export default function ChannelPostDetail() {
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   
   const [post, setPost] = useState<Post | null>(null);
+  const [media, setMedia] = useState<any[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [likesCount, setLikesCount] = useState(0);
@@ -57,6 +60,7 @@ export default function ChannelPostDetail() {
   useEffect(() => {
     if (postId) {
       fetchPost();
+      fetchMedia();
       fetchComments();
       checkUserLiked();
     }
@@ -113,6 +117,18 @@ export default function ChannelPostDetail() {
     });
 
     setLoading(false);
+  };
+
+  const fetchMedia = async () => {
+    const { data, error } = await supabase
+      .from('channel_post_media')
+      .select('*')
+      .eq('post_id', postId)
+      .order('sort_order', { ascending: true });
+
+    if (!error && data) {
+      setMedia(data);
+    }
   };
 
   const fetchComments = async () => {
@@ -429,9 +445,17 @@ export default function ChannelPostDetail() {
           {post.title && (
             <h1 className="text-xl font-bold mb-3">{post.title}</h1>
           )}
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p className="whitespace-pre-wrap">{post.content}</p>
-          </div>
+          <div 
+            className="prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+          />
+
+          {/* Media Gallery */}
+          {media.length > 0 && (
+            <div className="mt-6">
+              <MediaGallery media={media} />
+            </div>
+          )}
 
           {/* Engagement */}
           <div className="flex items-center gap-4 mt-6 pt-4 border-t">

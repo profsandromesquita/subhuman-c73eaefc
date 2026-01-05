@@ -15,6 +15,7 @@ import PostDetail from "./pages/PostDetail";
 import Channels from "./pages/Channels";
 import ChannelDetail from "./pages/ChannelDetail";
 import ChannelPostDetail from "./pages/ChannelPostDetail";
+import CreateChannelPost from "./pages/CreateChannelPost";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/spaces/:spaceId/post/:postId" element={<PostDetail />} />
           <Route path="/channels" element={<Channels />} />
           <Route path="/channels/:channelId" element={<ChannelDetail />} />
+          <Route path="/channels/:channelId/new-post" element={<CreateChannelPost />} />
           <Route path="/channels/:channelId/post/:postId" element={<ChannelPostDetail />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />

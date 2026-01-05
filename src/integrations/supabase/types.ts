@@ -141,6 +141,53 @@ export type Database = {
           },
         ]
       }
+      channel_post_media: {
+        Row: {
+          created_at: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string
+          file_url: string
+          id: string
+          mime_type: string | null
+          post_id: string | null
+          sort_order: number | null
+          youtube_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type: string
+          file_url: string
+          id?: string
+          mime_type?: string | null
+          post_id?: string | null
+          sort_order?: number | null
+          youtube_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string
+          file_url?: string
+          id?: string
+          mime_type?: string | null
+          post_id?: string | null
+          sort_order?: number | null
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_post_media_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "channel_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_posts: {
         Row: {
           author_id: string | null
