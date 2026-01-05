@@ -7,9 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, 
   Heart, 
@@ -71,10 +68,6 @@ export default function ChannelDetail() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [membersCount, setMembersCount] = useState(0);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newPostTitle, setNewPostTitle] = useState("");
-  const [newPostContent, setNewPostContent] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (channelId) {
@@ -192,40 +185,8 @@ export default function ChannelDetail() {
     }
   };
 
-  const handleCreatePost = async () => {
-    if (!user) {
-      toast.error("Você precisa estar logado para publicar");
-      return;
-    }
-
-    if (!newPostContent.trim()) {
-      toast.error("Escreva algo para publicar");
-      return;
-    }
-
-    setSubmitting(true);
-
-    const { error } = await supabase
-      .from('channel_posts')
-      .insert({
-        channel_id: channelId,
-        author_id: user.id,
-        title: newPostTitle.trim() || null,
-        content: newPostContent.trim(),
-      } as any);
-
-    if (error) {
-      console.error('Error creating post:', error);
-      toast.error("Erro ao criar publicação");
-    } else {
-      toast.success("Publicação criada!");
-      setNewPostTitle("");
-      setNewPostContent("");
-      setIsDialogOpen(false);
-      fetchPosts();
-    }
-
-    setSubmitting(false);
+  const handleNavigateToCreatePost = () => {
+    navigate(`/channels/${channelId}/new-post`);
   };
 
   const handleLikePost = async (postId: string, isLiked: boolean) => {
@@ -383,39 +344,10 @@ export default function ChannelDetail() {
           </div>
           
           {user && hasAccess && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-1.5">
-                  <Plus className="w-4 h-4" weight="bold" />
-                  Publicar
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nova Publicação</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <Input
-                    placeholder="Título (opcional)"
-                    value={newPostTitle}
-                    onChange={(e) => setNewPostTitle(e.target.value)}
-                  />
-                  <Textarea
-                    placeholder="Escreva sua publicação..."
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    rows={5}
-                  />
-                  <Button 
-                    className="w-full" 
-                    onClick={handleCreatePost}
-                    disabled={submitting || !newPostContent.trim()}
-                  >
-                    {submitting ? "Publicando..." : "Publicar"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" className="gap-1.5" onClick={handleNavigateToCreatePost}>
+              <Plus className="w-4 h-4" weight="bold" />
+              Publicar
+            </Button>
           )}
         </div>
 
@@ -469,7 +401,7 @@ export default function ChannelDetail() {
                           <h3 className="font-semibold mb-1 line-clamp-2">{post.title}</h3>
                         )}
                         <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                          {post.content}
+                          {post.content.replace(/<[^>]*>/g, '')}
                         </p>
 
                         {/* Actions */}
