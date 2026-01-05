@@ -1,81 +1,69 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Brain, 
-  Megaphone, 
-  Code, 
-  FilmStrip, 
-  Heart,
-  ArrowRight,
-  Check,
-  IconProps
-} from "@phosphor-icons/react";
+import { ArrowRight, Check } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
-import { useState, ForwardRefExoticComponent, RefAttributes } from "react";
-
-type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
+import { supabase } from "@/integrations/supabase/client";
+import { getIconComponent } from "@/components/admin/IconPicker";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Space {
   id: string;
+  slug: string;
   name: string;
-  icon: PhosphorIcon;
-  updates: number;
-  description: string;
-  subscribed: boolean;
+  description: string | null;
+  icon: string | null;
+  is_active: boolean;
 }
 
-const spaces: Space[] = [
-  { 
-    id: "produtividade", 
-    name: "Produtividade Pessoal", 
-    icon: Brain, 
-    updates: 12,
-    description: "Ferramentas de IA para organização, foco e eficiência pessoal",
-    subscribed: true,
-  },
-  { 
-    id: "marketing", 
-    name: "Marketing e Vendas", 
-    icon: Megaphone, 
-    updates: 8,
-    description: "IA aplicada a estratégias de marketing digital e vendas",
-    subscribed: true,
-  },
-  { 
-    id: "programacao", 
-    name: "Programação e Automação", 
-    icon: Code, 
-    updates: 15,
-    description: "Desenvolvimento assistido por IA, copilots e automações",
-    subscribed: true,
-  },
-  { 
-    id: "audiovisual", 
-    name: "Audiovisual", 
-    icon: FilmStrip, 
-    updates: 6,
-    description: "Geração de imagens, vídeos e áudio com inteligência artificial",
-    subscribed: false,
-  },
-  { 
-    id: "estilo-vida", 
-    name: "Estilo de Vida", 
-    icon: Heart, 
-    updates: 4,
-    description: "IA no cotidiano: saúde, finanças, relacionamentos",
-    subscribed: false,
-  },
-];
-
 export default function Spaces() {
-  const [subscriptions, setSubscriptions] = useState(
-    spaces.reduce((acc, space) => ({ ...acc, [space.id]: space.subscribed }), {} as Record<string, boolean>)
-  );
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [subscriptions, setSubscriptions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetchSpaces();
+  }, []);
+
+  const fetchSpaces = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('spaces')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setSpaces(data || []);
+    } catch (error) {
+      console.error('Error fetching spaces:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleSubscription = (id: string) => {
     setSubscriptions((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="max-w-lg mx-auto px-4 pt-8">
+          <div className="mb-6">
+            <Skeleton className="h-8 w-32 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-40 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -95,7 +83,8 @@ export default function Spaces() {
         {/* Spaces List */}
         <div className="space-y-3">
           {spaces.map((space, index) => {
-            const isSubscribed = subscriptions[space.id];
+            const isSubscribed = subscriptions[space.id] || false;
+            const IconComponent = getIconComponent(space.icon);
             
             return (
               <motion.div
@@ -108,7 +97,7 @@ export default function Spaces() {
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <div className={`p-3 rounded-xl transition-colors ${isSubscribed ? 'bg-foreground' : 'bg-secondary'}`}>
-                        <space.icon className={`w-6 h-6 ${isSubscribed ? 'text-background' : 'text-foreground'}`} weight="bold" />
+                        <IconComponent className={`w-6 h-6 ${isSubscribed ? 'text-background' : 'text-foreground'}`} weight="bold" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
@@ -130,12 +119,9 @@ export default function Spaces() {
                           </button>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                          {space.description}
+                          {space.description || 'Sem descrição'}
                         </p>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">
-                            {space.updates} atualizações esta semana
-                          </span>
                           {isSubscribed && (
                             <span className="text-xs text-foreground bg-secondary px-2 py-0.5 rounded">
                               Inscrito
@@ -147,7 +133,7 @@ export default function Spaces() {
                     
                     {/* View Space Link */}
                     <Link
-                      to={`/spaces/${space.id}`}
+                      to={`/spaces/${space.slug}`}
                       className="mt-3 pt-3 border-t border-border flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <span>Ver atualizações</span>
@@ -158,6 +144,12 @@ export default function Spaces() {
               </motion.div>
             );
           })}
+
+          {spaces.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              Nenhum espaço disponível no momento
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
