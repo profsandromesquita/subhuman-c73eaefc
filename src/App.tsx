@@ -15,6 +15,7 @@ import Channels from "./pages/Channels";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import SetupAdmin from "./pages/SetupAdmin";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/channels" element={<Channels />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/setup-admin" element={<SetupAdmin />} />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
