@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useParams, useNavigate } from "react-router-dom";
 import { PostHeader } from "@/components/post/PostHeader";
 import { PostContent } from "@/components/post/PostContent";
 import { PostEngagement } from "@/components/post/PostEngagement";
@@ -10,88 +9,182 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-// Mock data for demo - will be replaced with real data
-const mockPost = {
-  id: "1",
-  title: "Claude 3.5 Sonnet: O novo benchmark de performance em IA",
-  content: `A Anthropic acaba de lançar o Claude 3.5 Sonnet, e os resultados são impressionantes. Este novo modelo estabelece novos padrões em praticamente todos os benchmarks de IA.
+interface Post {
+  id: string;
+  title: string;
+  content: string | null;
+  thumbnail_url: string | null;
+  media_type: string | null;
+  published_at: string | null;
+  created_at: string;
+  space: {
+    name: string;
+    slug: string;
+  };
+}
 
-O que mais me chamou atenção foi a velocidade. O Sonnet é significativamente mais rápido que o Opus, mantendo qualidade comparável em muitas tarefas. Isso significa que você pode usar um modelo de alta qualidade sem sacrificar a experiência do usuário.
-
-Em termos de código, o Claude 3.5 Sonnet demonstra capacidades excepcionais. Ele consegue entender contextos complexos, sugerir refatorações inteligentes e até identificar bugs sutis que poderiam passar despercebidos.
-
-A janela de contexto de 200K tokens também é um diferencial importante. Isso permite trabalhar com projetos maiores, analisar documentos extensos e manter conversas mais longas sem perder o fio da meada.
-
-Para desenvolvedores que trabalham com IA no dia a dia, essa atualização representa um salto significativo em produtividade e qualidade de output.`,
-  thumbnail_url: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200&h=675&fit=crop",
-  media_type: "image",
-  space_name: "Produtividade Pessoal",
-  space_slug: "produtividade",
-  author_name: "Admin",
-  published_at: "2 horas atrás",
-  read_time: "3 min de leitura",
-  likes_count: 42,
-  comments_count: 8,
-};
-
-const mockComments = [
-  {
-    id: "c1",
-    content: "Excelente análise! Estou usando o Claude 3.5 Sonnet há uma semana e realmente a diferença de velocidade é notável.",
-    authorName: "João Silva",
-    createdAt: "1h",
-    likesCount: 5,
-    isLiked: false,
-    replies: [
-      {
-        id: "r1",
-        content: "Concordo! A velocidade é impressionante mesmo.",
-        authorName: "Maria Santos",
-        createdAt: "45min",
-        likesCount: 2,
-        isLiked: true,
-      },
-    ],
-  },
-  {
-    id: "c2",
-    content: "Como fica a comparação com o GPT-4? Alguém já testou os dois lado a lado?",
-    authorName: "Pedro Costa",
-    createdAt: "2h",
-    likesCount: 3,
-    isLiked: false,
-    replies: [],
-  },
-  {
-    id: "c3",
-    content: "A janela de 200K tokens é game changer para quem trabalha com documentação técnica extensa.",
-    authorName: "Ana Oliveira",
-    createdAt: "3h",
-    likesCount: 8,
-    isLiked: true,
-    replies: [],
-  },
-];
+interface Comment {
+  id: string;
+  content: string;
+  authorName: string;
+  createdAt: string;
+  likesCount: number;
+  isLiked: boolean;
+  replies: Comment[];
+}
 
 export default function PostDetail() {
   const { spaceId, postId } = useParams<{ spaceId: string; postId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const commentSectionRef = useRef<HTMLDivElement>(null);
   
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [post, setPost] = useState<Post | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [likesCount, setLikesCount] = useState(mockPost.likes_count);
-  const [comments, setComments] = useState(mockComments);
+  const [likesCount, setLikesCount] = useState(0);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
 
-  // Check if user has liked/saved this post
+  useEffect(() => {
+    if (postId) {
+      fetchPostData();
+    }
+  }, [postId]);
+
   useEffect(() => {
     if (user && postId) {
       checkUserInteractions();
     }
   }, [user, postId]);
+
+  const fetchPostData = async () => {
+    if (!postId) return;
+    
+    setIsLoading(true);
+
+    // Fetch post with space info
+    const { data: postData, error: postError } = await supabase
+      .from("space_updates")
+      .select(`
+        id,
+        title,
+        content,
+        thumbnail_url,
+        media_type,
+        published_at,
+        created_at,
+        spaces (
+          name,
+          slug
+        )
+      `)
+      .eq("id", postId)
+      .eq("is_published", true)
+      .maybeSingle();
+
+    if (postError || !postData) {
+      setIsLoading(false);
+      return;
+    }
+
+    setPost({
+      ...postData,
+      space: postData.spaces as { name: string; slug: string },
+    });
+
+    // Fetch likes count
+    const { count: likesCountResult } = await supabase
+      .from("update_likes")
+      .select("id", { count: "exact", head: true })
+      .eq("update_id", postId);
+    
+    setLikesCount(likesCountResult || 0);
+
+    // Fetch comments with profiles
+    await fetchComments();
+
+    setIsLoading(false);
+  };
+
+  const fetchComments = async () => {
+    if (!postId) return;
+
+    // Fetch all comments for this post
+    const { data: commentsData, error } = await supabase
+      .from("update_comments")
+      .select(`
+        id,
+        content,
+        user_id,
+        parent_id,
+        created_at,
+        profiles (
+          full_name
+        )
+      `)
+      .eq("update_id", postId)
+      .order("created_at", { ascending: false });
+
+    if (error || !commentsData) return;
+
+    // Get liked comments by current user
+    let likedCommentIds: string[] = [];
+    if (user) {
+      const { data: likedData } = await supabase
+        .from("comment_likes")
+        .select("comment_id")
+        .eq("user_id", user.id);
+      
+      likedCommentIds = likedData?.map(l => l.comment_id) || [];
+    }
+
+    // Get likes count for each comment
+    const commentsWithLikes = await Promise.all(
+      commentsData.map(async (comment) => {
+        const { count } = await supabase
+          .from("comment_likes")
+          .select("id", { count: "exact", head: true })
+          .eq("comment_id", comment.id);
+        
+        return {
+          id: comment.id,
+          content: comment.content,
+          authorName: (comment.profiles as any)?.full_name || "Usuário",
+          createdAt: formatDistanceToNow(new Date(comment.created_at), { addSuffix: false, locale: ptBR }),
+          likesCount: count || 0,
+          isLiked: likedCommentIds.includes(comment.id),
+          parentId: comment.parent_id,
+          replies: [] as Comment[],
+        };
+      })
+    );
+
+    // Organize into parent/reply structure
+    const parentComments: Comment[] = [];
+    const replyMap = new Map<string, Comment[]>();
+
+    commentsWithLikes.forEach((comment) => {
+      if (comment.parentId) {
+        const existing = replyMap.get(comment.parentId) || [];
+        existing.push({ ...comment, replies: [] });
+        replyMap.set(comment.parentId, existing);
+      } else {
+        parentComments.push(comment);
+      }
+    });
+
+    // Attach replies to parents
+    parentComments.forEach((parent) => {
+      parent.replies = replyMap.get(parent.id) || [];
+    });
+
+    setComments(parentComments);
+  };
 
   const checkUserInteractions = async () => {
     if (!user || !postId) return;
@@ -199,7 +292,7 @@ export default function PostDetail() {
     commentSectionRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleLikeComment = (commentId: string) => {
+  const handleLikeComment = async (commentId: string) => {
     if (!user) {
       toast({
         title: "Faça login",
@@ -209,6 +302,20 @@ export default function PostDetail() {
       return;
     }
 
+    // Find the comment to check if it's liked
+    let isCurrentlyLiked = false;
+    comments.forEach(comment => {
+      if (comment.id === commentId) {
+        isCurrentlyLiked = comment.isLiked;
+      }
+      comment.replies.forEach(reply => {
+        if (reply.id === commentId) {
+          isCurrentlyLiked = reply.isLiked;
+        }
+      });
+    });
+
+    // Optimistic update
     setComments(prev => 
       prev.map(comment => {
         if (comment.id === commentId) {
@@ -218,7 +325,6 @@ export default function PostDetail() {
             likesCount: comment.isLiked ? comment.likesCount - 1 : comment.likesCount + 1,
           };
         }
-        // Check replies
         return {
           ...comment,
           replies: comment.replies.map(reply => 
@@ -233,13 +339,30 @@ export default function PostDetail() {
         };
       })
     );
+
+    try {
+      if (isCurrentlyLiked) {
+        await supabase
+          .from("comment_likes")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", user.id);
+      } else {
+        await supabase
+          .from("comment_likes")
+          .insert({ comment_id: commentId, user_id: user.id });
+      }
+    } catch (error) {
+      // Rollback - refetch comments
+      await fetchComments();
+    }
   };
 
   const handleReplyComment = (commentId: string, authorName: string) => {
     setReplyTo({ id: commentId, authorName });
   };
 
-  const handleSubmitComment = (content: string, parentId?: string) => {
+  const handleSubmitComment = async (content: string, parentId?: string) => {
     if (!user) {
       toast({
         title: "Faça login",
@@ -249,34 +372,44 @@ export default function PostDetail() {
       return;
     }
 
-    const newComment = {
-      id: `temp-${Date.now()}`,
-      content,
-      authorName: user.email?.split("@")[0] || "Usuário",
-      createdAt: "agora",
-      likesCount: 0,
-      isLiked: false,
-      replies: [],
-    };
+    try {
+      const { error } = await supabase
+        .from("update_comments")
+        .insert({
+          update_id: postId,
+          user_id: user.id,
+          content,
+          parent_id: parentId || null,
+        });
 
-    if (parentId) {
-      // Add as reply
-      setComments(prev =>
-        prev.map(comment =>
-          comment.id === parentId
-            ? { ...comment, replies: [...comment.replies, { ...newComment, replies: undefined } as any] }
-            : comment
-        )
-      );
+      if (error) throw error;
+
+      // Refresh comments
+      await fetchComments();
       setReplyTo(null);
-    } else {
-      // Add as new comment
-      setComments(prev => [newComment, ...prev]);
-    }
 
-    toast({
-      title: "Comentário enviado!",
-    });
+      toast({
+        title: "Comentário enviado!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível enviar o comentário",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return "";
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: ptBR });
+  };
+
+  const estimateReadTime = (content: string | null): string => {
+    if (!content) return "1 min de leitura";
+    const words = content.split(/\s+/).length;
+    const minutes = Math.ceil(words / 200);
+    return `${minutes} min de leitura`;
   };
 
   if (isLoading) {
@@ -292,29 +425,45 @@ export default function PostDetail() {
     );
   }
 
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Post não encontrado</p>
+          <button 
+            onClick={() => navigate(`/spaces/${spaceId}`)}
+            className="text-primary"
+          >
+            Voltar para o espaço
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <PostHeader
         isSaved={isSaved}
         onSaveToggle={handleSaveToggle}
-        title={mockPost.title}
+        title={post.title}
       />
 
       <PostContent
-        title={mockPost.title}
-        content={mockPost.content}
-        thumbnailUrl={mockPost.thumbnail_url}
-        mediaType={mockPost.media_type}
-        spaceName={mockPost.space_name}
-        spaceSlug={mockPost.space_slug}
-        authorName={mockPost.author_name}
-        publishedAt={mockPost.published_at}
-        readTime={mockPost.read_time}
+        title={post.title}
+        content={post.content || ""}
+        thumbnailUrl={post.thumbnail_url}
+        mediaType={post.media_type}
+        spaceName={post.space.name}
+        spaceSlug={post.space.slug}
+        authorName="Admin"
+        publishedAt={formatTime(post.published_at || post.created_at)}
+        readTime={estimateReadTime(post.content)}
       />
 
       <PostEngagement
         likesCount={likesCount}
-        commentsCount={comments.length}
+        commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
         isLiked={isLiked}
         onLikeToggle={handleLikeToggle}
         onCommentClick={handleCommentClick}
