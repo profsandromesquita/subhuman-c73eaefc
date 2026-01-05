@@ -48,28 +48,33 @@ export default function Channels() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [planLoaded, setPlanLoaded] = useState(false);
 
   useEffect(() => {
-    fetchChannels();
-    if (user) {
-      fetchUserPlan();
-    }
+    const loadUserPlan = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('subscriptions')
+          .select('plan_type')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        setUserPlan(data?.plan_type || null);
+      }
+      setPlanLoaded(true);
+    };
+    
+    loadUserPlan();
   }, [user]);
 
-  const fetchUserPlan = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('plan_type')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    setUserPlan(data?.plan_type || null);
-  };
+  useEffect(() => {
+    if (planLoaded) {
+      fetchChannels();
+    }
+  }, [planLoaded, userPlan]);
 
   const fetchChannels = async () => {
     setLoading(true);
