@@ -3,11 +3,15 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
   Bell, 
-  TrendingUp, 
-  MessageSquare, 
+  TrendUp, 
+  ChatCircle, 
   Megaphone,
-  Check
-} from "lucide-react";
+  Check,
+  IconProps
+} from "@phosphor-icons/react";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
+
+type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
 
 const notifications = [
   {
@@ -44,11 +48,11 @@ const notifications = [
   },
 ];
 
-const iconMap = {
+const iconMap: Record<string, PhosphorIcon> = {
   update: Bell,
-  channel: MessageSquare,
+  channel: ChatCircle,
   announcement: Megaphone,
-  trending: TrendingUp,
+  trending: TrendUp,
 };
 
 export default function Notifications() {
@@ -68,7 +72,7 @@ export default function Notifications() {
             </p>
           </div>
           <button className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-            <Check className="w-4 h-4" />
+            <Check className="w-4 h-4" weight="bold" />
             Marcar todas
           </button>
         </motion.div>
@@ -76,7 +80,7 @@ export default function Notifications() {
         {/* Notifications List */}
         <div className="space-y-3">
           {notifications.map((notification, index) => {
-            const Icon = iconMap[notification.type as keyof typeof iconMap];
+            const Icon = iconMap[notification.type];
             
             return (
               <motion.div
@@ -93,7 +97,7 @@ export default function Notifications() {
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded-lg ${!notification.read ? 'bg-foreground' : 'bg-secondary'}`}>
-                        <Icon className={`w-4 h-4 ${!notification.read ? 'text-background' : 'text-foreground'}`} />
+                        <Icon className={`w-4 h-4 ${!notification.read ? 'text-background' : 'text-foreground'}`} weight="bold" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className={`text-sm font-medium mb-0.5 ${notification.read ? 'text-muted-foreground' : ''}`}>

@@ -4,16 +4,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { 
   Brain, 
   Megaphone, 
-  Code2, 
-  Film, 
+  Code, 
+  FilmStrip, 
   Heart,
   ArrowRight,
-  Check
-} from "lucide-react";
+  Check,
+  IconProps
+} from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, ForwardRefExoticComponent, RefAttributes } from "react";
 
-const spaces = [
+type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
+
+interface Space {
+  id: string;
+  name: string;
+  icon: PhosphorIcon;
+  updates: number;
+  description: string;
+  subscribed: boolean;
+}
+
+const spaces: Space[] = [
   { 
     id: "produtividade", 
     name: "Produtividade Pessoal", 
@@ -33,7 +45,7 @@ const spaces = [
   { 
     id: "programacao", 
     name: "Programação e Automação", 
-    icon: Code2, 
+    icon: Code, 
     updates: 15,
     description: "Desenvolvimento assistido por IA, copilots e automações",
     subscribed: true,
@@ -41,7 +53,7 @@ const spaces = [
   { 
     id: "audiovisual", 
     name: "Audiovisual", 
-    icon: Film, 
+    icon: FilmStrip, 
     updates: 6,
     description: "Geração de imagens, vídeos e áudio com inteligência artificial",
     subscribed: false,
@@ -96,7 +108,7 @@ export default function Spaces() {
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <div className={`p-3 rounded-xl transition-colors ${isSubscribed ? 'bg-foreground' : 'bg-secondary'}`}>
-                        <space.icon className={`w-6 h-6 ${isSubscribed ? 'text-background' : 'text-foreground'}`} />
+                        <space.icon className={`w-6 h-6 ${isSubscribed ? 'text-background' : 'text-foreground'}`} weight="bold" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
@@ -111,7 +123,7 @@ export default function Spaces() {
                             }`}
                           >
                             {isSubscribed ? (
-                              <Check className="w-4 h-4" />
+                              <Check className="w-4 h-4" weight="bold" />
                             ) : (
                               <ArrowRight className="w-4 h-4" />
                             )}

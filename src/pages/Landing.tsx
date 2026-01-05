@@ -1,21 +1,24 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, Shield, Sparkles } from "lucide-react";
+import { ArrowRight, Lightning, ShieldCheck, Sparkle, IconProps } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
 
-const features = [
+type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
+
+const features: { icon: PhosphorIcon; title: string; description: string }[] = [
   {
-    icon: Zap,
+    icon: Lightning,
     title: "Atualizações em tempo real",
     description: "Receba as novidades de IA antes de todo mundo",
   },
   {
-    icon: Shield,
+    icon: ShieldCheck,
     title: "Conteúdo exclusivo",
     description: "Análises profundas e tutoriais práticos",
   },
   {
-    icon: Sparkles,
+    icon: Sparkle,
     title: "5 espaços temáticos",
     description: "Produtividade, Marketing, Dev, Audiovisual e mais",
   },
@@ -69,7 +72,7 @@ export default function Landing() {
           <Button asChild variant="glow" size="xl" className="flex-1">
             <Link to="/register">
               Começar agora
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-5 h-5" weight="bold" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="xl" className="flex-1">
@@ -93,7 +96,7 @@ export default function Landing() {
               className="flex items-start gap-4 p-4 rounded-xl bg-card border border-border hover:border-muted-foreground/30 transition-all duration-200"
             >
               <div className="p-2.5 rounded-lg bg-secondary">
-                <feature.icon className="w-5 h-5 text-foreground" />
+                <feature.icon className="w-5 h-5 text-foreground" weight="bold" />
               </div>
               <div>
                 <h3 className="font-semibold mb-0.5">{feature.title}</h3>

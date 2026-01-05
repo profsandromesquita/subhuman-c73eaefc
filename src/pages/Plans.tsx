@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft } from "lucide-react";
+import { Check, ArrowLeft } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -66,7 +66,7 @@ export default function Plans() {
             to="/register"
             className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" weight="bold" />
           </Link>
         </motion.div>
 
@@ -120,7 +120,7 @@ export default function Plans() {
                     }`}
                   >
                     {selectedPlan === plan.id && (
-                      <Check className="w-3 h-3 text-background" />
+                      <Check className="w-3 h-3 text-background" weight="bold" />
                     )}
                   </div>
                 </div>
@@ -136,7 +136,7 @@ export default function Plans() {
                       key={feature}
                       className="flex items-center gap-2 text-sm text-muted-foreground"
                     >
-                      <Check className="w-4 h-4 text-foreground" />
+                      <Check className="w-4 h-4 text-foreground" weight="bold" />
                       {feature}
                     </li>
                   ))}

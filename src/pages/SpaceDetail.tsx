@@ -5,22 +5,25 @@ import { Button } from "@/components/ui/button";
 import { 
   ArrowLeft, 
   Clock, 
-  Bookmark,
-  Share2,
+  BookmarkSimple,
+  ShareNetwork,
   Brain,
   Megaphone,
-  Code2,
-  Film,
+  Code,
+  FilmStrip,
   Heart,
-  LucideIcon
-} from "lucide-react";
+  IconProps
+} from "@phosphor-icons/react";
 import { Link, useParams } from "react-router-dom";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
 
-const spaceIcons: Record<string, LucideIcon> = {
+type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
+
+const spaceIcons: Record<string, PhosphorIcon> = {
   produtividade: Brain,
   marketing: Megaphone,
-  programacao: Code2,
-  audiovisual: Film,
+  programacao: Code,
+  audiovisual: FilmStrip,
   "estilo-vida": Heart,
 };
 
@@ -85,10 +88,10 @@ export default function SpaceDetail() {
             to="/spaces"
             className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" weight="bold" />
           </Link>
           <div className="p-2.5 rounded-xl bg-foreground">
-            <SpaceIcon className="w-5 h-5 text-background" />
+            <SpaceIcon className="w-5 h-5 text-background" weight="bold" />
           </div>
           <div>
             <h1 className="text-lg font-bold">{spaceName}</h1>
@@ -127,10 +130,10 @@ export default function SpaceDetail() {
                         size="icon-sm"
                         className={update.saved ? "text-foreground" : "text-muted-foreground"}
                       >
-                        <Bookmark className={`w-4 h-4 ${update.saved ? "fill-current" : ""}`} />
+                        <BookmarkSimple className={`w-4 h-4 ${update.saved ? "fill-current" : ""}`} weight={update.saved ? "fill" : "regular"} />
                       </Button>
                       <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-                        <Share2 className="w-4 h-4" />
+                        <ShareNetwork className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

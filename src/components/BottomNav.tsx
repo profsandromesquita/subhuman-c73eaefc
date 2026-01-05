@@ -1,12 +1,12 @@
-import { Home, Layers, MessageSquare, Bell, User } from "lucide-react";
+import { House, SquaresFour, ChatCircle, Bell, User } from "@phosphor-icons/react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 const navItems = [
-  { icon: Home, label: "Início", path: "/home" },
-  { icon: Layers, label: "Espaços", path: "/spaces" },
-  { icon: MessageSquare, label: "Canais", path: "/channels" },
+  { icon: House, label: "Início", path: "/home" },
+  { icon: SquaresFour, label: "Espaços", path: "/spaces" },
+  { icon: ChatCircle, label: "Canais", path: "/channels" },
   { icon: Bell, label: "Avisos", path: "/notifications" },
   { icon: User, label: "Perfil", path: "/profile" },
 ];
@@ -29,7 +29,7 @@ export function BottomNav() {
               )}
             >
               <div className="relative">
-                <item.icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 2} />
+                <item.icon className="w-5 h-5" weight={isActive ? "fill" : "regular"} />
                 {isActive && (
                   <motion.div
                     layoutId="nav-indicator"
