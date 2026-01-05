@@ -105,14 +105,27 @@ export default function SpaceDetail() {
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: ptBR });
+    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
+    // Shorten common phrases
+    return distance
+      .replace("cerca de ", "")
+      .replace(" horas", "h")
+      .replace(" hora", "h")
+      .replace(" minutos", "min")
+      .replace(" minuto", "min")
+      .replace(" dias", "d")
+      .replace(" dia", "d")
+      .replace(" semanas", "sem")
+      .replace(" semana", "sem")
+      .replace(" meses", "m")
+      .replace(" mês", "m");
   };
 
   const estimateReadTime = (content: string | null): string => {
-    if (!content) return "1 min";
+    if (!content) return "1min";
     const words = content.split(/\s+/).length;
     const minutes = Math.ceil(words / 200);
-    return `${minutes} min`;
+    return `${minutes}min`;
   };
 
   if (loading) {
@@ -208,36 +221,39 @@ export default function SpaceDetail() {
                     <div className="flex gap-3">
                       {/* Conteúdo à esquerda */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold leading-snug line-clamp-2">
+                        <h3 className="font-semibold leading-snug line-clamp-3">
                           {update.title}
                         </h3>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(update.published_at || update.created_at)}
-                          </span>
-                          <span>{estimateReadTime(update.content)} de leitura</span>
-                        </div>
-                        {/* Botões de interação */}
-                        <div className="flex items-center gap-4 mt-3">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="gap-1.5 h-8 px-2 text-muted-foreground"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Heart className="w-4 h-4" weight="regular" />
-                            <span className="text-xs">{update.likes_count}</span>
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="gap-1.5 h-8 px-2 text-muted-foreground"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ChatCircle className="w-4 h-4" />
-                            <span className="text-xs">{update.comments_count}</span>
-                          </Button>
+                        {/* Interações e tempo na mesma linha */}
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="flex items-center gap-3">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-1 h-7 px-1.5 text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Heart className="w-4 h-4" weight="regular" />
+                              <span className="text-xs">{update.likes_count}</span>
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-1 h-7 px-1.5 text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ChatCircle className="w-4 h-4" />
+                              <span className="text-xs">{update.comments_count}</span>
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(update.published_at || update.created_at)}
+                            </span>
+                            <span>·</span>
+                            <span>{estimateReadTime(update.content)}</span>
+                          </div>
                         </div>
                       </div>
                       
