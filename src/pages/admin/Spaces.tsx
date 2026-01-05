@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { IconPicker, getIconComponent } from '@/components/admin/IconPicker';
 
 interface Space {
   id: string;
@@ -166,10 +167,15 @@ export default function Spaces() {
     {
       key: 'icon',
       header: '',
-      render: (item: Space) => (
-        <span className="text-2xl">{item.icon || '📁'}</span>
-      ),
-      className: 'w-12'
+      render: (item: Space) => {
+        const IconComponent = getIconComponent(item.icon);
+        return (
+          <div className="p-2 bg-secondary rounded-lg w-fit">
+            <IconComponent className="w-5 h-5" weight="bold" />
+          </div>
+        );
+      },
+      className: 'w-16'
     },
     {
       key: 'name',
@@ -283,14 +289,11 @@ export default function Spaces() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">
-                    Ícone (emoji)
+                    Ícone
                   </label>
-                  <Input
+                  <IconPicker
                     value={formData.icon}
-                    onChange={(e) =>
-                      setFormData({ ...formData, icon: e.target.value })
-                    }
-                    placeholder="🚀"
+                    onChange={(value) => setFormData({ ...formData, icon: value })}
                   />
                 </div>
                 <div className="space-y-2">
