@@ -109,6 +109,35 @@ export type Database = {
         }
         Relationships: []
       }
+      comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "update_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -203,6 +232,35 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      saved_updates: {
+        Row: {
+          created_at: string | null
+          id: string
+          update_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          update_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          update_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_updates_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "space_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       space_updates: {
         Row: {
@@ -337,6 +395,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          parent_id: string | null
           update_id: string
           updated_at: string | null
           user_id: string
@@ -345,6 +404,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           update_id: string
           updated_at?: string | null
           user_id: string
@@ -353,11 +413,19 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           update_id?: string
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "update_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "update_comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "update_comments_update_id_fkey"
             columns: ["update_id"]

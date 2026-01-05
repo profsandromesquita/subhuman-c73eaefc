@@ -14,7 +14,7 @@ import {
   PlayCircle,
   IconProps
 } from "@phosphor-icons/react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { ForwardRefExoticComponent, RefAttributes } from "react";
 
 type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
@@ -84,8 +84,13 @@ const mockUpdates = [
 
 export default function SpaceDetail() {
   const { spaceId } = useParams<{ spaceId: string }>();
+  const navigate = useNavigate();
   const SpaceIcon = spaceIcons[spaceId || ""] || Brain;
   const spaceName = spaceNames[spaceId || ""] || "Espaço";
+
+  const handleCardClick = (updateId: number) => {
+    navigate(`/spaces/${spaceId}/post/${updateId}`);
+  };
 
   return (
     <AppLayout>
@@ -120,7 +125,10 @@ export default function SpaceDetail() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
             >
-              <Card className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer">
+              <Card 
+                className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer active:scale-[0.98]"
+                onClick={() => handleCardClick(update.id)}
+              >
                 <CardContent className="p-4">
                   <div className="flex gap-3">
                     {/* Conteúdo à esquerda */}
