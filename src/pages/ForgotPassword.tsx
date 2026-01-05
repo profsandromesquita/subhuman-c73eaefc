@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -40,7 +40,7 @@ export default function ForgotPassword() {
             to="/login"
             className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" weight="bold" />
           </Link>
         </motion.div>
 

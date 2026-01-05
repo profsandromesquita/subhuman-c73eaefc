@@ -3,17 +3,21 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
-  TrendingUp, 
+  TrendUp, 
   Clock, 
   ArrowRight,
-  Sparkles,
+  Sparkle,
   Brain,
   Megaphone,
-  Code2,
-  Film,
-  Heart
-} from "lucide-react";
+  Code,
+  FilmStrip,
+  Heart,
+  IconProps
+} from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
+
+type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
 
 const highlights = [
   {
@@ -39,11 +43,11 @@ const highlights = [
   },
 ];
 
-const spaces = [
+const spaces: { id: string; name: string; icon: PhosphorIcon; updates: number }[] = [
   { id: "produtividade", name: "Produtividade Pessoal", icon: Brain, updates: 12 },
   { id: "marketing", name: "Marketing e Vendas", icon: Megaphone, updates: 8 },
-  { id: "programacao", name: "Programação", icon: Code2, updates: 15 },
-  { id: "audiovisual", name: "Audiovisual", icon: Film, updates: 6 },
+  { id: "programacao", name: "Programação", icon: Code, updates: 15 },
+  { id: "audiovisual", name: "Audiovisual", icon: FilmStrip, updates: 6 },
   { id: "estilo-vida", name: "Estilo de Vida", icon: Heart, updates: 4 },
 ];
 
@@ -58,7 +62,7 @@ export default function Home() {
           className="mb-8"
         >
           <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="w-5 h-5 text-muted-foreground" />
+            <Sparkle className="w-5 h-5 text-muted-foreground" weight="fill" />
             <span className="text-sm text-muted-foreground">Olá, usuário</span>
           </div>
           <h1 className="text-2xl font-bold">Bom dia!</h1>
@@ -73,7 +77,7 @@ export default function Home() {
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
+              <TrendUp className="w-4 h-4" weight="bold" />
               Destaques do dia
             </h2>
             <Link
@@ -102,7 +106,7 @@ export default function Home() {
                           </span>
                           {item.trending && (
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />
+                              <TrendUp className="w-3 h-3" weight="bold" />
                               Em alta
                             </span>
                           )}
@@ -150,7 +154,7 @@ export default function Home() {
                   <Card className="hover:border-muted-foreground/30 transition-all duration-200 group">
                     <CardContent className="p-4">
                       <div className="p-2 rounded-lg bg-secondary w-fit mb-3 group-hover:bg-surface-hover transition-colors">
-                        <space.icon className="w-5 h-5" />
+                        <space.icon className="w-5 h-5" weight="bold" />
                       </div>
                       <h3 className="font-medium text-sm mb-1 leading-tight">
                         {space.name}

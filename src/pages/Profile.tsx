@@ -4,14 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   User as UserIcon, 
-  Settings, 
+  Gear, 
   CreditCard, 
   Bell, 
-  Shield,
-  ChevronRight,
-  LogOut,
+  ShieldCheck,
+  CaretRight,
+  SignOut,
   Crown
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -23,7 +23,7 @@ const menuItems = [
     path: "/profile/personal",
   },
   {
-    icon: Shield,
+    icon: ShieldCheck,
     label: "Senha e segurança",
     description: "Alterar senha",
     path: "/profile/security",
@@ -41,7 +41,7 @@ const menuItems = [
     path: "/profile/notifications",
   },
   {
-    icon: Settings,
+    icon: Gear,
     label: "Configurações",
     description: "App e preferências",
     path: "/profile/settings",
@@ -72,7 +72,7 @@ export default function Profile() {
             <h1 className="text-xl font-bold">Usuário</h1>
             <p className="text-sm text-muted-foreground">usuario@email.com</p>
             <div className="flex items-center gap-1 mt-1">
-              <Crown className="w-3 h-3 text-foreground" />
+              <Crown className="w-3 h-3 text-foreground" weight="fill" />
               <span className="text-xs font-medium">Plano Anual</span>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function Profile() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-secondary">
-                        <item.icon className="w-5 h-5" />
+                        <item.icon className="w-5 h-5" weight="bold" />
                       </div>
                       <div className="flex-1">
                         <h3 className="font-medium text-sm">{item.label}</h3>
@@ -105,7 +105,7 @@ export default function Profile() {
                           {item.description}
                         </p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
                     </div>
                   </CardContent>
                 </Card>
@@ -125,7 +125,7 @@ export default function Profile() {
             className="w-full"
             onClick={handleLogout}
           >
-            <LogOut className="w-4 h-4" />
+            <SignOut className="w-4 h-4" weight="bold" />
             Sair da conta
           </Button>
         </motion.div>
