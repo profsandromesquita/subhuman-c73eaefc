@@ -47,6 +47,7 @@ interface Post {
   likes_count: number;
   comments_count: number;
   is_liked: boolean;
+  thumbnail_url: string | null;
 }
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -153,6 +154,21 @@ export default function ChannelDetail() {
           isLiked = !!likeData;
         }
 
+        // Get first media thumbnail
+        let thumbnailUrl = null;
+        const { data: mediaData } = await supabase
+          .from('channel_post_media')
+          .select('file_url, file_type')
+          .eq('post_id', post.id)
+          .in('file_type', ['image', 'video'])
+          .order('sort_order', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        
+        if (mediaData) {
+          thumbnailUrl = mediaData.file_url;
+        }
+
         return {
           id: post.id,
           title: (post as any).title || null,
@@ -164,6 +180,7 @@ export default function ChannelDetail() {
           likes_count: likesCount || 0,
           comments_count: commentsCount || 0,
           is_liked: isLiked,
+          thumbnail_url: thumbnailUrl,
         };
       })
     );
@@ -380,57 +397,56 @@ export default function ChannelDetail() {
                   <Link to={`/channels/${channelId}/post/${post.id}`}>
                     <Card className="hover:border-muted-foreground/30 transition-all duration-200">
                       <CardContent className="p-4">
-                        {/* Author */}
-                        <div className="flex items-center gap-2 mb-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={post.author_avatar || undefined} />
-                            <AvatarFallback>
-                              {post.author_name?.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{post.author_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatTime(post.created_at)}
-                            </p>
+                        <div className="flex gap-4">
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Title */}
+                            <h3 className="font-semibold line-clamp-2 mb-2">
+                              {post.title || "Sem título"}
+                            </h3>
+                            
+                            {/* Author & Time */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <Avatar className="w-5 h-5">
+                                <AvatarImage src={post.author_avatar || undefined} />
+                                <AvatarFallback className="text-[10px]">
+                                  {post.author_name?.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs text-muted-foreground">
+                                {post.author_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTime(post.created_at)}
+                              </span>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="flex items-center gap-4 text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Heart className="w-4 h-4" weight={post.is_liked ? "fill" : "regular"} />
+                                <span className="text-xs">{post.likes_count}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <ChatCircle className="w-4 h-4" />
+                                <span className="text-xs">{post.comments_count}</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Content */}
-                        {post.title && (
-                          <h3 className="font-semibold mb-1 line-clamp-2">{post.title}</h3>
-                        )}
-                        <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                          {post.content.replace(/<[^>]*>/g, '')}
-                        </p>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`gap-1 h-7 px-2 ${post.is_liked ? 'text-red-500' : 'text-muted-foreground'}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleLikePost(post.id, post.is_liked);
-                            }}
-                          >
-                            <Heart 
-                              className="w-4 h-4" 
-                              weight={post.is_liked ? "fill" : "regular"} 
-                            />
-                            <span className="text-xs">{post.likes_count}</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 h-7 px-2 text-muted-foreground"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ChatCircle className="w-4 h-4" />
-                            <span className="text-xs">{post.comments_count}</span>
-                          </Button>
+                          {/* Thumbnail */}
+                          {post.thumbnail_url && (
+                            <div className="flex-shrink-0">
+                              <div className="w-20 h-20 rounded-lg overflow-hidden bg-secondary">
+                                <img 
+                                  src={post.thumbnail_url} 
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
