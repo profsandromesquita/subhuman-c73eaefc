@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Plans from "./pages/Plans";
 import Home from "./pages/Home";
+import Highlights from "./pages/Highlights";
 import Spaces from "./pages/Spaces";
 import SpaceDetail from "./pages/SpaceDetail";
 import PostDetail from "./pages/PostDetail";
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/home" element={<Home />} />
+          <Route path="/highlights" element={<Highlights />} />
           <Route path="/spaces" element={<Spaces />} />
           <Route path="/spaces/:spaceId" element={<SpaceDetail />} />
           <Route path="/spaces/:spaceId/post/:postId" element={<PostDetail />} />
