@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface Space {
   id: string;
@@ -18,13 +20,21 @@ interface Space {
 }
 
 export default function Spaces() {
+  const { user } = useAuth();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscriptions, setSubscriptions] = useState<Record<string, boolean>>({});
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchSpaces();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserSubscriptions();
+    }
+  }, [user]);
 
   const fetchSpaces = async () => {
     try {
@@ -43,8 +53,77 @@ export default function Spaces() {
     }
   };
 
-  const toggleSubscription = (id: string) => {
-    setSubscriptions((prev) => ({ ...prev, [id]: !prev[id] }));
+  const fetchUserSubscriptions = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_space_subscriptions')
+        .select('space_id')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const subsMap: Record<string, boolean> = {};
+      data?.forEach(sub => {
+        subsMap[sub.space_id] = true;
+      });
+      setSubscriptions(subsMap);
+    } catch (error) {
+      console.error('Error fetching subscriptions:', error);
+    }
+  };
+
+  const toggleSubscription = async (spaceId: string) => {
+    if (!user) {
+      toast.error("Faça login para se inscrever nos espaços");
+      return;
+    }
+
+    // Prevent multiple clicks
+    if (processingIds.has(spaceId)) return;
+    setProcessingIds(prev => new Set(prev).add(spaceId));
+
+    const isCurrentlySubscribed = subscriptions[spaceId] || false;
+
+    // Optimistic update
+    setSubscriptions(prev => ({ ...prev, [spaceId]: !isCurrentlySubscribed }));
+
+    try {
+      if (isCurrentlySubscribed) {
+        // Unsubscribe
+        const { error } = await supabase
+          .from('user_space_subscriptions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('space_id', spaceId);
+
+        if (error) throw error;
+        toast.success("Inscrição removida");
+      } else {
+        // Subscribe
+        const { error } = await supabase
+          .from('user_space_subscriptions')
+          .insert({
+            user_id: user.id,
+            space_id: spaceId
+          });
+
+        if (error) throw error;
+        toast.success("Inscrito com sucesso!");
+      }
+    } catch (error) {
+      console.error('Error toggling subscription:', error);
+      // Rollback on error
+      setSubscriptions(prev => ({ ...prev, [spaceId]: isCurrentlySubscribed }));
+      toast.error("Erro ao atualizar inscrição");
+    } finally {
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(spaceId);
+        return newSet;
+      });
+    }
   };
 
   if (loading) {
