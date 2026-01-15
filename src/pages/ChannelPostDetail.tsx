@@ -321,16 +321,32 @@ export default function ChannelPostDetail() {
     const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
     return distance
       .replace("cerca de ", "")
+      .replace("menos de um", "< 1")
+      .replace("menos de ", "< ")
+      // Números por extenso para numerais
+      .replace(/\bum\b/g, "1")
+      .replace(/\bdois\b/g, "2")
+      .replace(/\btrês\b/g, "3")
+      .replace(/\bquatro\b/g, "4")
+      .replace(/\bcinco\b/g, "5")
+      .replace(/\bseis\b/g, "6")
+      .replace(/\bsete\b/g, "7")
+      .replace(/\boito\b/g, "8")
+      .replace(/\bnove\b/g, "9")
+      .replace(/\bdez\b/g, "10")
+      .replace(/\bonze\b/g, "11")
+      .replace(/\bdoze\b/g, "12")
+      // Unidades de tempo
       .replace(" horas", "h")
       .replace(" hora", "h")
-      .replace(" minutos", "min")
-      .replace(" minuto", "min")
+      .replace(" minutos", " min")
+      .replace(" minuto", " min")
       .replace(" dias", "d")
       .replace(" dia", "d")
-      .replace(" semanas", "sem")
-      .replace(" semana", "sem")
-      .replace(" meses", "m")
-      .replace(" mês", "m");
+      .replace(" semanas", " sem")
+      .replace(" semana", " sem")
+      .replace(" meses", " meses")
+      .replace(" mês", " mês");
   };
 
   const renderComment = (comment: Comment, isReply = false) => (
