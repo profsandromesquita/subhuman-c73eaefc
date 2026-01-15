@@ -90,11 +90,10 @@ export default function Home() {
 
       const spaceIds = subscriptions.map(s => s.space_id);
 
-      // Get today's date range
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Fetch recent updates from subscribed spaces (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // Fetch today's updates from subscribed spaces
       const { data: updates, error: updatesError } = await supabase
         .from('space_updates')
         .select(`
@@ -104,9 +103,9 @@ export default function Home() {
         `)
         .in('space_id', spaceIds)
         .eq('is_published', true)
-        .gte('published_at', today.toISOString())
+        .gte('published_at', thirtyDaysAgo.toISOString())
         .order('published_at', { ascending: false })
-        .limit(5);
+        .limit(50);
 
       if (updatesError) throw updatesError;
 
@@ -155,7 +154,20 @@ export default function Home() {
         comments_count: commentsMap[update.id] || 0,
       }));
 
-      setHighlights(highlightsData);
+      // Sort by engagement (likes + comments) and take top 5
+      const sortedHighlights = highlightsData
+        .sort((a, b) => {
+          const engagementA = a.likes_count + a.comments_count;
+          const engagementB = b.likes_count + b.comments_count;
+          // If same engagement, prefer more recent
+          if (engagementB === engagementA) {
+            return new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime();
+          }
+          return engagementB - engagementA;
+        })
+        .slice(0, 5);
+
+      setHighlights(sortedHighlights);
     } catch (error) {
       console.error('Error fetching highlights:', error);
     } finally {
