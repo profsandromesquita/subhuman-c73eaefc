@@ -280,7 +280,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkle className="h-5 w-5 text-primary" weight="fill" />
-              <h2 className="font-semibold">Destaques do dia</h2>
+              <h2 className="font-semibold">Destaques da semana</h2>
             </div>
             <Button 
               variant="ghost" 
