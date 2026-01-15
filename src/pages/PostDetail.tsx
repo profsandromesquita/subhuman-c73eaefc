@@ -33,6 +33,7 @@ interface Comment {
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
+  userId?: string;
   replies: Comment[];
 }
 
@@ -166,6 +167,7 @@ export default function PostDetail() {
           createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
           likesCount: count || 0,
           isLiked: likedCommentIds.includes(comment.id),
+          userId: comment.user_id,
           parentId: comment.parent_id,
           replies: [] as Comment[],
         };
@@ -408,6 +410,75 @@ export default function PostDetail() {
     }
   };
 
+  const handleEditComment = async (commentId: string, newContent: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from("update_comments")
+        .update({ content: newContent })
+        .eq("id", commentId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setComments(prev =>
+        prev.map(comment => {
+          if (comment.id === commentId) {
+            return { ...comment, content: newContent };
+          }
+          return {
+            ...comment,
+            replies: comment.replies.map(reply =>
+              reply.id === commentId ? { ...reply, content: newContent } : reply
+            ),
+          };
+        })
+      );
+
+      toast({ title: "Comentário atualizado!" });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível editar o comentário",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from("update_comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setComments(prev =>
+        prev
+          .filter(comment => comment.id !== commentId)
+          .map(comment => ({
+            ...comment,
+            replies: comment.replies.filter(reply => reply.id !== commentId),
+          }))
+      );
+
+      toast({ title: "Comentário excluído!" });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o comentário",
+        variant: "destructive",
+      });
+    }
+  };
+
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
     return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: ptBR });
@@ -480,8 +551,11 @@ export default function PostDetail() {
       <div ref={commentSectionRef}>
         <CommentSection
           comments={comments}
+          currentUserId={user?.id}
           onLikeComment={handleLikeComment}
           onReplyComment={handleReplyComment}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
         />
       </div>
 

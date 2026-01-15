@@ -8,6 +8,7 @@ interface Reply {
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
+  userId?: string;
 }
 
 interface Comment {
@@ -17,19 +18,26 @@ interface Comment {
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
+  userId?: string;
   replies: Reply[];
 }
 
 interface CommentSectionProps {
   comments: Comment[];
+  currentUserId?: string;
   onLikeComment: (commentId: string) => void;
   onReplyComment: (commentId: string, authorName: string) => void;
+  onEditComment?: (commentId: string, newContent: string) => void;
+  onDeleteComment?: (commentId: string) => void;
 }
 
 export function CommentSection({
   comments,
+  currentUserId,
   onLikeComment,
   onReplyComment,
+  onEditComment,
+  onDeleteComment,
 }: CommentSectionProps) {
   return (
     <div className="max-w-2xl mx-auto px-5 pb-32">
@@ -60,9 +68,13 @@ export function CommentSection({
               createdAt={comment.createdAt}
               likesCount={comment.likesCount}
               isLiked={comment.isLiked}
+              userId={comment.userId}
+              currentUserId={currentUserId}
               replies={comment.replies}
               onLikeToggle={onLikeComment}
               onReply={onReplyComment}
+              onEdit={onEditComment}
+              onDelete={onDeleteComment}
             />
           ))}
         </div>
