@@ -122,15 +122,23 @@ export default function PostDetail() {
         content,
         user_id,
         parent_id,
-        created_at,
-        profiles (
-          full_name
-        )
+        created_at
       `)
       .eq("update_id", postId)
       .order("created_at", { ascending: false });
 
     if (error || !commentsData) return;
+
+    // Fetch unique user profiles for all commenters
+    const uniqueUserIds = [...new Set(commentsData.map(c => c.user_id))];
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", uniqueUserIds);
+    
+    const profilesMap = new Map(
+      profilesData?.map(p => [p.id, p.full_name]) || []
+    );
 
     // Get liked comments by current user
     let likedCommentIds: string[] = [];
@@ -154,8 +162,8 @@ export default function PostDetail() {
         return {
           id: comment.id,
           content: comment.content,
-          authorName: (comment.profiles as any)?.full_name || "Usuário",
-          createdAt: formatDistanceToNow(new Date(comment.created_at), { addSuffix: false, locale: ptBR }),
+          authorName: profilesMap.get(comment.user_id) || "Usuário",
+          createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
           likesCount: count || 0,
           isLiked: likedCommentIds.includes(comment.id),
           parentId: comment.parent_id,
