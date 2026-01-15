@@ -2,11 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
-  Sparkle, 
   ArrowRight, 
   Heart, 
-  ChatCircle, 
-  Clock 
+  ChatCircle
 } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -278,10 +276,7 @@ export default function Home() {
           className="space-y-3"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkle className="h-5 w-5 text-primary" weight="fill" />
-              <h2 className="font-semibold">Destaques da semana</h2>
-            </div>
+            <h2 className="font-semibold">Destaques da semana</h2>
             <Button 
               variant="ghost" 
               size="sm" 
@@ -361,10 +356,6 @@ export default function Home() {
                           </div>
                           <span>·</span>
                           <span>{formatTime(highlight.published_at)}</span>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span>{estimateReadTime(highlight.content)}</span>
-                          </div>
                         </div>
                       </div>
 
