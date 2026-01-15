@@ -22,6 +22,7 @@ interface EditorToolbarProps {
 
 const TEXT_COLORS = [
   { name: "Default", value: "" },
+  { name: "Black", value: "#000000" },
   { name: "Gray", value: "#9ca3af" },
   { name: "Red", value: "#ef4444" },
   { name: "Orange", value: "#f97316" },
