@@ -190,9 +190,6 @@ export default function SpaceDetail() {
           >
             <ArrowLeft className="w-5 h-5" weight="bold" />
           </Link>
-          <div className="p-2.5 rounded-xl bg-foreground">
-            <SpaceIcon className="w-5 h-5 text-background" weight="bold" />
-          </div>
           <div>
             <h1 className="text-lg font-bold">{space.name}</h1>
             <p className="text-xs text-muted-foreground">{updates.length} atualizações</p>
