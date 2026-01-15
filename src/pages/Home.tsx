@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { 
   ArrowRight, 
   Heart, 
@@ -226,15 +228,19 @@ export default function Home() {
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return "Agora";
-    if (diffInHours < 24) return `${diffInHours}h`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d`;
-    return `${Math.floor(diffInDays / 7)}sem`;
+    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
+    return distance
+      .replace("cerca de ", "")
+      .replace(" horas", "h")
+      .replace(" hora", "h")
+      .replace(" minutos", "min")
+      .replace(" minuto", "min")
+      .replace(" dias", "d")
+      .replace(" dia", "d")
+      .replace(" semanas", "sem")
+      .replace(" semana", "sem")
+      .replace(" meses", "m")
+      .replace(" mês", "m");
   };
 
   const estimateReadTime = (content: string | null) => {
