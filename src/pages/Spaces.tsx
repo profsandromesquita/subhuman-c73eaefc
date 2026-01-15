@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Check } from "@phosphor-icons/react";
+import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getIconComponent } from "@/components/admin/IconPicker";
@@ -182,31 +183,29 @@ export default function Spaces() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <h3 className="font-semibold">{space.name}</h3>
-                          <button
-                            onClick={() => toggleSubscription(space.id)}
-                            className={`p-1.5 rounded-lg transition-all duration-200 ${
-                              isSubscribed 
-                                ? 'bg-foreground text-background' 
-                                : 'bg-secondary hover:bg-surface-hover'
-                            }`}
-                          >
-                            {isSubscribed ? (
-                              <Check className="w-4 h-4" weight="bold" />
-                            ) : (
-                              <ArrowRight className="w-4 h-4" />
-                            )}
-                          </button>
+                          {isSubscribed ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => toggleSubscription(space.id)}
+                              className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 hover:text-green-700"
+                            >
+                              <Check className="w-4 h-4 mr-1" weight="bold" />
+                              Inscrito
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => toggleSubscription(space.id)}
+                            >
+                              <Plus className="w-4 h-4 mr-1" weight="bold" />
+                              Inscrever
+                            </Button>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                           {space.description || 'Sem descrição'}
                         </p>
-                        <div className="flex items-center gap-3">
-                          {isSubscribed && (
-                            <span className="text-xs text-foreground bg-secondary px-2 py-0.5 rounded">
-                              Inscrito
-                            </span>
-                          )}
-                        </div>
                       </div>
                     </div>
                     
