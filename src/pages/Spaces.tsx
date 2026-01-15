@@ -185,21 +185,20 @@ export default function Spaces() {
                           <h3 className="font-semibold">{space.name}</h3>
                           {isSubscribed ? (
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="outline"
                               onClick={() => toggleSubscription(space.id)}
-                              className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 hover:text-green-700"
+                              className="h-8 w-8 bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 hover:text-green-700"
                             >
-                              <Check className="w-4 h-4 mr-1" weight="bold" />
-                              Inscrito
+                              <Check className="w-4 h-4" weight="bold" />
                             </Button>
                           ) : (
                             <Button
-                              size="sm"
+                              size="icon"
                               onClick={() => toggleSubscription(space.id)}
+                              className="h-8 w-8"
                             >
-                              <Plus className="w-4 h-4 mr-1" weight="bold" />
-                              Inscrever
+                              <Plus className="w-4 h-4" weight="bold" />
                             </Button>
                           )}
                         </div>
