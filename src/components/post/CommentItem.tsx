@@ -47,10 +47,14 @@ export function CommentItem({
   onDelete,
   isReply = false,
 }: CommentItemProps) {
-  const [showReplies, setShowReplies] = useState(true);
+  const [visibleRepliesCount, setVisibleRepliesCount] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
   const [showContextMenu, setShowContextMenu] = useState(false);
+
+  const visibleReplies = replies.slice(0, visibleRepliesCount);
+  const remainingReplies = replies.length - visibleRepliesCount;
+  const hasMoreReplies = remainingReplies > 0;
   
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
@@ -196,9 +200,9 @@ export function CommentItem({
         </div>
 
         {/* Replies */}
-        {replies.length > 0 && showReplies && (
+        {visibleRepliesCount > 0 && visibleReplies.length > 0 && (
           <div className="mt-3 space-y-3">
-            {replies.map((reply) => (
+            {visibleReplies.map((reply) => (
               <CommentItem
                 key={reply.id}
                 id={reply.id}
@@ -220,14 +224,14 @@ export function CommentItem({
         )}
 
         {/* Show more replies */}
-        {replies.length > 0 && !showReplies && (
+        {replies.length > 0 && hasMoreReplies && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowReplies(true)}
-            className="ml-12 mt-2 text-xs text-muted-foreground"
+            onClick={() => setVisibleRepliesCount(prev => prev + 10)}
+            className="ml-12 mt-2 text-xs text-primary font-medium"
           >
-            Ver {replies.length} resposta{replies.length > 1 ? "s" : ""}
+            Ver mais {Math.min(remainingReplies, 10)} resposta{Math.min(remainingReplies, 10) > 1 ? "s" : ""}
           </Button>
         )}
       </motion.div>
