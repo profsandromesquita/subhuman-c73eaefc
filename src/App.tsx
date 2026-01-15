@@ -19,6 +19,7 @@ import ChannelPostDetail from "./pages/ChannelPostDetail";
 import CreateChannelPost from "./pages/CreateChannelPost";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import PersonalData from "./pages/profile/PersonalData";
 import NotFound from "./pages/NotFound";
 import SetupAdmin from "./pages/SetupAdmin";
 
@@ -63,6 +64,7 @@ const App = () => (
           <Route path="/channels/:channelId/post/:postId" element={<ChannelPostDetail />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/personal" element={<PersonalData />} />
           <Route path="/setup-admin" element={<SetupAdmin />} />
 
           {/* Admin Routes */}

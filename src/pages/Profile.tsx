@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   User as UserIcon, 
   Gear, 
@@ -9,11 +12,18 @@ import {
   Bell, 
   ShieldCheck,
   CaretRight,
-  SignOut,
-  Crown
+  SignOut
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 const menuItems = [
   {
@@ -31,7 +41,7 @@ const menuItems = [
   {
     icon: CreditCard,
     label: "Assinatura",
-    description: "Plano Anual ativo",
+    description: "Gerenciar plano",
     path: "/profile/subscription",
   },
   {
@@ -50,11 +60,79 @@ const menuItems = [
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogout = () => {
-    toast.success("Você saiu da sua conta");
-    navigate("/");
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+      return;
+    }
+    if (user) {
+      fetchProfile();
+    }
+  }, [user, authLoading]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast.error("Erro ao sair da conta");
+    } else {
+      toast.success("Você saiu da sua conta");
+      navigate("/");
+    }
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return user?.email?.[0]?.toUpperCase() || "U";
+    return name
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (authLoading || loading) {
+    return (
+      <AppLayout>
+        <div className="max-w-lg mx-auto px-4 pt-8">
+          <div className="flex items-center gap-4 mb-8">
+            <Skeleton className="w-16 h-16 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -65,16 +143,15 @@ export default function Profile() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-4 mb-8"
         >
-          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
-            <span className="text-2xl font-bold">U</span>
-          </div>
+          <Avatar className="h-16 w-16">
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="text-xl bg-secondary">
+              {getInitials(profile?.full_name)}
+            </AvatarFallback>
+          </Avatar>
           <div>
-            <h1 className="text-xl font-bold">Usuário</h1>
-            <p className="text-sm text-muted-foreground">usuario@email.com</p>
-            <div className="flex items-center gap-1 mt-1">
-              <Crown className="w-3 h-3 text-foreground" weight="fill" />
-              <span className="text-xs font-medium">Plano Anual</span>
-            </div>
+            <h1 className="text-xl font-bold">{profile?.full_name || "Usuário"}</h1>
+            <p className="text-sm text-muted-foreground">{user?.email}</p>
           </div>
         </motion.div>
 
