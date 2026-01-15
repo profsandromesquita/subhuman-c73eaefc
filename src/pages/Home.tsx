@@ -257,21 +257,17 @@ export default function Home() {
   return (
     <AppLayout>
       <div className="p-4 space-y-6 pb-24">
-        {/* Greeting */}
+        {/* Header with Logo */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-1"
+          className="flex items-center"
         >
-          <h1 className="text-2xl font-bold">
-            Olá{user ? ", bem-vindo!" : "!"}
-          </h1>
-          <p className="text-muted-foreground">
-            {user 
-              ? "Veja o que há de novo nos seus espaços"
-              : "Faça login para personalizar sua experiência"
-            }
-          </p>
+          <img 
+            src="/icon-192.png" 
+            alt="Logo" 
+            className="h-8 w-8 rounded-lg"
+          />
         </motion.div>
 
         {/* Daily Highlights */}
