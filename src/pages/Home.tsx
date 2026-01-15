@@ -263,11 +263,9 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center"
         >
-          <img 
-            src="/icon-192.png" 
-            alt="Logo" 
-            className="h-8 w-8 rounded-lg"
-          />
+          <h1 className="text-lg font-bold tracking-tight">
+            sub<span className="text-muted-foreground">humano</span>
+          </h1>
         </motion.div>
 
         {/* Daily Highlights */}
