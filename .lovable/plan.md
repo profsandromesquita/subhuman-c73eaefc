@@ -1,220 +1,262 @@
 
-# Plano de Correção: Páginas de Perfil Faltantes (404)
+# Plano de Correção: Páginas de Perfil (Segurança, Notificações e Configurações)
 
-## Diagnóstico
+## Diagnóstico Completo
 
-### Causa Raiz Identificada
+### 1. Página de Segurança (`/profile/security`)
 
-O erro 404 ocorre porque:
+| Item | Status | Problema |
+|------|--------|----------|
+| Campo "Senha atual" | Não validado | O Supabase permite `updateUser` sem verificar senha atual |
+| Troca de senha | Funciona | Mas sem verificação de segurança prévia |
 
-1. **Rotas não definidas** no `App.tsx`:
-   - `/profile/security` - NÃO EXISTE
-   - `/profile/notifications` - NÃO EXISTE  
-   - `/profile/settings` - NÃO EXISTE
-
-2. **Componentes não criados** em `src/pages/profile/`:
-   - Apenas `PersonalData.tsx` existe
-   - `Security.tsx` - NÃO EXISTE
-   - `NotificationPreferences.tsx` - NÃO EXISTE
-   - `Settings.tsx` - NÃO EXISTE
-
-3. **Links definidos** no `Profile.tsx` apontam para rotas inexistentes:
-   ```typescript
-   { path: "/profile/security" }      // Link existe, rota não
-   { path: "/profile/notifications" } // Link existe, rota não
-   { path: "/profile/settings" }      // Link existe, rota não
-   ```
+**Código atual problemático (linha 67-69):**
+```typescript
+const { error } = await supabase.auth.updateUser({
+  password: formData.newPassword
+});
+// A senha atual não é verificada!
+```
 
 ---
 
-## Solução
+### 2. Página de Notificações (`/profile/notifications`)
 
-### Etapa 1: Criar Página de Senha e Segurança
+| Item | Status | Problema |
+|------|--------|----------|
+| Push Notifications | Apenas flags | Não há sistema de notificações implementado |
+| Email Semanal | Apenas flag | Não há edge function nem serviço de email configurado |
+| Persistência | Funciona | Salva corretamente no banco de dados |
 
-**Arquivo:** `src/pages/profile/Security.tsx`
-
-Funcionalidades:
-- Alteração de senha (atual + nova + confirmação)
-- Integração com Supabase Auth `updateUser({ password })`
-- Validação de senha mínima (8 caracteres)
-- Feedback visual de sucesso/erro
-
-Seções da página:
-| Seção | Campos |
-|-------|--------|
-| Alterar senha | Senha atual, Nova senha, Confirmar senha |
-| Sessões ativas | Informação sobre a sessão atual |
+**Infraestrutura ausente:**
+- `supabase/functions` está vazio (sem edge functions)
+- Não há secret `RESEND_API_KEY` configurada
+- Não há sistema de push notifications (Web Push API / Service Worker)
 
 ---
 
-### Etapa 2: Criar Página de Preferências de Notificação
+### 3. Página de Configurações (`/profile/settings`)
 
-**Arquivo:** `src/pages/profile/NotificationPreferences.tsx`
+| Item | Status | Problema |
+|------|--------|----------|
+| Tema | Apenas visual | Não há lógica de troca implementada |
+| Idioma | Apenas visual | Não há sistema de i18n implementado |
+| Limpar cache | Funciona | Remove localStorage exceto auth token |
+| Baixar dados | Funciona | Exporta perfil, assinaturas e espaços |
 
-Funcionalidades:
-- Switches para ativar/desativar tipos de notificação
-- Persistência no banco de dados (nova tabela ou coluna em profiles)
-
-Opções de notificação:
-| Tipo | Descrição |
-|------|-----------|
-| Atualizações de Espaços | Novos posts nos espaços que você segue |
-| Comentários | Quando alguém responde seus posts |
-| Menções | Quando você é mencionado |
-| Novidades do Subhumano | Anúncios e novos recursos |
-| Email de resumo semanal | Resumo das principais atualizações |
-
----
-
-### Etapa 3: Criar Página de Configurações
-
-**Arquivo:** `src/pages/profile/Settings.tsx`
-
-Funcionalidades:
-- Preferências do aplicativo
-- Opções de acessibilidade
-- Gerenciamento de dados
-
-Opções:
-| Seção | Opções |
-|-------|--------|
-| Aparência | Tema (apenas dark por design) |
-| Idioma | Português (BR) - único disponível |
-| Cache | Limpar dados em cache |
-| Dados | Baixar meus dados, Excluir conta |
+**O que é exportado atualmente:**
+```json
+{
+  "email": "usuario@email.com",
+  "profile": { /* todos os campos do perfil */ },
+  "subscriptions": [ /* planos de assinatura */ ],
+  "spaceSubscriptions": [ /* espaços seguidos */ ],
+  "exportedAt": "2026-01-31T..."
+}
+```
 
 ---
 
-### Etapa 4: Registrar Rotas no App.tsx
+## Solução Proposta
 
-Adicionar as 3 novas rotas protegidas:
+### Etapa 1: Corrigir Validação de Senha Atual
+
+**Abordagem:** Criar uma edge function que valida a senha atual usando `signInWithPassword` antes de permitir a alteração.
+
+**Nova Edge Function:** `supabase/functions/verify-password/index.ts`
 
 ```typescript
-import Security from "./pages/profile/Security";
-import NotificationPreferences from "./pages/profile/NotificationPreferences";
-import Settings from "./pages/profile/Settings";
+// Recebe email e senha atual
+// Tenta fazer login com essas credenciais
+// Retorna sucesso/falha sem criar nova sessão
+```
 
-// Dentro de <Routes>:
-<Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
-<Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
-<Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
+**Fluxo corrigido:**
+```text
+1. Usuário digita senha atual + nova senha
+2. Frontend chama edge function verify-password
+3. Edge function valida com signInWithPassword
+4. Se válido, frontend chama updateUser
+5. Se inválido, mostra erro "Senha atual incorreta"
 ```
 
 ---
 
-### Etapa 5: Migração do Banco (Opcional)
+### Etapa 2: Implementar Sistema de Notificações
 
-Para persistir preferências de notificação, adicionar colunas à tabela `profiles`:
+#### 2.1 Push Notifications (Navegador)
+
+**Componentes necessários:**
+| Componente | Descrição |
+|------------|-----------|
+| Service Worker | Recebe e exibe notificações |
+| Tabela `push_subscriptions` | Armazena endpoints do navegador |
+| Edge Function `send-push` | Envia notificações via Web Push API |
+
+**Fluxo:**
+```text
+1. Usuário ativa notificações
+2. Navegador solicita permissão
+3. Frontend obtém subscription e salva no banco
+4. Ao criar novo post, sistema chama edge function
+5. Edge function envia push para assinantes
+```
+
+#### 2.2 Email Semanal
+
+**Componentes necessários:**
+| Componente | Descrição |
+|------------|-----------|
+| Secret `RESEND_API_KEY` | Chave da API Resend |
+| Edge Function `send-weekly-digest` | Gera e envia resumo |
+| Cron Job (pg_cron) | Agenda execução semanal |
+
+**Conteúdo do Email:**
+- Top 5 posts da semana nos espaços seguidos
+- Novos anúncios do Subhumano
+- Resumo de atividades (comentários, menções)
+
+---
+
+### Etapa 3: Tema e Idioma
+
+#### 3.1 Tema
+
+**Decisão de Design:** Conforme o design system do Subhumano, o app é **apenas dark mode**. A opção de tema serve apenas para indicar isso.
+
+**Opções:**
+1. **Remover a opção** - Mais simples, evita confusão
+2. **Manter como informativo** - Deixar visível que é "Dark" sem interação
+3. **Implementar Light Mode** - Requer criar variáveis CSS adicionais
+
+**Recomendação:** Manter apenas informativo com tooltip explicando que o app é exclusivamente dark mode.
+
+#### 3.2 Idioma
+
+**Status atual:** App é exclusivamente em Português (BR).
+
+**Opções:**
+1. **Remover a opção** - Mais simples
+2. **Manter como informativo** - Indicar o idioma atual
+3. **Implementar i18n** - Significativo esforço, requer biblioteca como react-i18next
+
+**Recomendação:** Remover ou manter como informativo, já que i18n é um esforço considerável.
+
+---
+
+## Arquivos a Serem Criados/Modificados
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `supabase/functions/verify-password/index.ts` | Criar | Valida senha atual |
+| `supabase/functions/send-weekly-digest/index.ts` | Criar | Envia email semanal |
+| `supabase/functions/send-push/index.ts` | Criar | Envia push notifications |
+| `src/pages/profile/Security.tsx` | Modificar | Integrar validação de senha |
+| `src/pages/profile/NotificationPreferences.tsx` | Modificar | Adicionar lógica de permissão push |
+| `src/pages/profile/Settings.tsx` | Modificar | Clarificar opções de tema/idioma |
+| `public/sw.js` | Criar | Service Worker para push |
+| Migração SQL | Criar | Tabela `push_subscriptions` |
+
+---
+
+## Migração do Banco de Dados
 
 ```sql
-ALTER TABLE public.profiles
-ADD COLUMN notify_space_updates boolean DEFAULT true,
-ADD COLUMN notify_comments boolean DEFAULT true,
-ADD COLUMN notify_mentions boolean DEFAULT true,
-ADD COLUMN notify_announcements boolean DEFAULT true,
-ADD COLUMN notify_weekly_email boolean DEFAULT false;
+-- Tabela para armazenar subscriptions de push notifications
+CREATE TABLE public.push_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  endpoint text NOT NULL,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, endpoint)
+);
+
+-- RLS
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own push subscriptions"
+  ON public.push_subscriptions FOR ALL
+  USING (auth.uid() = user_id);
 ```
 
 ---
 
-## Resumo de Arquivos
+## Dependências Externas Necessárias
 
-| Arquivo | Ação |
-|---------|------|
-| `src/pages/profile/Security.tsx` | Criar |
-| `src/pages/profile/NotificationPreferences.tsx` | Criar |
-| `src/pages/profile/Settings.tsx` | Criar |
-| `src/App.tsx` | Alterar - adicionar 3 rotas |
-| Migração SQL | Criar - campos de preferências de notificação |
+| Serviço | Uso | Secret Necessária |
+|---------|-----|-------------------|
+| Resend | Envio de emails | `RESEND_API_KEY` |
+| Web Push | Push notifications | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` |
 
 ---
 
-## Layout Visual das Páginas
+## Priorização Sugerida
 
-### Senha e Segurança
-```text
-┌─────────────────────────────────────┐
-│  ← Senha e segurança                │
-├─────────────────────────────────────┤
-│  ┌─────────────────────────────┐    │
-│  │ Alterar senha               │    │
-│  │ ─────────────────────────── │    │
-│  │ Senha atual      [________] │    │
-│  │ Nova senha       [________] │    │
-│  │ Confirmar        [________] │    │
-│  │                             │    │
-│  │ [    Alterar senha      ]   │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ Sessão atual                │    │
-│  │ ─────────────────────────── │    │
-│  │ Dispositivo: Chrome - Mac   │    │
-│  │ Último acesso: Agora        │    │
-│  └─────────────────────────────┘    │
-└─────────────────────────────────────┘
-```
+### Prioridade Alta
+1. **Validação de senha atual** - Crítico para segurança
 
-### Preferências de Notificação
-```text
-┌─────────────────────────────────────┐
-│  ← Notificações                     │
-├─────────────────────────────────────┤
-│  ┌─────────────────────────────┐    │
-│  │ Push notifications          │    │
-│  │ ─────────────────────────── │    │
-│  │ Atualizações       [===O  ] │    │
-│  │ Comentários        [===O  ] │    │
-│  │ Menções            [===O  ] │    │
-│  │ Novidades          [  O===] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ Email                       │    │
-│  │ ─────────────────────────── │    │
-│  │ Resumo semanal     [  O===] │    │
-│  └─────────────────────────────┘    │
-└─────────────────────────────────────┘
-```
+### Prioridade Média  
+2. **Clarificar Tema/Idioma** - UX confusa atualmente
+3. **Documentar dados exportados** - Transparência
 
-### Configurações
-```text
-┌─────────────────────────────────────┐
-│  ← Configurações                    │
-├─────────────────────────────────────┤
-│  ┌─────────────────────────────┐    │
-│  │ Aparência                   │    │
-│  │ ─────────────────────────── │    │
-│  │ Tema              Dark   >  │    │
-│  │ Idioma            PT-BR  >  │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ Armazenamento               │    │
-│  │ ─────────────────────────── │    │
-│  │ Limpar cache         >      │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ Conta                       │    │
-│  │ ─────────────────────────── │    │
-│  │ Baixar meus dados    >      │    │
-│  │ Excluir conta        >      │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  v1.0.0 • subhumano.ia              │
-└─────────────────────────────────────┘
-```
+### Prioridade Baixa (Requer Infraestrutura)
+4. **Push Notifications** - Requer Service Worker + VAPID
+5. **Email Semanal** - Requer Resend API + Cron
 
 ---
 
-## Padrões de Código
+## Resumo do Que Será Implementado
 
-Todas as páginas seguirão o mesmo padrão de `PersonalData.tsx`:
-- `AppLayout` como wrapper
-- Header com botão voltar (`ArrowLeft`)
-- `ProfileFormSection` para agrupar campos
-- `motion.div` para animações de entrada
-- Hook `useAuth` para verificar autenticação
-- Navegação para `/login` se não autenticado
-- Toast para feedback de ações
+### Implementação Imediata (Sem Dependências Externas)
+1. Validação de senha atual via edge function
+2. Clarificar UI de Tema/Idioma (informativo apenas)
+3. Adicionar lista detalhada dos dados exportados
+
+### Implementação Futura (Requer Configuração)
+4. Push Notifications (requer VAPID keys)
+5. Email Semanal (requer Resend API key)
+
+---
+
+## Notas Técnicas
+
+### Validação de Senha - Por que Edge Function?
+
+O Supabase Auth não oferece um método direto para "verificar senha sem criar sessão". A solução é:
+
+```typescript
+// Edge function: verify-password
+const { error } = await supabase.auth.signInWithPassword({
+  email: userEmail,
+  password: currentPassword
+});
+
+if (error) {
+  return new Response(JSON.stringify({ valid: false }), { status: 401 });
+}
+
+return new Response(JSON.stringify({ valid: true }), { status: 200 });
+```
+
+O frontend então:
+1. Chama a edge function primeiro
+2. Se válido, chama `supabase.auth.updateUser({ password })`
+3. Se inválido, mostra erro antes de tentar alterar
+
+### Cache - O que é limpo?
+
+Atualmente limpa todo o `localStorage` exceto o token de autenticação:
+- Dados de navegação em cache
+- Preferências locais temporárias
+- Estados de UI salvos localmente
+
+### Dados Exportados - Detalhamento
+
+| Dado | Origem | Descrição |
+|------|--------|-----------|
+| `email` | Auth | Email de login |
+| `profile` | profiles | Nome, avatar, bio, localização, profissão, etc. |
+| `subscriptions` | subscriptions | Planos pagos (trial, mensal, anual) |
+| `spaceSubscriptions` | user_space_subscriptions | Espaços que o usuário segue |
