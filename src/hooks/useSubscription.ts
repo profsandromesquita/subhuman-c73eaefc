@@ -2,13 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
+export interface SubscriptionResult {
+  status: 'active' | 'trial' | 'expired' | 'none';
+  planType: string | null;
+}
+
 export interface SubscriptionStatus {
   status: 'active' | 'trial' | 'expired' | 'none';
   planType: string | null;
   expiresAt: Date | null;
   daysRemaining: number | null;
   loading: boolean;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<SubscriptionResult>;
 }
 
 export function useSubscription(): SubscriptionStatus {
@@ -19,10 +24,13 @@ export function useSubscription(): SubscriptionStatus {
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const checkSubscription = useCallback(async () => {
+  const checkSubscription = useCallback(async (): Promise<{
+    status: 'active' | 'trial' | 'expired' | 'none';
+    planType: string | null;
+  }> => {
     // Don't check if auth is still loading
     if (authLoading) {
-      return;
+      return { status: 'none', planType: null };
     }
 
     if (!user) {
@@ -31,7 +39,7 @@ export function useSubscription(): SubscriptionStatus {
       setExpiresAt(null);
       setDaysRemaining(null);
       setLoading(false);
-      return;
+      return { status: 'none', planType: null };
     }
 
     setLoading(true);
@@ -52,7 +60,7 @@ export function useSubscription(): SubscriptionStatus {
         setExpiresAt(null);
         setDaysRemaining(null);
         setLoading(false);
-        return;
+        return { status: 'none', planType: null };
       }
 
       const subscriptionPlanType = subscription.plan_type;
@@ -63,6 +71,8 @@ export function useSubscription(): SubscriptionStatus {
       setPlanType(subscriptionPlanType);
       setExpiresAt(subscriptionExpiresAt);
 
+      let resultStatus: 'active' | 'trial' | 'expired' | 'none' = 'none';
+
       // Check if subscription has expired
       if (subscriptionExpiresAt) {
         const now = new Date();
@@ -71,6 +81,7 @@ export function useSubscription(): SubscriptionStatus {
         if (isExpired) {
           setStatus('expired');
           setDaysRemaining(0);
+          resultStatus = 'expired';
         } else {
           // Calculate days remaining
           const diffTime = subscriptionExpiresAt.getTime() - now.getTime();
@@ -80,23 +91,29 @@ export function useSubscription(): SubscriptionStatus {
           // Determine status based on plan type
           if (subscriptionPlanType === 'trial') {
             setStatus('trial');
+            resultStatus = 'trial';
           } else {
             setStatus('active');
+            resultStatus = 'active';
           }
         }
       } else {
         // No expiration date = active paid subscription
         setStatus('active');
         setDaysRemaining(null);
+        resultStatus = 'active';
       }
+      
+      setLoading(false);
+      return { status: resultStatus, planType: subscriptionPlanType };
     } catch (error) {
       console.error('Error checking subscription:', error);
       setStatus('none');
       setPlanType(null);
       setExpiresAt(null);
       setDaysRemaining(null);
-    } finally {
       setLoading(false);
+      return { status: 'none', planType: null };
     }
   }, [user, authLoading]);
 

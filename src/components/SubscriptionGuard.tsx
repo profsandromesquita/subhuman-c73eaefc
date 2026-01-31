@@ -30,12 +30,8 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
       return;
     }
 
-    // Show toast when trial is about to expire (1 day remaining)
-    if (status === 'trial' && daysRemaining === 1) {
-      toast.warning('Seu período de teste expira amanhã! Assine para continuar usando.', {
-        duration: 5000,
-      });
-    }
+    // Trial banner now handles the notification display
+    // No toast needed here anymore
   }, [authLoading, subLoading, user, status, daysRemaining, navigate, location.pathname]);
 
   // Show nothing while loading
