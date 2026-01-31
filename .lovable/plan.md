@@ -1,57 +1,67 @@
 
 
-# Plano de Implementação: Google OAuth BYOK
+# Plano: Configurar OAuth Redirect para Domínio Personalizado
 
-## Credenciais Recebidas
-- **Client ID:** `546052877300-jujjmcspsq9k0o0uj9mdoqonm253himo.apps.googleusercontent.com`
-- **Client Secret:** `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`
+## Problema Identificado
+
+O `signInWithOAuth` está usando `window.location.origin` dinamicamente, o que funciona para preview mas não para o domínio personalizado. Precisamos hardcodar o domínio `subhumano.ia.br`.
 
 ---
 
-## Etapas de Implementação
+## Alteração Necessária
 
-### 1. Configurar Provider Google no Lovable Cloud
-Usar a ferramenta de configuração de autenticação para cadastrar suas credenciais OAuth no backend.
+### Arquivo: `src/hooks/useAuth.ts`
 
-### 2. Atualizar `src/hooks/useAuth.ts`
-Trocar a função `signInWithGoogle` para usar o cliente Supabase nativo:
+**Linha 46-54** - Alterar a função `signInWithGoogle`:
 
 ```typescript
 const signInWithGoogle = useCallback(async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/home`,
+      redirectTo: 'https://subhumano.ia.br/~oauth/callback',
     }
   });
   return { error };
 }, []);
 ```
 
-Também remover a importação do `lovable` que não será mais necessária.
+---
 
-### 3. Corrigir `src/pages/Landing.tsx`
-Adicionar uma flag `hasRedirected` usando `useRef` para evitar múltiplos redirecionamentos causados por re-renders durante a atualização do estado de autenticação.
+## Configuração Adicional Necessária
 
-### 4. Remover `src/integrations/lovable/index.ts`
-Este arquivo não será mais necessário após a migração para o flow nativo do Supabase.
+Após aprovar este plano, você também precisará:
+
+1. **Google Cloud Console** - Adicionar o redirect URI nas credenciais OAuth:
+   - Vá em **Credentials → seu OAuth Client → Authorized redirect URIs**
+   - Adicione: `https://akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback`
+   - E também: `https://subhumano.ia.br/~oauth/callback` (se suportado)
+
+2. **Backend Authentication Settings** - Garantir que o domínio `subhumano.ia.br` está configurado como Site URL ou Redirect URL adicional
 
 ---
 
-## Arquivos Impactados
+## Fluxo OAuth Esperado
 
-| Arquivo | Ação |
-|---------|------|
-| `src/hooks/useAuth.ts` | Alterar para usar `supabase.auth.signInWithOAuth` |
-| `src/pages/Landing.tsx` | Corrigir lógica de redirecionamento |
-| `src/integrations/lovable/index.ts` | Remover |
+```text
+1. Usuário clica "Continuar com Google"
+           ↓
+2. Redireciona para Google OAuth (consent screen "Subhuman")
+           ↓
+3. Google envia callback para Supabase: 
+   akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback
+           ↓
+4. Supabase processa e redireciona para:
+   https://subhumano.ia.br/~oauth/callback
+           ↓
+5. App processa sessão e navega para /home ou /plans
+```
 
 ---
 
-## Resultado Esperado
+## Arquivo Impactado
 
-1. Login com Google funcionará com branding "Subhuman"
-2. Após autenticação, usuário será redirecionado para `/home` (trial/active) ou `/plans` (sem assinatura)
-3. Sem loops infinitos de redirecionamento
-4. Stack de autenticação simplificada
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useAuth.ts` | Alterar `redirectTo` para domínio personalizado |
 
