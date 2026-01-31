@@ -44,16 +44,23 @@ export default function Plans() {
   const [isTrialLoading, setIsTrialLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { status } = useSubscription();
+  const { status, loading: subLoading, refetch } = useSubscription();
 
   // Determine if showing expired trial message
   const showExpiredMessage = status === 'expired';
+
+  // Redirect if user already has active subscription or trial
+  useEffect(() => {
+    if (!subLoading && (status === 'active' || status === 'trial')) {
+      navigate('/home', { replace: true });
+    }
+  }, [status, subLoading, navigate]);
 
   const handleSubscribe = async () => {
     setIsLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     toast.success("Assinatura realizada com sucesso!");
-    navigate("/home");
+    navigate("/home", { replace: true });
     setIsLoading(false);
   };
 
@@ -105,8 +112,11 @@ export default function Plans() {
         throw insertError;
       }
 
+      // Refetch subscription status before navigating
+      await refetch();
+
       toast.success("Período de teste iniciado! Você tem 7 dias de acesso gratuito.");
-      navigate("/home");
+      navigate("/home", { replace: true });
     } catch (error) {
       console.error('Error starting trial:', error);
       toast.error("Erro ao iniciar período de teste. Tente novamente.");
@@ -114,6 +124,15 @@ export default function Plans() {
       setIsTrialLoading(false);
     }
   };
+
+  // Show loading state while checking subscription
+  if (subLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
