@@ -376,24 +376,60 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ai_experience_level: string | null
           avatar_url: string | null
+          bio: string | null
+          city: string | null
+          company_name: string | null
           created_at: string
+          education: string | null
           full_name: string | null
+          goals: string | null
+          hobbies: string | null
           id: string
+          industry: string | null
+          job_title: string | null
+          occupation_type: string | null
+          skills: string[] | null
+          state: string | null
           updated_at: string
         }
         Insert: {
+          ai_experience_level?: string | null
           avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          company_name?: string | null
           created_at?: string
+          education?: string | null
           full_name?: string | null
+          goals?: string | null
+          hobbies?: string | null
           id: string
+          industry?: string | null
+          job_title?: string | null
+          occupation_type?: string | null
+          skills?: string[] | null
+          state?: string | null
           updated_at?: string
         }
         Update: {
+          ai_experience_level?: string | null
           avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          company_name?: string | null
           created_at?: string
+          education?: string | null
           full_name?: string | null
+          goals?: string | null
+          hobbies?: string | null
           id?: string
+          industry?: string | null
+          job_title?: string | null
+          occupation_type?: string | null
+          skills?: string[] | null
+          state?: string | null
           updated_at?: string
         }
         Relationships: []
