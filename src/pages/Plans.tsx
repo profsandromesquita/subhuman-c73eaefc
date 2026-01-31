@@ -49,12 +49,11 @@ export default function Plans() {
   // Determine if showing expired trial message
   const showExpiredMessage = status === 'expired';
 
-  // Redirect if user already has active subscription or trial
-  useEffect(() => {
-    if (!subLoading && (status === 'active' || status === 'trial')) {
-      navigate('/home', { replace: true });
-    }
-  }, [status, subLoading, navigate]);
+  // Determine if user can start a trial (only when no subscription at all)
+  const canStartTrial = status === 'none';
+
+  // Determine back navigation destination
+  const backDestination = user ? '/home' : '/register';
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -149,7 +148,7 @@ export default function Plans() {
           className="flex items-center mb-12"
         >
           <Link
-            to="/register"
+            to={backDestination}
             className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" weight="bold" />
@@ -248,8 +247,8 @@ export default function Plans() {
             Pagamento seguro via cartão de crédito ou PIX
           </p>
 
-          {/* Trial option - only show if not expired and user hasn't had trial */}
-          {!showExpiredMessage && (
+          {/* Trial option - only show if status is 'none' (never had any subscription) */}
+          {canStartTrial && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
