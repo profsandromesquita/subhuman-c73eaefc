@@ -307,7 +307,11 @@ export default function ChannelDetail() {
                   ? "Este canal é exclusivo para assinantes do plano anual."
                   : "Este canal é exclusivo para assinantes."}
               </p>
-              <Button onClick={() => navigate('/plans')}>
+              <Button onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate('/plans', { replace: true });
+              }}>
                 Ver Planos
               </Button>
             </CardContent>
