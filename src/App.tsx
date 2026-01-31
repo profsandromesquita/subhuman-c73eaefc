@@ -1,101 +1,111 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPassword from "./pages/ForgotPassword";
-import Plans from "./pages/Plans";
-import Home from "./pages/Home";
-import Highlights from "./pages/Highlights";
-import Spaces from "./pages/Spaces";
-import SpaceDetail from "./pages/SpaceDetail";
-import PostDetail from "./pages/PostDetail";
-import Channels from "./pages/Channels";
-import ChannelDetail from "./pages/ChannelDetail";
-import ChannelPostDetail from "./pages/ChannelPostDetail";
-import CreateChannelPost from "./pages/CreateChannelPost";
-import Notifications from "./pages/Notifications";
-import Profile from "./pages/Profile";
-import PersonalData from "./pages/profile/PersonalData";
-import Security from "./pages/profile/Security";
-import NotificationPreferences from "./pages/profile/NotificationPreferences";
-import Settings from "./pages/profile/Settings";
-import NotFound from "./pages/NotFound";
-import SetupAdmin from "./pages/SetupAdmin";
+import { queryClient } from "@/lib/queryClient";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LoadingFallback } from "@/components/LoadingFallback";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
-
-// Admin Pages
-import AdminLogin from "./pages/admin/AdminLogin";
-import Dashboard from "./pages/admin/Dashboard";
-import Users from "./pages/admin/Users";
-import Subscriptions from "./pages/admin/Subscriptions";
-import AdminSpaces from "./pages/admin/Spaces";
-import SpaceContent from "./pages/admin/SpaceContent";
-import AdminChannels from "./pages/admin/Channels";
-import Moderation from "./pages/admin/Moderation";
-import GeneralSettings from "./pages/admin/settings/General";
-import SystemUsers from "./pages/admin/settings/SystemUsers";
-import NotificationSettings from "./pages/admin/settings/Notifications";
-import PaymentSettings from "./pages/admin/settings/Payments";
 import { AdminGuard } from "./components/admin/AdminGuard";
 
-const queryClient = new QueryClient();
+// Lazy load pages for code splitting
+const Landing = lazy(() => import("./pages/Landing"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const Plans = lazy(() => import("./pages/Plans"));
+const SetupAdmin = lazy(() => import("./pages/SetupAdmin"));
+
+// Protected pages
+const Home = lazy(() => import("./pages/Home"));
+const Highlights = lazy(() => import("./pages/Highlights"));
+const Spaces = lazy(() => import("./pages/Spaces"));
+const SpaceDetail = lazy(() => import("./pages/SpaceDetail"));
+const PostDetail = lazy(() => import("./pages/PostDetail"));
+const Channels = lazy(() => import("./pages/Channels"));
+const ChannelDetail = lazy(() => import("./pages/ChannelDetail"));
+const ChannelPostDetail = lazy(() => import("./pages/ChannelPostDetail"));
+const CreateChannelPost = lazy(() => import("./pages/CreateChannelPost"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Profile = lazy(() => import("./pages/Profile"));
+const PersonalData = lazy(() => import("./pages/profile/PersonalData"));
+const Security = lazy(() => import("./pages/profile/Security"));
+const NotificationPreferences = lazy(() => import("./pages/profile/NotificationPreferences"));
+const Settings = lazy(() => import("./pages/profile/Settings"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Admin pages
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
+const Users = lazy(() => import("./pages/admin/Users"));
+const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
+const AdminSpaces = lazy(() => import("./pages/admin/Spaces"));
+const SpaceContent = lazy(() => import("./pages/admin/SpaceContent"));
+const AdminChannels = lazy(() => import("./pages/admin/Channels"));
+const Moderation = lazy(() => import("./pages/admin/Moderation"));
+const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
+const SystemUsers = lazy(() => import("./pages/admin/settings/SystemUsers"));
+const NotificationSettings = lazy(() => import("./pages/admin/settings/Notifications"));
+const PaymentSettings = lazy(() => import("./pages/admin/settings/Payments"));
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner position="top-center" />
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/plans" element={<Plans />} />
-          <Route path="/setup-admin" element={<SetupAdmin />} />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position="top-center" />
+        <BrowserRouter>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/plans" element={<Plans />} />
+              <Route path="/setup-admin" element={<SetupAdmin />} />
 
-          {/* Protected Routes - Require active subscription */}
-          <Route path="/home" element={<SubscriptionGuard><Home /></SubscriptionGuard>} />
-          <Route path="/highlights" element={<SubscriptionGuard><Highlights /></SubscriptionGuard>} />
-          <Route path="/spaces" element={<SubscriptionGuard><Spaces /></SubscriptionGuard>} />
-          <Route path="/spaces/:spaceId" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
-          <Route path="/spaces/:spaceId/post/:postId" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
-          <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
-          <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
-          <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
-          <Route path="/channels/:channelId/post/:postId" element={<SubscriptionGuard><ChannelPostDetail /></SubscriptionGuard>} />
-          <Route path="/notifications" element={<SubscriptionGuard><Notifications /></SubscriptionGuard>} />
-          <Route path="/profile" element={<SubscriptionGuard><Profile /></SubscriptionGuard>} />
-          <Route path="/profile/personal" element={<SubscriptionGuard><PersonalData /></SubscriptionGuard>} />
-          <Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
-          <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
-          <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
+              {/* Protected Routes - Require active subscription */}
+              <Route path="/home" element={<SubscriptionGuard><Home /></SubscriptionGuard>} />
+              <Route path="/highlights" element={<SubscriptionGuard><Highlights /></SubscriptionGuard>} />
+              <Route path="/spaces" element={<SubscriptionGuard><Spaces /></SubscriptionGuard>} />
+              <Route path="/spaces/:spaceId" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
+              <Route path="/spaces/:spaceId/post/:postId" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
+              <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
+              <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
+              <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
+              <Route path="/channels/:channelId/post/:postId" element={<SubscriptionGuard><ChannelPostDetail /></SubscriptionGuard>} />
+              <Route path="/notifications" element={<SubscriptionGuard><Notifications /></SubscriptionGuard>} />
+              <Route path="/profile" element={<SubscriptionGuard><Profile /></SubscriptionGuard>} />
+              <Route path="/profile/personal" element={<SubscriptionGuard><PersonalData /></SubscriptionGuard>} />
+              <Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
+              <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
+              <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
 
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<AdminGuard><Dashboard /></AdminGuard>} />
-          <Route path="/admin/users" element={<AdminGuard><Users /></AdminGuard>} />
-          <Route path="/admin/subscriptions" element={<AdminGuard><Subscriptions /></AdminGuard>} />
-          <Route path="/admin/spaces" element={<AdminGuard><AdminSpaces /></AdminGuard>} />
-          <Route path="/admin/content" element={<AdminGuard><SpaceContent /></AdminGuard>} />
-          <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
-          <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
-          <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
-          <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
-          <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
-          <Route path="/admin/settings/payments" element={<AdminGuard requireAdmin><PaymentSettings /></AdminGuard>} />
+              {/* Admin Routes */}
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminGuard><Dashboard /></AdminGuard>} />
+              <Route path="/admin/users" element={<AdminGuard><Users /></AdminGuard>} />
+              <Route path="/admin/subscriptions" element={<AdminGuard><Subscriptions /></AdminGuard>} />
+              <Route path="/admin/spaces" element={<AdminGuard><AdminSpaces /></AdminGuard>} />
+              <Route path="/admin/content" element={<AdminGuard><SpaceContent /></AdminGuard>} />
+              <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
+              <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
+              <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
+              <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
+              <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
+              <Route path="/admin/settings/payments" element={<AdminGuard requireAdmin><PaymentSettings /></AdminGuard>} />
 
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+              {/* 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
