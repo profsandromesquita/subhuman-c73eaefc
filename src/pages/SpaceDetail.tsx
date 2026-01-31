@@ -10,94 +10,21 @@ import {
   PlayCircle
 } from "@phosphor-icons/react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-interface Space {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-}
-
-interface SpaceUpdate {
-  id: string;
-  title: string;
-  content: string | null;
-  thumbnail_url: string | null;
-  media_type: string | null;
-  published_at: string | null;
-  created_at: string;
-  likes_count: number;
-  comments_count: number;
-}
+import { useSpace } from "@/hooks/useSpaces";
+import { useSpaceUpdates } from "@/hooks/usePosts";
 
 export default function SpaceDetail() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
-  const [space, setSpace] = useState<Space | null>(null);
-  const [updates, setUpdates] = useState<SpaceUpdate[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  const { data: space, isLoading: loadingSpace } = useSpace(spaceId);
+  const { data: updates = [], isLoading: loadingUpdates } = useSpaceUpdates(space?.id);
 
-  useEffect(() => {
-    fetchSpaceAndUpdates();
-  }, [spaceId]);
-
-  const fetchSpaceAndUpdates = async () => {
-    if (!spaceId) return;
-    
-    setLoading(true);
-    
-    // Fetch space by slug
-    const { data: spaceData, error: spaceError } = await supabase
-      .from("spaces")
-      .select("*")
-      .eq("slug", spaceId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (spaceError || !spaceData) {
-      setLoading(false);
-      return;
-    }
-
-    setSpace(spaceData);
-
-    // Fetch published updates for this space
-    const { data: updatesData, error: updatesError } = await supabase
-      .from("space_updates")
-      .select("id, title, content, thumbnail_url, media_type, published_at, created_at")
-      .eq("space_id", spaceData.id)
-      .eq("is_published", true)
-      .order("published_at", { ascending: false });
-
-    if (!updatesError && updatesData) {
-      // Fetch likes and comments count for each update
-      const updatesWithCounts = await Promise.all(
-        updatesData.map(async (update) => {
-          const [likesResult, commentsResult] = await Promise.all([
-            supabase.from("update_likes").select("id", { count: "exact", head: true }).eq("update_id", update.id),
-            supabase.from("update_comments").select("id", { count: "exact", head: true }).eq("update_id", update.id),
-          ]);
-          
-          return {
-            ...update,
-            likes_count: likesResult.count || 0,
-            comments_count: commentsResult.count || 0,
-          };
-        })
-      );
-      
-      setUpdates(updatesWithCounts);
-    }
-
-    setLoading(false);
-  };
+  const loading = loadingSpace || loadingUpdates;
 
   const handleCardClick = (updateId: string) => {
     navigate(`/spaces/${spaceId}/post/${updateId}`);
@@ -106,7 +33,6 @@ export default function SpaceDetail() {
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
     const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
-    // Shorten common phrases
     return distance
       .replace("cerca de ", "")
       .replace(" horas", "h")

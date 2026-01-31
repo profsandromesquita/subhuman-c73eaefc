@@ -1,8 +1,6 @@
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -17,22 +15,9 @@ import {
   Handshake
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useChannels } from "@/hooks/useChannels";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-interface Channel {
-  id: string;
-  name: string;
-  description: string | null;
-  access_type: 'open' | 'subscribers' | 'premium';
-  icon: string | null;
-  members_count: number;
-  posts_count: number;
-  last_activity: string | null;
-  has_access: boolean;
-}
 
 const iconMap: Record<string, React.ComponentType<any>> = {
   ChatCircle: ChatCircle,
@@ -44,109 +29,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 };
 
 export default function Channels() {
-  const { user } = useAuth();
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userPlan, setUserPlan] = useState<string | null>(null);
-  const [planLoaded, setPlanLoaded] = useState(false);
-
-  useEffect(() => {
-    const loadUserPlan = async () => {
-      if (user) {
-        const { data } = await supabase
-          .from('subscriptions')
-          .select('plan_type')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        setUserPlan(data?.plan_type || null);
-      }
-      setPlanLoaded(true);
-    };
-    
-    loadUserPlan();
-  }, [user]);
-
-  useEffect(() => {
-    if (planLoaded) {
-      fetchChannels();
-    }
-  }, [planLoaded, userPlan]);
-
-  const fetchChannels = async () => {
-    setLoading(true);
-
-    const { data: channelsData, error } = await supabase
-      .from('channels')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching channels:', error);
-      setLoading(false);
-      return;
-    }
-
-    // Enrich channels with stats
-    const enrichedChannels = await Promise.all(
-      (channelsData || []).map(async (channel) => {
-        // Get posts count
-        const { count: postsCount } = await supabase
-          .from('channel_posts')
-          .select('*', { count: 'exact', head: true })
-          .eq('channel_id', channel.id)
-          .eq('is_moderated', false);
-
-        // Get unique authors (members)
-        const { data: authors } = await supabase
-          .from('channel_posts')
-          .select('author_id')
-          .eq('channel_id', channel.id);
-        
-        const uniqueMembers = new Set((authors || []).map(a => a.author_id).filter(Boolean));
-
-        // Get last activity
-        const { data: lastPost } = await supabase
-          .from('channel_posts')
-          .select('created_at')
-          .eq('channel_id', channel.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const accessType = (channel as any).access_type || 'open';
-        
-        // Check access based on user plan
-        let hasAccess = accessType === 'open';
-        if (user && userPlan) {
-          if (accessType === 'subscribers') {
-            hasAccess = true;
-          } else if (accessType === 'premium') {
-            hasAccess = userPlan === 'yearly';
-          }
-        }
-
-        return {
-          id: channel.id,
-          name: channel.name,
-          description: channel.description,
-          access_type: accessType,
-          icon: (channel as any).icon || 'ChatCircle',
-          members_count: uniqueMembers.size,
-          posts_count: postsCount || 0,
-          last_activity: lastPost?.created_at || null,
-          has_access: hasAccess,
-        };
-      })
-    );
-
-    setChannels(enrichedChannels);
-    setLoading(false);
-  };
+  const { data: channels = [], isLoading: loading } = useChannels();
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return null;
@@ -165,7 +48,7 @@ export default function Channels() {
       .replace(" mês", "m");
   };
 
-  const getAccessBadge = (channel: Channel) => {
+  const getAccessBadge = (channel: { access_type: string }) => {
     if (channel.access_type === 'premium') {
       return (
         <Badge variant="secondary" className="gap-1 text-yellow-600 bg-yellow-500/10">
