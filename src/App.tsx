@@ -22,6 +22,7 @@ import Profile from "./pages/Profile";
 import PersonalData from "./pages/profile/PersonalData";
 import NotFound from "./pages/NotFound";
 import SetupAdmin from "./pages/SetupAdmin";
+import { SubscriptionGuard } from "./components/SubscriptionGuard";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -53,19 +54,21 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/plans" element={<Plans />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/highlights" element={<Highlights />} />
-          <Route path="/spaces" element={<Spaces />} />
-          <Route path="/spaces/:spaceId" element={<SpaceDetail />} />
-          <Route path="/spaces/:spaceId/post/:postId" element={<PostDetail />} />
-          <Route path="/channels" element={<Channels />} />
-          <Route path="/channels/:channelId" element={<ChannelDetail />} />
-          <Route path="/channels/:channelId/new-post" element={<CreateChannelPost />} />
-          <Route path="/channels/:channelId/post/:postId" element={<ChannelPostDetail />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/personal" element={<PersonalData />} />
           <Route path="/setup-admin" element={<SetupAdmin />} />
+
+          {/* Protected Routes - Require active subscription */}
+          <Route path="/home" element={<SubscriptionGuard><Home /></SubscriptionGuard>} />
+          <Route path="/highlights" element={<SubscriptionGuard><Highlights /></SubscriptionGuard>} />
+          <Route path="/spaces" element={<SubscriptionGuard><Spaces /></SubscriptionGuard>} />
+          <Route path="/spaces/:spaceId" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
+          <Route path="/spaces/:spaceId/post/:postId" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
+          <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
+          <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
+          <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
+          <Route path="/channels/:channelId/post/:postId" element={<SubscriptionGuard><ChannelPostDetail /></SubscriptionGuard>} />
+          <Route path="/notifications" element={<SubscriptionGuard><Notifications /></SubscriptionGuard>} />
+          <Route path="/profile" element={<SubscriptionGuard><Profile /></SubscriptionGuard>} />
+          <Route path="/profile/personal" element={<SubscriptionGuard><PersonalData /></SubscriptionGuard>} />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

@@ -2,8 +2,11 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Check, ArrowLeft } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const plans = [
   {
@@ -38,7 +41,13 @@ const plans = [
 export default function Plans() {
   const [selectedPlan, setSelectedPlan] = useState("yearly");
   const [isLoading, setIsLoading] = useState(false);
+  const [isTrialLoading, setIsTrialLoading] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { status } = useSubscription();
+
+  // Determine if showing expired trial message
+  const showExpiredMessage = status === 'expired';
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -46,6 +55,64 @@ export default function Plans() {
     toast.success("Assinatura realizada com sucesso!");
     navigate("/home");
     setIsLoading(false);
+  };
+
+  const handleStartTrial = async () => {
+    if (!user) {
+      toast.error("Você precisa estar logado para iniciar o período de teste.");
+      navigate("/login");
+      return;
+    }
+
+    setIsTrialLoading(true);
+
+    try {
+      // Check if user already had a trial
+      const { data: existingTrial, error: checkError } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('plan_type', 'trial')
+        .limit(1)
+        .maybeSingle();
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existingTrial) {
+        toast.error("Você já utilizou seu período de teste gratuito.");
+        setIsTrialLoading(false);
+        return;
+      }
+
+      // Calculate expiration date (7 days from now)
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      // Create trial subscription
+      const { error: insertError } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: user.id,
+          plan_type: 'trial',
+          status: 'active',
+          starts_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast.success("Período de teste iniciado! Você tem 7 dias de acesso gratuito.");
+      navigate("/home");
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      toast.error("Erro ao iniciar período de teste. Tente novamente.");
+    } finally {
+      setIsTrialLoading(false);
+    }
   };
 
   return (
@@ -77,10 +144,13 @@ export default function Plans() {
           transition={{ delay: 0.1 }}
         >
           <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Escolha seu plano
+            {showExpiredMessage ? "Seu período de teste expirou" : "Escolha seu plano"}
           </h1>
           <p className="text-muted-foreground mb-8">
-            Cancele quando quiser, sem compromisso
+            {showExpiredMessage 
+              ? "Assine agora para continuar acessando a plataforma"
+              : "Cancele quando quiser, sem compromisso"
+            }
           </p>
 
           {/* Plans */}
@@ -158,6 +228,27 @@ export default function Plans() {
           <p className="text-center text-xs text-muted-foreground mt-4">
             Pagamento seguro via cartão de crédito ou PIX
           </p>
+
+          {/* Trial option - only show if not expired and user hasn't had trial */}
+          {!showExpiredMessage && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-8 pt-6 border-t border-border"
+            >
+              <button
+                onClick={handleStartTrial}
+                disabled={isTrialLoading}
+                className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                {isTrialLoading 
+                  ? "Iniciando..." 
+                  : "Prefiro testar grátis por 7 dias →"
+                }
+              </button>
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </div>
