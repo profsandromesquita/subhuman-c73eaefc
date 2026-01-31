@@ -118,8 +118,14 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
             {/* CTA Button */}
             <Button 
+              type="button"
               className="w-full gap-2" 
-              onClick={handleNavigateToPlans}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+                navigate('/plans');
+              }}
             >
               {status === 'active' && planType !== 'trial' 
                 ? 'Gerenciar Plano' 
