@@ -47,7 +47,7 @@ export function useAuth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://subhumano.ia.br/~oauth/callback',
+        redirectTo: 'https://subhumano.ia.br/',
       }
     });
     return { error };
