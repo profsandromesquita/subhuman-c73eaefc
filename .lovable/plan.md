@@ -1,253 +1,91 @@
 
-# Plano: Expandir Página de Dados Pessoais
 
-## Objetivo
-Adicionar campos de cadastro na página `/profile/personal` para coletar informações que permitirão recomendações personalizadas de conteúdo no Subhumano.
+# Plano de Correção: Publicação das Alterações da Página de Dados Pessoais
 
----
+## Diagnóstico
 
-## Novos Campos Propostos
+Após auditoria completa do código, verifiquei que **todas as alterações foram implementadas corretamente** nos arquivos:
 
-### Localização
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `city` | text | Cidade do usuário |
-| `state` | text | Estado brasileiro (sigla: SP, RJ, MG...) |
+| Arquivo | Status | Linhas |
+|---------|--------|--------|
+| `src/pages/profile/PersonalData.tsx` | Implementado | 635 linhas com 6 seções |
+| `src/lib/constants/profile.ts` | Criado | Estados BR, ocupações, indústrias, etc. |
+| `src/components/profile/ProfileFormSection.tsx` | Criado | Componente de seção reutilizável |
+| Migração do banco de dados | Executada | 12 novas colunas na tabela `profiles` |
 
-### Dados Profissionais
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `occupation_type` | text | Tipo de ocupação (enum: autonomo, estudante, clt, empreendedor, empresario, concursado, investidor, outro) |
-| `company_name` | text | Nome da empresa atual ou anterior |
-| `job_title` | text | Profissão ou cargo atual |
-| `industry` | text | Área de atuação (ex: Tecnologia, Marketing, Educação) |
+## Problema Identificado
 
-### Formação e Habilidades
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `education` | text | Nível de formação + área (ex: "Superior - Engenharia de Software") |
-| `skills` | text[] | Array de habilidades (ex: ["Python", "Marketing Digital", "Gestão de Projetos"]) |
+A página `/profile/personal` no código fonte contém **6 seções** completas:
+1. Informações básicas (Nome, Email, Membro desde)
+2. Localização (Cidade, Estado)
+3. Dados profissionais (Ocupação, Área, Empresa, Cargo)
+4. Formação (Escolaridade, Habilidades)
+5. Sobre você (Bio, Hobbies)
+6. Experiência com IA (Nível, Objetivo)
 
-### Interesses e Personalização
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `hobbies` | text | Hobbies e interesses pessoais |
-| `bio` | text | Mini-bio ou descrição pessoal |
-| `ai_experience_level` | text | Nível de experiência com IA (iniciante, intermediario, avancado) |
-| `goals` | text | Objetivo principal com IA (automação, produtividade, criação de conteúdo, etc.) |
+A screenshot mostra apenas a seção "Informações básicas", indicando que você está visualizando a **versão publicada** (`subhumano.ia.br`) que ainda **não foi atualizada**.
 
----
+## Causa Raiz
 
-## Etapas de Implementação
+As alterações no código estão no **ambiente de preview/desenvolvimento**, mas o domínio `subhumano.ia.br` mostra a versão **publicada anterior**. 
 
-### Etapa 1: Migração do Banco de Dados
-Adicionar novos campos à tabela `profiles`:
+Para que as alterações apareçam no domínio personalizado, é necessário **publicar** a aplicação.
 
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN city text,
-ADD COLUMN state text,
-ADD COLUMN occupation_type text,
-ADD COLUMN company_name text,
-ADD COLUMN job_title text,
-ADD COLUMN industry text,
-ADD COLUMN education text,
-ADD COLUMN skills text[],
-ADD COLUMN hobbies text,
-ADD COLUMN bio text,
-ADD COLUMN ai_experience_level text,
-ADD COLUMN goals text;
-```
+## Solução
 
-### Etapa 2: Atualizar Página PersonalData.tsx
+### Etapa 1: Publicar a Aplicação
 
-Reorganizar a página em seções para melhor UX:
+Você precisa publicar o projeto para que as alterações sejam refletidas no domínio `subhumano.ia.br`:
 
-**Seção 1 - Informações Básicas** (existente)
-- Nome completo
-- Email (readonly)
-- Membro desde (readonly)
+1. Clique no botão **"Publish"** no canto superior direito do Lovable
+2. Aguarde a conclusão do deploy
 
-**Seção 2 - Localização**
-- Cidade (input text)
-- Estado (select com todos estados BR)
+### Etapa 2: Verificação Alternativa (Preview)
 
-**Seção 3 - Dados Profissionais**
-- Tipo de ocupação (select: Autônomo, Estudante, CLT, etc.)
-- Área de atuação (select: Tecnologia, Marketing, Saúde, etc.)
-- Nome da empresa (input text)
-- Profissão/Cargo (input text)
-
-**Seção 4 - Formação**
-- Nível de escolaridade (select: Fundamental, Médio, Superior, Pós-graduação, Mestrado, Doutorado)
-- Habilidades (input com tags, separadas por vírgula)
-
-**Seção 5 - Sobre Você**
-- Bio (textarea, max 280 caracteres)
-- Hobbies (input text)
-
-**Seção 6 - Experiência com IA**
-- Nível de experiência (select: Iniciante, Intermediário, Avançado)
-- Objetivo principal (select: Automatizar tarefas, Aumentar produtividade, Criar conteúdo, Programar, Aprender, Outro)
-
----
-
-## Constantes para os Selects
-
-```typescript
-const BRAZILIAN_STATES = [
-  { value: 'AC', label: 'Acre' },
-  { value: 'AL', label: 'Alagoas' },
-  { value: 'AP', label: 'Amapá' },
-  // ... todos os 27 estados
-];
-
-const OCCUPATION_TYPES = [
-  { value: 'autonomo', label: 'Autônomo' },
-  { value: 'estudante', label: 'Estudante' },
-  { value: 'clt', label: 'CLT' },
-  { value: 'empreendedor', label: 'Empreendedor' },
-  { value: 'empresario', label: 'Empresário' },
-  { value: 'concursado', label: 'Concursado' },
-  { value: 'investidor', label: 'Investidor' },
-  { value: 'aposentado', label: 'Aposentado' },
-  { value: 'outro', label: 'Outro' },
-];
-
-const INDUSTRIES = [
-  { value: 'tecnologia', label: 'Tecnologia' },
-  { value: 'marketing', label: 'Marketing e Publicidade' },
-  { value: 'financas', label: 'Finanças e Investimentos' },
-  { value: 'saude', label: 'Saúde' },
-  { value: 'educacao', label: 'Educação' },
-  { value: 'juridico', label: 'Jurídico' },
-  { value: 'ecommerce', label: 'E-commerce' },
-  { value: 'audiovisual', label: 'Audiovisual e Mídia' },
-  { value: 'consultoria', label: 'Consultoria' },
-  { value: 'industria', label: 'Indústria' },
-  { value: 'varejo', label: 'Varejo' },
-  { value: 'outro', label: 'Outro' },
-];
-
-const EDUCATION_LEVELS = [
-  { value: 'fundamental', label: 'Ensino Fundamental' },
-  { value: 'medio', label: 'Ensino Médio' },
-  { value: 'tecnico', label: 'Técnico' },
-  { value: 'superior_incompleto', label: 'Superior Incompleto' },
-  { value: 'superior', label: 'Superior Completo' },
-  { value: 'pos_graduacao', label: 'Pós-graduação' },
-  { value: 'mestrado', label: 'Mestrado' },
-  { value: 'doutorado', label: 'Doutorado' },
-];
-
-const AI_EXPERIENCE_LEVELS = [
-  { value: 'iniciante', label: 'Iniciante - Ainda estou descobrindo' },
-  { value: 'intermediario', label: 'Intermediário - Uso no dia a dia' },
-  { value: 'avancado', label: 'Avançado - Desenvolvo com IA' },
-];
-
-const AI_GOALS = [
-  { value: 'automacao', label: 'Automatizar tarefas repetitivas' },
-  { value: 'produtividade', label: 'Aumentar produtividade' },
-  { value: 'conteudo', label: 'Criar conteúdo' },
-  { value: 'programacao', label: 'Programar e desenvolver' },
-  { value: 'aprender', label: 'Aprender sobre IA' },
-  { value: 'negocios', label: 'Aplicar no meu negócio' },
-  { value: 'outro', label: 'Outro' },
-];
-```
-
----
-
-## Layout Visual
+Se quiser testar antes de publicar, acesse o ambiente de **preview**:
 
 ```text
-┌─────────────────────────────────────┐
-│  ← Dados pessoais                   │
-├─────────────────────────────────────┤
-│         [Avatar + Camera]           │
-│      Toque para alterar a foto      │
-├─────────────────────────────────────┤
-│  ┌─────────────────────────────┐    │
-│  │ 👤 Informações básicas      │    │
-│  │ ─────────────────────────── │    │
-│  │ Nome completo    [________] │    │
-│  │ Email            [readonly] │    │
-│  │ Membro desde     [readonly] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 📍 Localização              │    │
-│  │ ─────────────────────────── │    │
-│  │ Cidade           [________] │    │
-│  │ Estado           [▼ Select] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 💼 Dados profissionais      │    │
-│  │ ─────────────────────────── │    │
-│  │ Ocupação         [▼ Select] │    │
-│  │ Área de atuação  [▼ Select] │    │
-│  │ Empresa          [________] │    │
-│  │ Cargo            [________] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 🎓 Formação                 │    │
-│  │ ─────────────────────────── │    │
-│  │ Escolaridade     [▼ Select] │    │
-│  │ Habilidades      [________] │    │
-│  │ (separar por vírgula)       │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ ✨ Sobre você               │    │
-│  │ ─────────────────────────── │    │
-│  │ Bio              [________] │    │
-│  │                  [________] │    │
-│  │ Hobbies          [________] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │ 🤖 Experiência com IA       │    │
-│  │ ─────────────────────────── │    │
-│  │ Nível            [▼ Select] │    │
-│  │ Objetivo         [▼ Select] │    │
-│  └─────────────────────────────┘    │
-│                                     │
-│  [      Salvar alterações       ]   │
-│                                     │
-└─────────────────────────────────────┘
+URL de Preview: https://id-preview--38842661-2f61-4b6f-a6f3-f9c69c0c74fd.lovable.app/profile/personal
 ```
 
----
+Este ambiente já contém todas as alterações implementadas.
 
-## Arquivos Impactados
+## Verificação do Código
 
-| Arquivo | Ação |
-|---------|------|
-| Migração SQL | Criar - Adicionar colunas à tabela `profiles` |
-| `src/pages/profile/PersonalData.tsx` | Alterar - Expandir formulário com novos campos |
-| `src/lib/constants/profile.ts` | Criar - Constantes para os selects (estados, ocupações, etc.) |
+Trecho do código atual em `PersonalData.tsx` (linhas 389-425):
 
----
+```typescript
+{/* Seção 2 - Localização */}
+<motion.div ...>
+  <ProfileFormSection icon={<MapPin className="h-5 w-5" />} title="Localização">
+    <div className="space-y-2">
+      <Label htmlFor="city">Cidade</Label>
+      <Input id="city" value={formData.city} ... />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="state">Estado</Label>
+      <Select value={formData.state} ...>
+        {BRAZILIAN_STATES.map(...)}
+      </Select>
+    </div>
+  </ProfileFormSection>
+</motion.div>
+```
 
-## Benefícios para Personalização
+## Resumo
 
-Com esses dados, o Subhumano poderá:
+| Ação | Status |
+|------|--------|
+| Código implementado | Completo |
+| Banco de dados migrado | Completo |
+| Constantes criadas | Completo |
+| Componentes auxiliares | Completo |
+| Publicação para produção | Pendente (requer clique em "Publish") |
 
-1. **Recomendar Espaços** baseado em área de atuação e interesses
-2. **Sugerir Canais** alinhados com nível de experiência em IA
-3. **Personalizar feed** considerando objetivos do usuário
-4. **Filtrar conteúdo** por relevância profissional
-5. **Criar comunidades** conectando usuários com perfis similares
-6. **Adaptar linguagem** baseado no nível técnico do usuário
+## Próximos Passos
 
----
+1. **Publicar** a aplicação clicando no botão "Publish"
+2. Acessar `subhumano.ia.br/profile/personal` após a publicação
+3. Testar o preenchimento de todos os campos novos
+4. Verificar se os dados são salvos corretamente no banco
 
-## Validação
-
-- Todos os campos novos são opcionais (nullable)
-- Bio limitada a 280 caracteres (estilo Twitter)
-- Habilidades armazenadas como array para facilitar busca
-- Estados como siglas (2 caracteres) para padronização
