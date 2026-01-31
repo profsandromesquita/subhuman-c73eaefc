@@ -1,159 +1,114 @@
 
 
-# Plano de Correção — Redirecionamento Pós-Login Google OAuth
+# Plano: Migrar para Google OAuth com Credenciais Próprias (BYOK)
 
-## Diagnóstico da Causa Raiz
+## Diagnóstico do Loop Infinito
 
-O problema está no **fluxo de retorno do Google OAuth**:
+O loop infinito está sendo causado por uma **condição de corrida** entre:
+1. O OAuth callback retornando para `/` (Landing)
+2. A Landing verificando autenticação enquanto os estados ainda estão atualizando
+3. Múltiplos re-renders causando navegações repetidas
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                 Fluxo Atual (PROBLEMÁTICO)                              │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  1. Usuário clica "Continuar com Google" em /login                      │
-│              ↓                                                          │
-│  2. signInWithOAuth({ redirect_uri: window.location.origin })           │
-│              ↓                                                          │
-│  3. Usuário autoriza no Google                                          │
-│              ↓                                                          │
-│  4. Google redireciona para "/" (Landing page)                          │
-│              ↓                                                          │
-│  5. AuthContext detecta sessão via onAuthStateChange                    │
-│              ↓                                                          │
-│  6. PROBLEMA: Landing page não verifica autenticação!                   │
-│              ↓                                                          │
-│  7. Usuário fica "preso" na Landing, aparentemente não logado           │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-O `redirect_uri: window.location.origin` envia o usuário de volta para `/`, mas a Landing page não tem nenhuma lógica para:
-- Detectar que o usuário agora está autenticado
-- Verificar o status da assinatura
-- Redirecionar para `/home` ou `/plans` adequadamente
+Esta abordagem com OAuth gerenciado pelo Lovable tem limitações que estão causando problemas. A solução mais robusta é **migrar para suas próprias credenciais**.
 
 ---
 
-## Solução Proposta
+## O que você precisa fazer (passo a passo)
 
-Adicionar lógica na **Landing page** para detectar usuários autenticados e redirecioná-los automaticamente.
+### Passo 1: Criar projeto no Google Cloud Console
 
-### Fluxo Corrigido:
+1. Acesse: https://console.cloud.google.com/
+2. Crie um novo projeto (ou use um existente)
+3. Vá para **"APIs & Services" → "OAuth consent screen"**
+4. Configure:
+   - **User Type**: External
+   - **App name**: Subhuman (ou seu nome desejado)
+   - **User support email**: Seu email
+   - **Logo**: (opcional) Upload do logo Subhuman
+   - **Authorized domains**: `lovable.app` e seu domínio customizado (se tiver)
+   - **Developer contact information**: Seu email
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                 Fluxo Corrigido                                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  1. Usuário retorna do Google OAuth para "/"                            │
-│              ↓                                                          │
-│  2. Landing page detecta que user existe (via useAuth)                  │
-│              ↓                                                          │
-│  3. Verifica status da assinatura (via useSubscription)                 │
-│              ↓                                                          │
-│  4. Se trial/active → navigate("/home")                                 │
-│     Se none/expired → navigate("/plans")                                │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+5. Vá para **"Credentials" → "Create Credentials" → "OAuth client ID"**
+6. Configure:
+   - **Application type**: Web application
+   - **Name**: Subhuman Web Client
+   - **Authorized JavaScript origins**: 
+     - `https://id-preview--38842661-2f61-4b6f-a6f3-f9c69c0c74fd.lovable.app`
+     - `https://subhuman.lovable.app`
+   - **Authorized redirect URIs**:
+     - `https://akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback`
 
----
-
-## Arquivo a Alterar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/Landing.tsx` | Adicionar lógica de redirecionamento para usuários autenticados |
+7. Copie o **Client ID** e **Client Secret** gerados
 
 ---
 
-## Implementação Técnica
+### Passo 2: Me enviar as credenciais
 
-### Código Atual (Landing.tsx)
-A Landing page atual é completamente estática, sem verificação de autenticação.
+Após criar, envie aqui no chat:
+- **Google Client ID** (algo como `123456789-xxxxxxxx.apps.googleusercontent.com`)
+- **Google Client Secret** (algo como `GOCSPX-xxxxxxxxx`)
 
-### Código Corrigido
+---
+
+## O que eu vou implementar após receber as credenciais
+
+### 1. Configurar Provider Google no Lovable Cloud
+- Usar a ferramenta de configuração para cadastrar suas credenciais
+
+### 2. Atualizar o hook `useAuth.ts`
+- Trocar de `lovable.auth.signInWithOAuth` para `supabase.auth.signInWithOAuth`
+- Usar o flow nativo do Supabase que é mais estável
 
 ```typescript
-import { useEffect } from "react";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Lightning, ShieldCheck, Sparkle } from "@phosphor-icons/react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { useSubscription } from "@/hooks/useSubscription";
-
-export default function Landing() {
-  const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const { status, loading: subLoading } = useSubscription();
-
-  // Redirect authenticated users to appropriate page
-  useEffect(() => {
-    // Wait for auth and subscription to load
-    if (authLoading || subLoading) return;
-    
-    // If user is authenticated, redirect based on subscription status
-    if (user) {
-      if (status === 'trial' || status === 'active') {
-        navigate('/home', { replace: true });
-      } else {
-        navigate('/plans', { replace: true });
-      }
+const signInWithGoogle = useCallback(async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/home`,
     }
-  }, [user, authLoading, status, subLoading, navigate]);
-
-  // Show loading state while checking auth
-  if (authLoading || (user && subLoading)) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Carregando...</div>
-      </div>
-    );
-  }
-
-  // Rest of the Landing page component...
-  return (
-    // ... existing JSX
-  );
-}
+  });
+  return { error };
+}, []);
 ```
 
----
+### 3. Remover a integração lovable/auth
+- Remover o arquivo `src/integrations/lovable/index.ts`
+- Simplificar a stack de autenticação
 
-## Detalhes da Implementação
+### 4. Corrigir os warnings de forwardRef
+- Adicionar `forwardRef` aos componentes `GoogleButton` e `AuthDivider`
 
-1. **Importar hooks necessários:**
-   - `useAuth` para verificar se há usuário autenticado
-   - `useSubscription` para verificar status da assinatura
-   - `useNavigate` para fazer o redirecionamento
-
-2. **Adicionar useEffect de redirecionamento:**
-   - Aguarda `authLoading` e `subLoading` terminarem
-   - Se `user` existe, verifica `status` da assinatura
-   - Redireciona para `/home` (trial/active) ou `/plans` (none/expired)
-
-3. **Adicionar estado de loading:**
-   - Exibe "Carregando..." enquanto verifica autenticação
-   - Evita flash da Landing page antes do redirect
+### 5. Corrigir a Landing para evitar loops
+- Adicionar flag para evitar múltiplos redirecionamentos
+- Usar `replace: true` de forma mais controlada
 
 ---
 
-## Considerações Adicionais
+## Arquivos impactados
 
-Esta correção também beneficia outros cenários:
-- Usuário com sessão ativa que acessa diretamente "/"
-- Usuário que faz logout e depois login novamente via Google
-- Qualquer fluxo OAuth que use `window.location.origin` como redirect
+| Ação | Arquivo |
+|------|---------|
+| Alterar | `src/hooks/useAuth.ts` |
+| Alterar | `src/pages/Landing.tsx` |
+| Alterar | `src/components/GoogleButton.tsx` |
+| Alterar | `src/components/AuthDivider.tsx` |
+| Remover | `src/integrations/lovable/index.ts` |
 
 ---
 
-## Validação End-to-End
+## Benefícios desta abordagem
 
-- [ ] Ir para `/login` e clicar "Continuar com Google"
-- [ ] Autorizar no Google
-- [ ] Verificar que após o redirect, o usuário vai automaticamente para `/home` (se trial/active) ou `/plans` (se none)
-- [ ] Usuário não deve mais ficar "preso" na Landing page
-- [ ] Repetir o teste a partir de `/register` com "Cadastrar com Google"
+1. **Controle total**: Você terá as credenciais e pode gerenciar no Google Cloud Console
+2. **Branding personalizado**: Tela de consentimento mostrará "Subhuman" em vez de "Lovable"
+3. **Mais estabilidade**: O flow nativo do Supabase é mais testado e robusto
+4. **Debug facilitado**: Você pode ver logs no Google Cloud Console
+5. **Sem dependência do cliente lovable/auth**: Menos código, menos pontos de falha
+
+---
+
+## Próximos passos
+
+1. Crie o projeto no Google Cloud Console seguindo as instruções acima
+2. Me envie o **Client ID** e **Client Secret** gerados
+3. Eu configuro tudo e faço as alterações necessárias no código
 
