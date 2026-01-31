@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { lovable } from '@/integrations/lovable/index';
 
 export function useAuth() {
   const { user, session, loading } = useAuthContext();
@@ -43,6 +44,13 @@ export function useAuth() {
     return { error };
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    return { error: result.error };
+  }, []);
+
   return {
     user,
     session,
@@ -50,6 +58,7 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
-    resetPassword
+    resetPassword,
+    signInWithGoogle
   };
 }
