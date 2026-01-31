@@ -1,91 +1,220 @@
 
-
-# Plano de Correção: Publicação das Alterações da Página de Dados Pessoais
+# Plano de Correção: Páginas de Perfil Faltantes (404)
 
 ## Diagnóstico
 
-Após auditoria completa do código, verifiquei que **todas as alterações foram implementadas corretamente** nos arquivos:
+### Causa Raiz Identificada
 
-| Arquivo | Status | Linhas |
-|---------|--------|--------|
-| `src/pages/profile/PersonalData.tsx` | Implementado | 635 linhas com 6 seções |
-| `src/lib/constants/profile.ts` | Criado | Estados BR, ocupações, indústrias, etc. |
-| `src/components/profile/ProfileFormSection.tsx` | Criado | Componente de seção reutilizável |
-| Migração do banco de dados | Executada | 12 novas colunas na tabela `profiles` |
+O erro 404 ocorre porque:
 
-## Problema Identificado
+1. **Rotas não definidas** no `App.tsx`:
+   - `/profile/security` - NÃO EXISTE
+   - `/profile/notifications` - NÃO EXISTE  
+   - `/profile/settings` - NÃO EXISTE
 
-A página `/profile/personal` no código fonte contém **6 seções** completas:
-1. Informações básicas (Nome, Email, Membro desde)
-2. Localização (Cidade, Estado)
-3. Dados profissionais (Ocupação, Área, Empresa, Cargo)
-4. Formação (Escolaridade, Habilidades)
-5. Sobre você (Bio, Hobbies)
-6. Experiência com IA (Nível, Objetivo)
+2. **Componentes não criados** em `src/pages/profile/`:
+   - Apenas `PersonalData.tsx` existe
+   - `Security.tsx` - NÃO EXISTE
+   - `NotificationPreferences.tsx` - NÃO EXISTE
+   - `Settings.tsx` - NÃO EXISTE
 
-A screenshot mostra apenas a seção "Informações básicas", indicando que você está visualizando a **versão publicada** (`subhumano.ia.br`) que ainda **não foi atualizada**.
+3. **Links definidos** no `Profile.tsx` apontam para rotas inexistentes:
+   ```typescript
+   { path: "/profile/security" }      // Link existe, rota não
+   { path: "/profile/notifications" } // Link existe, rota não
+   { path: "/profile/settings" }      // Link existe, rota não
+   ```
 
-## Causa Raiz
-
-As alterações no código estão no **ambiente de preview/desenvolvimento**, mas o domínio `subhumano.ia.br` mostra a versão **publicada anterior**. 
-
-Para que as alterações apareçam no domínio personalizado, é necessário **publicar** a aplicação.
+---
 
 ## Solução
 
-### Etapa 1: Publicar a Aplicação
+### Etapa 1: Criar Página de Senha e Segurança
 
-Você precisa publicar o projeto para que as alterações sejam refletidas no domínio `subhumano.ia.br`:
+**Arquivo:** `src/pages/profile/Security.tsx`
 
-1. Clique no botão **"Publish"** no canto superior direito do Lovable
-2. Aguarde a conclusão do deploy
+Funcionalidades:
+- Alteração de senha (atual + nova + confirmação)
+- Integração com Supabase Auth `updateUser({ password })`
+- Validação de senha mínima (8 caracteres)
+- Feedback visual de sucesso/erro
 
-### Etapa 2: Verificação Alternativa (Preview)
+Seções da página:
+| Seção | Campos |
+|-------|--------|
+| Alterar senha | Senha atual, Nova senha, Confirmar senha |
+| Sessões ativas | Informação sobre a sessão atual |
 
-Se quiser testar antes de publicar, acesse o ambiente de **preview**:
+---
 
-```text
-URL de Preview: https://id-preview--38842661-2f61-4b6f-a6f3-f9c69c0c74fd.lovable.app/profile/personal
-```
+### Etapa 2: Criar Página de Preferências de Notificação
 
-Este ambiente já contém todas as alterações implementadas.
+**Arquivo:** `src/pages/profile/NotificationPreferences.tsx`
 
-## Verificação do Código
+Funcionalidades:
+- Switches para ativar/desativar tipos de notificação
+- Persistência no banco de dados (nova tabela ou coluna em profiles)
 
-Trecho do código atual em `PersonalData.tsx` (linhas 389-425):
+Opções de notificação:
+| Tipo | Descrição |
+|------|-----------|
+| Atualizações de Espaços | Novos posts nos espaços que você segue |
+| Comentários | Quando alguém responde seus posts |
+| Menções | Quando você é mencionado |
+| Novidades do Subhumano | Anúncios e novos recursos |
+| Email de resumo semanal | Resumo das principais atualizações |
+
+---
+
+### Etapa 3: Criar Página de Configurações
+
+**Arquivo:** `src/pages/profile/Settings.tsx`
+
+Funcionalidades:
+- Preferências do aplicativo
+- Opções de acessibilidade
+- Gerenciamento de dados
+
+Opções:
+| Seção | Opções |
+|-------|--------|
+| Aparência | Tema (apenas dark por design) |
+| Idioma | Português (BR) - único disponível |
+| Cache | Limpar dados em cache |
+| Dados | Baixar meus dados, Excluir conta |
+
+---
+
+### Etapa 4: Registrar Rotas no App.tsx
+
+Adicionar as 3 novas rotas protegidas:
 
 ```typescript
-{/* Seção 2 - Localização */}
-<motion.div ...>
-  <ProfileFormSection icon={<MapPin className="h-5 w-5" />} title="Localização">
-    <div className="space-y-2">
-      <Label htmlFor="city">Cidade</Label>
-      <Input id="city" value={formData.city} ... />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="state">Estado</Label>
-      <Select value={formData.state} ...>
-        {BRAZILIAN_STATES.map(...)}
-      </Select>
-    </div>
-  </ProfileFormSection>
-</motion.div>
+import Security from "./pages/profile/Security";
+import NotificationPreferences from "./pages/profile/NotificationPreferences";
+import Settings from "./pages/profile/Settings";
+
+// Dentro de <Routes>:
+<Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
+<Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
+<Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
 ```
 
-## Resumo
+---
 
-| Ação | Status |
-|------|--------|
-| Código implementado | Completo |
-| Banco de dados migrado | Completo |
-| Constantes criadas | Completo |
-| Componentes auxiliares | Completo |
-| Publicação para produção | Pendente (requer clique em "Publish") |
+### Etapa 5: Migração do Banco (Opcional)
 
-## Próximos Passos
+Para persistir preferências de notificação, adicionar colunas à tabela `profiles`:
 
-1. **Publicar** a aplicação clicando no botão "Publish"
-2. Acessar `subhumano.ia.br/profile/personal` após a publicação
-3. Testar o preenchimento de todos os campos novos
-4. Verificar se os dados são salvos corretamente no banco
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN notify_space_updates boolean DEFAULT true,
+ADD COLUMN notify_comments boolean DEFAULT true,
+ADD COLUMN notify_mentions boolean DEFAULT true,
+ADD COLUMN notify_announcements boolean DEFAULT true,
+ADD COLUMN notify_weekly_email boolean DEFAULT false;
+```
 
+---
+
+## Resumo de Arquivos
+
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/profile/Security.tsx` | Criar |
+| `src/pages/profile/NotificationPreferences.tsx` | Criar |
+| `src/pages/profile/Settings.tsx` | Criar |
+| `src/App.tsx` | Alterar - adicionar 3 rotas |
+| Migração SQL | Criar - campos de preferências de notificação |
+
+---
+
+## Layout Visual das Páginas
+
+### Senha e Segurança
+```text
+┌─────────────────────────────────────┐
+│  ← Senha e segurança                │
+├─────────────────────────────────────┤
+│  ┌─────────────────────────────┐    │
+│  │ Alterar senha               │    │
+│  │ ─────────────────────────── │    │
+│  │ Senha atual      [________] │    │
+│  │ Nova senha       [________] │    │
+│  │ Confirmar        [________] │    │
+│  │                             │    │
+│  │ [    Alterar senha      ]   │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ Sessão atual                │    │
+│  │ ─────────────────────────── │    │
+│  │ Dispositivo: Chrome - Mac   │    │
+│  │ Último acesso: Agora        │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+```
+
+### Preferências de Notificação
+```text
+┌─────────────────────────────────────┐
+│  ← Notificações                     │
+├─────────────────────────────────────┤
+│  ┌─────────────────────────────┐    │
+│  │ Push notifications          │    │
+│  │ ─────────────────────────── │    │
+│  │ Atualizações       [===O  ] │    │
+│  │ Comentários        [===O  ] │    │
+│  │ Menções            [===O  ] │    │
+│  │ Novidades          [  O===] │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ Email                       │    │
+│  │ ─────────────────────────── │    │
+│  │ Resumo semanal     [  O===] │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+```
+
+### Configurações
+```text
+┌─────────────────────────────────────┐
+│  ← Configurações                    │
+├─────────────────────────────────────┤
+│  ┌─────────────────────────────┐    │
+│  │ Aparência                   │    │
+│  │ ─────────────────────────── │    │
+│  │ Tema              Dark   >  │    │
+│  │ Idioma            PT-BR  >  │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ Armazenamento               │    │
+│  │ ─────────────────────────── │    │
+│  │ Limpar cache         >      │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  ┌─────────────────────────────┐    │
+│  │ Conta                       │    │
+│  │ ─────────────────────────── │    │
+│  │ Baixar meus dados    >      │    │
+│  │ Excluir conta        >      │    │
+│  └─────────────────────────────┘    │
+│                                     │
+│  v1.0.0 • subhumano.ia              │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Padrões de Código
+
+Todas as páginas seguirão o mesmo padrão de `PersonalData.tsx`:
+- `AppLayout` como wrapper
+- Header com botão voltar (`ArrowLeft`)
+- `ProfileFormSection` para agrupar campos
+- `motion.div` para animações de entrada
+- Hook `useAuth` para verificar autenticação
+- Navegação para `/login` se não autenticado
+- Toast para feedback de ações
