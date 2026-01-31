@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +16,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   ArrowLeft, 
   PaintBrush, 
@@ -22,12 +29,22 @@ import {
   Trash, 
   DownloadSimple,
   CaretRight,
-  Warning
+  Warning,
+  Info,
+  Moon
 } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+
+// Dados que serão exportados
+const EXPORTED_DATA_INFO = [
+  { field: "Email", description: "Seu email de login" },
+  { field: "Perfil", description: "Nome, avatar, bio, localização, profissão" },
+  { field: "Assinaturas", description: "Planos ativos (trial, mensal, anual)" },
+  { field: "Espaços seguidos", description: "Lista dos espaços que você segue" },
+];
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -68,18 +85,70 @@ export default function Settings() {
         .select('*')
         .eq('user_id', user.id);
 
-      // Fetch user space subscriptions
+      // Fetch user space subscriptions with space details
       const { data: spaceSubscriptions } = await supabase
         .from('user_space_subscriptions')
-        .select('*')
+        .select(`
+          id,
+          subscribed_at,
+          space_id,
+          spaces (
+            name,
+            slug,
+            description
+          )
+        `)
         .eq('user_id', user.id);
 
       const userData = {
-        email: user.email,
-        profile,
-        subscriptions,
-        spaceSubscriptions,
-        exportedAt: new Date().toISOString(),
+        exportInfo: {
+          description: "Dados pessoais exportados do Subhumano",
+          exportedAt: new Date().toISOString(),
+          version: "1.0.0",
+        },
+        account: {
+          email: user.email,
+          createdAt: user.created_at,
+        },
+        profile: profile ? {
+          fullName: profile.full_name,
+          bio: profile.bio,
+          avatarUrl: profile.avatar_url,
+          location: {
+            city: profile.city,
+            state: profile.state,
+          },
+          professional: {
+            occupationType: profile.occupation_type,
+            jobTitle: profile.job_title,
+            companyName: profile.company_name,
+            industry: profile.industry,
+          },
+          experience: {
+            aiExperienceLevel: profile.ai_experience_level,
+            goals: profile.goals,
+            skills: profile.skills,
+            education: profile.education,
+          },
+          preferences: {
+            notifySpaceUpdates: profile.notify_space_updates,
+            notifyComments: profile.notify_comments,
+            notifyMentions: profile.notify_mentions,
+            notifyAnnouncements: profile.notify_announcements,
+            notifyWeeklyEmail: profile.notify_weekly_email,
+          },
+        } : null,
+        subscriptions: subscriptions?.map(sub => ({
+          planType: sub.plan_type,
+          status: sub.status,
+          startsAt: sub.starts_at,
+          expiresAt: sub.expires_at,
+        })) || [],
+        followedSpaces: spaceSubscriptions?.map(sub => ({
+          spaceName: (sub.spaces as any)?.name,
+          spaceSlug: (sub.spaces as any)?.slug,
+          subscribedAt: sub.subscribed_at,
+        })) || [],
       };
 
       // Create and download JSON file
@@ -164,21 +233,55 @@ export default function Settings() {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm">Tema</span>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Dark</span>
-                    <CaretRight className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm">Idioma</span>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Globe className="h-4 w-4" />
-                    <span>Português (BR)</span>
-                    <CaretRight className="h-4 w-4" />
-                  </div>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center justify-between py-2 cursor-default">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">Tema</span>
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Moon className="h-4 w-4 text-muted-foreground" />
+                          <Badge variant="secondary" className="text-xs">
+                            Dark
+                          </Badge>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[250px]">
+                      <p className="text-xs">
+                        O Subhumano é projetado exclusivamente para o modo escuro, 
+                        proporcionando a melhor experiência visual e reduzindo o cansaço ocular.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center justify-between py-2 cursor-default">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">Idioma</span>
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <Badge variant="secondary" className="text-xs">
+                            Português (BR)
+                          </Badge>
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[250px]">
+                      <p className="text-xs">
+                        Atualmente o Subhumano está disponível apenas em Português do Brasil. 
+                        Novos idiomas podem ser adicionados no futuro.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </CardContent>
           </Card>
@@ -199,13 +302,19 @@ export default function Settings() {
                 <h2 className="font-semibold">Armazenamento</h2>
               </div>
 
-              <button
-                onClick={handleClearCache}
-                className="w-full flex items-center justify-between py-2 text-sm hover:bg-secondary/50 rounded-lg px-2 -mx-2 transition-colors"
-              >
-                <span>Limpar cache</span>
-                <CaretRight className="h-4 w-4 text-muted-foreground" />
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={handleClearCache}
+                  className="w-full flex items-center justify-between py-2 text-sm hover:bg-secondary/50 rounded-lg px-2 -mx-2 transition-colors"
+                >
+                  <span>Limpar cache</span>
+                  <CaretRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+                <p className="text-xs text-muted-foreground px-2">
+                  Remove dados temporários armazenados localmente. 
+                  Sua sessão e preferências serão mantidas.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -226,14 +335,41 @@ export default function Settings() {
               </div>
 
               <div className="space-y-1">
-                <button
-                  onClick={handleDownloadData}
-                  disabled={loading}
-                  className="w-full flex items-center justify-between py-2 text-sm hover:bg-secondary/50 rounded-lg px-2 -mx-2 transition-colors disabled:opacity-50"
-                >
-                  <span>{loading ? "Exportando..." : "Baixar meus dados"}</span>
-                  <CaretRight className="h-4 w-4 text-muted-foreground" />
-                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      disabled={loading}
+                      className="w-full flex items-center justify-between py-2 text-sm hover:bg-secondary/50 rounded-lg px-2 -mx-2 transition-colors disabled:opacity-50"
+                    >
+                      <span>{loading ? "Exportando..." : "Baixar meus dados"}</span>
+                      <CaretRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Exportar seus dados</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-3">
+                          <p>Os seguintes dados serão exportados em formato JSON:</p>
+                          <ul className="space-y-2">
+                            {EXPORTED_DATA_INFO.map((item) => (
+                              <li key={item.field} className="flex items-start gap-2 text-sm">
+                                <span className="font-medium text-foreground">{item.field}:</span>
+                                <span>{item.description}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDownloadData}>
+                        Exportar dados
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

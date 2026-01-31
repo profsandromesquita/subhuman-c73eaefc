@@ -44,6 +44,10 @@ export default function Security() {
   };
 
   const validateForm = () => {
+    if (!formData.currentPassword) {
+      toast.error("Digite sua senha atual");
+      return false;
+    }
     if (!formData.newPassword) {
       toast.error("Digite a nova senha");
       return false;
@@ -56,7 +60,41 @@ export default function Security() {
       toast.error("As senhas não conferem");
       return false;
     }
+    if (formData.currentPassword === formData.newPassword) {
+      toast.error("A nova senha deve ser diferente da atual");
+      return false;
+    }
     return true;
+  };
+
+  const verifyCurrentPassword = async (): Promise<boolean> => {
+    if (!user?.email) return false;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-password', {
+        body: {
+          email: user.email,
+          password: formData.currentPassword,
+        },
+      });
+
+      if (error) {
+        console.error('Error calling verify-password:', error);
+        toast.error("Erro ao verificar senha atual");
+        return false;
+      }
+
+      if (!data.valid) {
+        toast.error(data.error || "Senha atual incorreta");
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error verifying password:', error);
+      toast.error("Erro ao verificar senha atual");
+      return false;
+    }
   };
 
   const handleChangePassword = async () => {
@@ -64,6 +102,15 @@ export default function Security() {
 
     setLoading(true);
     try {
+      // First, verify the current password
+      const isCurrentPasswordValid = await verifyCurrentPassword();
+      
+      if (!isCurrentPasswordValid) {
+        setLoading(false);
+        return;
+      }
+
+      // Current password is valid, proceed with password update
       const { error } = await supabase.auth.updateUser({
         password: formData.newPassword
       });
@@ -163,6 +210,9 @@ export default function Security() {
                       )}
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sua senha atual será verificada antes da alteração
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -224,7 +274,7 @@ export default function Security() {
                   onClick={handleChangePassword}
                   disabled={loading}
                 >
-                  {loading ? "Alterando..." : "Alterar senha"}
+                  {loading ? "Verificando e alterando..." : "Alterar senha"}
                 </Button>
               </div>
             </CardContent>
