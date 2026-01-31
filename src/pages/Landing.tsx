@@ -1,4 +1,4 @@
-import { useEffect, ForwardRefExoticComponent, RefAttributes } from "react";
+import { useEffect, useRef, ForwardRefExoticComponent, RefAttributes } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Lightning, ShieldCheck, Sparkle, IconProps } from "@phosphor-icons/react";
@@ -30,12 +30,15 @@ export default function Landing() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { status, loading: subLoading } = useSubscription();
+  const hasRedirected = useRef(false);
 
   // Redirect authenticated users to appropriate page
   useEffect(() => {
     if (authLoading || subLoading) return;
+    if (hasRedirected.current) return;
     
     if (user) {
+      hasRedirected.current = true;
       if (status === 'trial' || status === 'active') {
         navigate('/home', { replace: true });
       } else {
