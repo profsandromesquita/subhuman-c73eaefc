@@ -1,67 +1,75 @@
 
 
-# Plano: Configurar OAuth Redirect para Domínio Personalizado
+# Plano de Correção: Google OAuth
 
-## Problema Identificado
+## Diagnóstico dos Problemas
 
-O `signInWithOAuth` está usando `window.location.origin` dinamicamente, o que funciona para preview mas não para o domínio personalizado. Precisamos hardcodar o domínio `subhumano.ia.br`.
+### Problema 1: Mensagem "Prosseguir para akkbfzfjappludgsrwsw.supabase.co"
+
+Esta mensagem é exibida pelo Google e mostra o **domínio do callback URL configurado nas credenciais OAuth no Google Cloud Console**. Ela **NÃO** é controlada pelo código da aplicação.
+
+Para que apareça "Prosseguir para subhumano.ia.br", seria necessário:
+- Configurar um **Custom Domain para o Supabase Auth** (funcionalidade não disponível no Lovable Cloud)
+- Isso requer acesso direto ao painel do Supabase para configurar um CNAME
+
+**Limitação**: No Lovable Cloud, não é possível configurar um domínio personalizado para o endpoint de autenticação do Supabase. A mensagem sempre mostrará o domínio do Supabase.
+
+### Problema 2: "Missing state parameter"
+
+Este erro ocorreu porque o `redirectTo` foi alterado para `https://subhumano.ia.br/~oauth/callback`, que é um formato incompatível com o fluxo OAuth padrão do Supabase. O parâmetro `state` é usado para proteção CSRF e se perde quando o redirect não segue o padrão esperado.
 
 ---
 
-## Alteração Necessária
+## Solução
 
-### Arquivo: `src/hooks/useAuth.ts`
+### Etapa 1: Corrigir o erro "Missing state parameter"
 
-**Linha 46-54** - Alterar a função `signInWithGoogle`:
+Reverter o `redirectTo` para usar a raiz do domínio, permitindo que o Supabase processe o callback corretamente:
+
+**Arquivo:** `src/hooks/useAuth.ts` (linha 46-54)
 
 ```typescript
 const signInWithGoogle = useCallback(async () => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: 'https://subhumano.ia.br/~oauth/callback',
+      redirectTo: 'https://subhumano.ia.br/',
     }
   });
   return { error };
 }, []);
 ```
 
----
-
-## Configuração Adicional Necessária
-
-Após aprovar este plano, você também precisará:
-
-1. **Google Cloud Console** - Adicionar o redirect URI nas credenciais OAuth:
-   - Vá em **Credentials → seu OAuth Client → Authorized redirect URIs**
-   - Adicione: `https://akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback`
-   - E também: `https://subhumano.ia.br/~oauth/callback` (se suportado)
-
-2. **Backend Authentication Settings** - Garantir que o domínio `subhumano.ia.br` está configurado como Site URL ou Redirect URL adicional
+Isso fará:
+1. Google autentica e envia callback para `akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback`
+2. Supabase processa a autenticação e redireciona para `https://subhumano.ia.br/`
+3. Landing page detecta o usuário autenticado e redireciona para `/home` ou `/plans`
 
 ---
 
-## Fluxo OAuth Esperado
+## Sobre a Mensagem "Prosseguir para"
 
-```text
-1. Usuário clica "Continuar com Google"
-           ↓
-2. Redireciona para Google OAuth (consent screen "Subhuman")
-           ↓
-3. Google envia callback para Supabase: 
-   akkbfzfjappludgsrwsw.supabase.co/auth/v1/callback
-           ↓
-4. Supabase processa e redireciona para:
-   https://subhumano.ia.br/~oauth/callback
-           ↓
-5. App processa sessão e navega para /home ou /plans
-```
+Infelizmente, a mensagem "Prosseguir para akkbfzfjappludgsrwsw.supabase.co" **não pode ser alterada** via código no Lovable Cloud. Essa mensagem é determinada pelo **Authorized redirect URI** configurado no Google Cloud Console.
+
+Para o seu caso com domínio personalizado (`subhumano.ia.br`), seria necessário:
+- Configurar Custom Domain no Supabase Auth (não disponível no Lovable Cloud)
+- Ou implementar um proxy de autenticação customizado (complexidade elevada)
+
+**Alternativa pragmática**: Manter o fluxo atual funcionando. Os usuários verão o domínio técnico do Supabase apenas por um momento durante o login, mas serão redirecionados corretamente para `subhumano.ia.br` após a autenticação.
 
 ---
 
-## Arquivo Impactado
+## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useAuth.ts` | Alterar `redirectTo` para domínio personalizado |
+| `src/hooks/useAuth.ts` | Corrigir `redirectTo` para `https://subhumano.ia.br/` |
+
+---
+
+## Resultado Esperado
+
+1. Login com Google volta a funcionar sem erros
+2. Após autenticação, usuário é redirecionado para `subhumano.ia.br`
+3. Landing page processa a sessão e navega para `/home` ou `/plans`
 
