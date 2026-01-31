@@ -8,10 +8,11 @@ export interface SubscriptionStatus {
   expiresAt: Date | null;
   daysRemaining: number | null;
   loading: boolean;
+  refetch: () => Promise<void>;
 }
 
 export function useSubscription(): SubscriptionStatus {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [status, setStatus] = useState<'active' | 'trial' | 'expired' | 'none'>('none');
   const [planType, setPlanType] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
@@ -19,6 +20,11 @@ export function useSubscription(): SubscriptionStatus {
   const [loading, setLoading] = useState(true);
 
   const checkSubscription = useCallback(async () => {
+    // Don't check if auth is still loading
+    if (authLoading) {
+      return;
+    }
+
     if (!user) {
       setStatus('none');
       setPlanType(null);
@@ -92,11 +98,24 @@ export function useSubscription(): SubscriptionStatus {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
-    checkSubscription();
-  }, [checkSubscription]);
+    // Only run when auth is done loading
+    if (!authLoading) {
+      checkSubscription();
+    }
+  }, [checkSubscription, authLoading]);
 
-  return { status, planType, expiresAt, daysRemaining, loading };
+  // Keep loading true while auth is loading
+  const effectiveLoading = authLoading || loading;
+
+  return { 
+    status, 
+    planType, 
+    expiresAt, 
+    daysRemaining, 
+    loading: effectiveLoading,
+    refetch: checkSubscription 
+  };
 }
