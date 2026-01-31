@@ -20,6 +20,9 @@ import CreateChannelPost from "./pages/CreateChannelPost";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import PersonalData from "./pages/profile/PersonalData";
+import Security from "./pages/profile/Security";
+import NotificationPreferences from "./pages/profile/NotificationPreferences";
+import Settings from "./pages/profile/Settings";
 import NotFound from "./pages/NotFound";
 import SetupAdmin from "./pages/SetupAdmin";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -69,6 +72,9 @@ const App = () => (
           <Route path="/notifications" element={<SubscriptionGuard><Notifications /></SubscriptionGuard>} />
           <Route path="/profile" element={<SubscriptionGuard><Profile /></SubscriptionGuard>} />
           <Route path="/profile/personal" element={<SubscriptionGuard><PersonalData /></SubscriptionGuard>} />
+          <Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
+          <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
+          <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
