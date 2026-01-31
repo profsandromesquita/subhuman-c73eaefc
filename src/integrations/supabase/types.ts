@@ -389,6 +389,11 @@ export type Database = {
           id: string
           industry: string | null
           job_title: string | null
+          notify_announcements: boolean | null
+          notify_comments: boolean | null
+          notify_mentions: boolean | null
+          notify_space_updates: boolean | null
+          notify_weekly_email: boolean | null
           occupation_type: string | null
           skills: string[] | null
           state: string | null
@@ -408,6 +413,11 @@ export type Database = {
           id: string
           industry?: string | null
           job_title?: string | null
+          notify_announcements?: boolean | null
+          notify_comments?: boolean | null
+          notify_mentions?: boolean | null
+          notify_space_updates?: boolean | null
+          notify_weekly_email?: boolean | null
           occupation_type?: string | null
           skills?: string[] | null
           state?: string | null
@@ -427,6 +437,11 @@ export type Database = {
           id?: string
           industry?: string | null
           job_title?: string | null
+          notify_announcements?: boolean | null
+          notify_comments?: boolean | null
+          notify_mentions?: boolean | null
+          notify_space_updates?: boolean | null
+          notify_weekly_email?: boolean | null
           occupation_type?: string | null
           skills?: string[] | null
           state?: string | null
