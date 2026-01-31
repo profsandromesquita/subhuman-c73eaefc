@@ -1,152 +1,186 @@
 
-## Investigação exaustiva (causa raiz comprovada)
-
-### 1) O que acontece quando o usuário clica em “Prefiro testar grátis por 7 dias →”
-Ao clicar no botão, o frontend executa `handleStartTrial()` em `src/pages/Plans.tsx` e tenta inserir um registro na tabela `public.subscriptions`:
-
-- `user_id: user.id`
-- `plan_type: 'trial'`
-- `status: 'active'`
-- `starts_at: now.toISOString()`
-- `expires_at: now + 7 dias`
-
-Código (trecho real do projeto, linhas 93–102):
-- `plan_type: 'trial'` está correto e consistente com o objetivo do trial.
-
-Conclusão: **o frontend envia exatamente o que deveria enviar**.
+## Objetivo da Tentativa 4
+Corrigir o comportamento de “loop” em `/plans` após clicar em **“Prefiro testar grátis por 7 dias →”**, garantindo que:
+1) o trial seja criado (isso já está ok), e
+2) o usuário seja **redirecionado e permaneça** em `/home` (ou rota protegida), com acesso liberado por 7 dias.
 
 ---
 
-### 2) Por que o erro aparece como “index-*.js linha XXXXX”?
-Esse arquivo é o bundle minificado do build (Vite). Ele apenas “reflete” o erro que vem do backend ao tentar inserir o registro.
+## Diagnóstico (causa raiz provável, baseada no código atual)
+### Sintoma observado
+- Após clicar no botão, não há mais erro de backend.
+- O usuário “não vai para lugar nenhum” e parece ficar preso em `/plans`.
+- Isso é compatível com este cenário: **o app tenta ir para `/home`, mas é imediatamente redirecionado de volta para `/plans`**, dando a impressão de que nada aconteceu.
 
-Conclusão: **o problema não está “na linha do index”**; a linha aponta apenas para onde o erro foi capturado/logado no bundle.
+### O mecanismo do “loop”
+- Em `Plans.tsx`, após criar o trial com sucesso, o código faz:
+  - `navigate("/home")`
+- A rota `/home` é protegida por `SubscriptionGuard` (`App.tsx`):
+  - Se `status === 'none'` ou `status === 'expired'`, ele executa:
+    - `navigate('/plans', { replace: true })`
 
----
+Portanto, se por qualquer motivo o guard “enxerga” o status como `none` logo após a navegação, ele manda o usuário de volta para `/plans`.
 
-### 3) Evolução dos erros (por que mudou de 403/42501 para 400/23514)
-Você reportou duas fases:
+### A causa raiz mais forte no seu código (race condition / estado duplicado de autenticação)
+O seu `useAuth()` **não é um provider/context global**. Ele é um hook que cria estado interno (`useState`) e registra listeners (`onAuthStateChange`) em **cada lugar que for chamado**.
 
-#### Fase A — 42501 (RLS)
-- Erro: `new row violates row-level security policy for table "subscriptions"`
-- Isso acontecia quando não havia política de INSERT permitindo o usuário criar seu próprio trial.
+E aqui está o ponto crítico:
 
-Essa parte foi endereçada ao criar a policy de INSERT para `plan_type='trial'` e `auth.uid()=user_id`.
+- `SubscriptionGuard` faz:
+  - `const { user, loading: authLoading } = useAuth();`   (Instância A)
+  - `const { status, loading: subLoading } = useSubscription();`
+- `useSubscription()` por sua vez faz:
+  - `const { user } = useAuth();`   (Instância B)
 
-#### Fase B — 23514 (CHECK constraint)
-Agora o erro é:
-- `new row for relation "subscriptions" violates check constraint "subscriptions_plan_type_check"`
-- HTTP 400 (PostgREST), que bate exatamente com “violação de constraint”.
+Ou seja: **existem duas instâncias independentes de autenticação**, cada uma com seu próprio timing de `getSession()` e `onAuthStateChange`.
 
-Isso significa: **a tentativa de inserir passou pela RLS (senão seria 42501), mas foi bloqueada por uma regra de integridade do banco (CHECK constraint)**.
+Isso pode gerar exatamente o bug:
+- A instância A (do guard) já tem `user` preenchido (authLoading=false).
+- A instância B (do useSubscription) ainda está com `user=null` naquele momento.
+- Então `useSubscription` entra no trecho:
+  - `if (!user) { setStatus('none'); setLoading(false); return; }`
+- Resultado: o guard vê `user != null` e `status === 'none'` e redireciona para `/plans`.
+- Para o usuário parece um “loop”/“não sai do lugar”.
 
----
-
-### 4) Prova definitiva: definição real da constraint no banco (consulta direta)
-Eu consultei as constraints CHECK da tabela `public.subscriptions` e obtive:
-
-- `subscriptions_plan_type_check`
-  - Definição:
-    - `CHECK ((plan_type = ANY (ARRAY['monthly'::text, 'yearly'::text])))`
-
-Ou seja, hoje o banco **só aceita**:
-- `monthly`
-- `yearly`
-
-E **rejeita**:
-- `trial`
-
-Isso explica 100% do erro `23514`: estamos enviando `plan_type='trial'`, mas a constraint não permite.
-
-Conclusão: **a causa raiz é a constraint `subscriptions_plan_type_check` estar desatualizada e não incluir o valor `trial`.**
+Esse tipo de race é muito comum quando o estado de auth não é centralizado e é consumido em múltiplos hooks que se auto-instanciam.
 
 ---
 
-## Correção definitiva (escopo mínimo, sem alterar o que já funciona)
+## Estratégia de correção (definitiva)
+### Princípio
+**Garantir que exista uma única fonte de verdade para autenticação** (um único estado compartilhado), para que `SubscriptionGuard` e `useSubscription` sempre enxerguem o mesmo `user/session` ao mesmo tempo.
 
-### Objetivo
-Permitir `plan_type='trial'` mantendo os valores já suportados (`monthly`, `yearly`) e sem mexer em outras regras de assinatura.
-
-### Mudança necessária (somente backend / schema)
-Atualizar a constraint `subscriptions_plan_type_check` para aceitar também `trial`.
-
-#### Migração SQL proposta
-```sql
--- 1) Remove a constraint antiga (que não aceita 'trial')
-ALTER TABLE public.subscriptions
-  DROP CONSTRAINT IF EXISTS subscriptions_plan_type_check;
-
--- 2) Recria a constraint incluindo 'trial'
-ALTER TABLE public.subscriptions
-  ADD CONSTRAINT subscriptions_plan_type_check
-  CHECK (
-    plan_type = ANY (ARRAY['monthly'::text, 'yearly'::text, 'trial'::text])
-  );
-```
-
-### Por que isso resolve “em definitivo”?
-- O INSERT do trial já tem:
-  - usuário autenticado
-  - RLS permitindo inserir trial (já aplicada)
-- O único bloqueio restante comprovado é:
-  - constraint de `plan_type` não aceitar `trial`
-- Ao incluir `trial`, o INSERT passa.
+### Mudança-chave
+Implementar um `AuthProvider` com React Context e refatorar `useAuth()` para consumir esse contexto, ao invés de criar estado toda vez.
 
 ---
 
-## Verificações pré e pós-migração (para garantir zero regressão)
+## Plano de implementação (passo a passo)
 
-### Pré-migração (checagens de segurança)
-1) Verificar valores existentes em `subscriptions.plan_type`:
-   - Se houver algum valor fora de `monthly/yearly/trial`, a nova constraint falharia ao ser aplicada.
-   - Hoje é altamente provável que só existam `monthly/yearly`, já que trial nunca inseriu (estava falhando).
+### 1) Criar um Provider global de autenticação (React Context)
+**Novos arquivos (frontend):**
+- `src/contexts/AuthContext.tsx` (ou `src/context/AuthContext.tsx`, mantendo padrão do projeto)
+  - Responsável por:
+    - manter `user`, `session`, `loading`
+    - registrar **uma única vez** o `supabase.auth.onAuthStateChange`
+    - executar `supabase.auth.getSession()` uma única vez ao montar
+  - Exportar:
+    - `AuthProvider`
+    - `useAuthContext` (hook interno do context)
 
-2) Confirmar que a policy de INSERT do trial existe (já existe, mas confirmaremos no backend):
-   - “Users can create own trial subscription” (INSERT) com `auth.uid() = user_id` e `plan_type='trial'`.
+**Comportamento esperado:**
+- Qualquer componente/hook que use auth receberá exatamente o mesmo `user`, no mesmo tick, sem instâncias “A/B”.
 
-### Pós-migração (testes funcionais)
-1) Fluxo principal:
-   - Fazer login
-   - Ir para `/plans`
-   - Clicar “Prefiro testar grátis por 7 dias →”
-   - Resultado esperado:
-     - Toast de sucesso
-     - Redireciona para `/home`
-     - Um registro deve existir em `subscriptions` com:
-       - `plan_type='trial'`
-       - `status='active'`
-       - `expires_at` em ~7 dias
+### 2) Refatorar `src/hooks/useAuth.ts` para usar o Context
+- Manter a mesma API pública (para não quebrar o app):
+  - `user`, `session`, `loading`, `signUp`, `signIn`, `signOut`, `resetPassword`
+- Trocar o estado interno por consumo do Context:
+  - `const { user, session, loading } = useAuthContext()`
+- As funções `signUp/signIn/...` continuam usando o client `supabase` normalmente.
 
-2) Fluxo de “trial já utilizado”:
-   - Voltar em `/plans`
-   - Clicar novamente em “Prefiro testar grátis…”
-   - Resultado esperado:
-     - Mensagem “Você já utilizou seu período de teste gratuito.”
+**Importante:**
+- Remover do `useAuth` atual:
+  - `useEffect` com `onAuthStateChange` e `getSession`
+- Essas responsabilidades passam para o Provider.
 
-3) Fluxo de bloqueio após expiração:
-   - Para teste rápido (sem esperar 7 dias), apenas em ambiente de teste:
-     - Ajustar manualmente `expires_at` do trial para uma data no passado (operação controlada)
-   - Resultado esperado:
-     - Ao tentar acessar `/home` (ou qualquer rota protegida) o usuário será redirecionado para `/plans` e verá “Seu período de teste expirou”.
+### 3) Envolver o App com `AuthProvider`
+Há duas opções seguras. Escolherei a mais previsível:
+
+- Em `src/main.tsx`:
+  - envolver `<App />` com `<AuthProvider>`
+
+Isso garante que **todas** as rotas e guards estejam dentro do Provider.
+
+### 4) Corrigir `useSubscription` para não criar outra instância de auth
+Após o Context, `useSubscription` pode continuar chamando `useAuth()` (agora ele será estável e compartilhado).
+Mas ainda vamos fortalecer o fluxo para evitar “status none” durante transições:
+
+- Em `useSubscription.ts`:
+  - pegar `user` e também `loading` do `useAuth()`
+  - só rodar `checkSubscription` quando `authLoading === false`
+  - enquanto `authLoading === true`, manter `loading` de subscription true (ou pelo menos não setar status `none` prematuramente)
+
+Isso elimina o caso:
+- auth ainda carregando → `useSubscription` marca “none” → guard redireciona errado
+
+### 5) Garantir atualização imediata após iniciar trial (evitar depender de timing)
+Mesmo com Context, vale “selar” o comportamento do clique do trial para ser instantâneo:
+
+- Alterar `useSubscription` para expor um método `refetch()` (ou `refresh()`):
+  - `return { status, planType, expiresAt, daysRemaining, loading, refetch: checkSubscription }`
+
+- Em `Plans.tsx`, após inserir o trial com sucesso:
+  - chamar `await refetch()` antes do `navigate("/home")`
+  - usar `navigate("/home", { replace: true })` para evitar voltar para `/plans` via histórico
+
+Isso garante que, ao entrar em `/home`, o guard já terá o estado atualizado (ou muito mais provável de estar).
+
+### 6) Melhorias defensivas na página `/plans` (para UX e evitar confusões)
+- Se o usuário já tem assinatura/trial ativo (`status === 'trial' || status === 'active'`), redirecionar automaticamente para `/home`.
+  - Isso evita o cenário: usuário com trial ativo volta em `/plans` e acha que “não funcionou”.
+
+- Botão “Prefiro testar grátis...”:
+  - desabilitar caso `status === 'trial' || status === 'active'`
+  - e mostrar mensagem apropriada
+
+### 7) Debug orientado a evidências (temporário, para fechar o caso)
+Adicionar logs temporários (removíveis) para confirmar o fluxo real:
+- Em `SubscriptionGuard`:
+  - logar `authLoading, subLoading, user?.id, status`
+- Em `Plans.tsx`:
+  - logar que o insert terminou e que vai navegar
+
+Após confirmação em produção/teste, remover logs para não poluir.
 
 ---
 
-## Itens que NÃO serão alterados (respeitando sua restrição)
-- Nenhuma mudança no componente da página `/plans` além do que já existe (o frontend já envia `trial` corretamente).
-- Nenhuma mudança em guardas, rotas e regras já implementadas (SubscriptionGuard/useSubscription/useChannelAccess).
-- Nenhuma mudança em outras tabelas/políticas.
-- Apenas correção estrutural pontual: **permitir `trial` no `CHECK` do banco**.
+## Por que essa abordagem resolve “em definitivo”
+- Remove a classe inteira de bugs de “estado de auth duplicado” (que é a causa mais comum de loops com guards).
+- Faz `SubscriptionGuard` e `useSubscription` operarem com o mesmo estado real.
+- Reduz dependência de timing do banco/rede com `refetch()` antes de navegar.
 
 ---
 
-## Checklist de aceite (o que você pode usar para validar)
-- [ ] Clicar em “Prefiro testar grátis…” não gera mais erro 400/23514
-- [ ] Trial é criado com sucesso e o usuário entra na plataforma
-- [ ] Após expirar, o usuário é sempre redirecionado para `/plans`
-- [ ] Planos pagos (`monthly/yearly`) permanecem válidos (a constraint continua aceitando os valores atuais)
+## Validação (checklist de testes ponta a ponta)
+### Cenário A — Usuário novo (principal)
+1) Criar conta e fazer login
+2) Ir para `/plans`
+3) Clicar “Prefiro testar grátis por 7 dias →”
+4) Esperado:
+   - toast de sucesso
+   - navega para `/home`
+   - permanece em `/home` (sem voltar a `/plans`)
+5) Recarregar a página em `/home`
+6) Esperado:
+   - continua com acesso (não cai em `/plans`)
+
+### Cenário B — Usuário já com trial
+1) Usuário com trial ativo acessa `/plans`
+2) Esperado:
+   - redireciona automaticamente para `/home` ou desabilita o botão de trial com mensagem
+
+### Cenário C — Trial expirado
+1) Simular expiração (em ambiente de teste) ajustando `expires_at` para o passado
+2) Acessar `/home`
+3) Esperado:
+   - redireciona para `/plans`
+   - exibe mensagem de trial expirado
 
 ---
 
-## Próximo passo (após sua aprovação deste plano)
-1) Aplicar a migração de schema para atualizar a constraint `subscriptions_plan_type_check`
-2) Retestar o fluxo ponta a ponta (cadastro/login → `/plans` → trial → acesso → expiração/redirect)
+## Arquivos que serão alterados/criados (resumo técnico)
+- Criar:
+  - `src/contexts/AuthContext.tsx`
+- Alterar:
+  - `src/main.tsx` (envolver App com AuthProvider)
+  - `src/hooks/useAuth.ts` (usar context, remover listeners duplicados)
+  - `src/hooks/useSubscription.ts` (aguardar authLoading, expor refetch)
+  - `src/components/SubscriptionGuard.tsx` (opcional: logs temporários / dependências mais estáveis)
+  - `src/pages/Plans.tsx` (chamar refetch e usar replace; UX defensiva)
+
+---
+
+## Observações importantes
+- **Não requer novas mudanças no banco** (o trial já está sendo inserido).
+- O warning de `ref` no console (“Function components cannot be given refs…”) é um problema separado e não é a causa do loop. Podemos corrigir depois, mas não deve bloquear o trial.
+
