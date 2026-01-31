@@ -6,6 +6,7 @@ import { ArrowLeft, Eye, EyeSlash } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { refetch } = useSubscription();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +31,19 @@ export default function Login() {
       }
 
       toast.success("Login realizado com sucesso!");
-      navigate("/home");
+      
+      // Wait a moment for auth state to propagate, then check subscription
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get fresh subscription status after refetch
+      const result = await refetch();
+      
+      // Redirect based on subscription status
+      if (result.status === 'trial' || result.status === 'active') {
+        navigate("/home", { replace: true });
+      } else {
+        navigate("/plans", { replace: true });
+      }
     } catch (err) {
       toast.error("Erro inesperado ao fazer login");
     } finally {
