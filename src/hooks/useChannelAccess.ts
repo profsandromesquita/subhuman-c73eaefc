@@ -79,14 +79,14 @@ export function useChannelAccess(channelId: string | undefined): ChannelAccessRe
 
       setUserPlan(subscription.plan_type);
 
-      // For 'subscribers' access type, any active subscription works
+      // For 'subscribers' access type, any active subscription works (including trial)
       if (channelAccessType === 'subscribers') {
         setHasAccess(true);
         setLoading(false);
         return;
       }
 
-      // For 'premium' access type, require yearly plan
+      // For 'premium' access type, require yearly plan (trial does not count)
       if (channelAccessType === 'premium') {
         setHasAccess(subscription.plan_type === 'yearly');
         setLoading(false);
