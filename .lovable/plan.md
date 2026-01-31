@@ -1,186 +1,280 @@
 
-## Objetivo da Tentativa 4
-Corrigir o comportamento de “loop” em `/plans` após clicar em **“Prefiro testar grátis por 7 dias →”**, garantindo que:
-1) o trial seja criado (isso já está ok), e
-2) o usuário seja **redirecionado e permaneça** em `/home` (ou rota protegida), com acesso liberado por 7 dias.
+
+# Plano de Correção — Tentativa 4 (Pós-Sucesso do Trial)
+
+## Resumo Executivo
+
+Este plano aborda duas áreas principais de correção conforme solicitado:
+
+**Problema A:** Fluxo de login/redirecionamento e notificação de trial
+**Problema B:** Configuração correta dos níveis de acesso aos canais
 
 ---
 
-## Diagnóstico (causa raiz provável, baseada no código atual)
-### Sintoma observado
-- Após clicar no botão, não há mais erro de backend.
-- O usuário “não vai para lugar nenhum” e parece ficar preso em `/plans`.
-- Isso é compatível com este cenário: **o app tenta ir para `/home`, mas é imediatamente redirecionado de volta para `/plans`**, dando a impressão de que nada aconteceu.
+## PARTE A — Fluxo de Autenticação e Trial
 
-### O mecanismo do “loop”
-- Em `Plans.tsx`, após criar o trial com sucesso, o código faz:
-  - `navigate("/home")`
-- A rota `/home` é protegida por `SubscriptionGuard` (`App.tsx`):
-  - Se `status === 'none'` ou `status === 'expired'`, ele executa:
-    - `navigate('/plans', { replace: true })`
+### Diagnóstico do Problema Atual
 
-Portanto, se por qualquer motivo o guard “enxerga” o status como `none` logo após a navegação, ele manda o usuário de volta para `/plans`.
+**1. Problema de redirecionamento após login:**
+- Atualmente, quando o usuário faz login em `Login.tsx` (linha 32), o código executa `navigate("/home")` incondicionalmente.
+- O `SubscriptionGuard` em `/home` então verifica o status da assinatura e redireciona para `/plans` se for `none` ou `expired`.
+- Isso causa a experiência ruim de ir para `/home` e imediatamente ser redirecionado para `/plans`.
 
-### A causa raiz mais forte no seu código (race condition / estado duplicado de autenticação)
-O seu `useAuth()` **não é um provider/context global**. Ele é um hook que cria estado interno (`useState`) e registra listeners (`onAuthStateChange`) em **cada lugar que for chamado**.
+**2. Ausência de notificação visual do trial:**
+- Atualmente só existe um toast quando falta 1 dia (linha 34-38 de `SubscriptionGuard.tsx`).
+- Não há popup persistente mostrando quantos dias restam do período de teste.
 
-E aqui está o ponto crítico:
+**3. Proteção contra renovação do trial:**
+- A verificação já existe em `Plans.tsx` (linhas 77-94): o código verifica se já existe um registro com `plan_type='trial'` para o usuário.
+- Porém, a lógica atual não diferencia entre trial expirado e trial em uso, o que pode causar confusão.
 
-- `SubscriptionGuard` faz:
-  - `const { user, loading: authLoading } = useAuth();`   (Instância A)
-  - `const { status, loading: subLoading } = useSubscription();`
-- `useSubscription()` por sua vez faz:
-  - `const { user } = useAuth();`   (Instância B)
+### Solução Proposta
 
-Ou seja: **existem duas instâncias independentes de autenticação**, cada uma com seu próprio timing de `getSession()` e `onAuthStateChange`.
+#### A1. Alterar o fluxo de Login
 
-Isso pode gerar exatamente o bug:
-- A instância A (do guard) já tem `user` preenchido (authLoading=false).
-- A instância B (do useSubscription) ainda está com `user=null` naquele momento.
-- Então `useSubscription` entra no trecho:
-  - `if (!user) { setStatus('none'); setLoading(false); return; }`
-- Resultado: o guard vê `user != null` e `status === 'none'` e redireciona para `/plans`.
-- Para o usuário parece um “loop”/“não sai do lugar”.
+Em `src/pages/Login.tsx`:
+- Após login bem-sucedido, verificar o status da assinatura antes de redirecionar.
+- Usar o hook `useSubscription` com `refetch()` para obter o status atualizado.
+- Redirecionar conforme regras:
+  - `status === 'trial'` ou `status === 'active'` → `/home`
+  - `status === 'expired'` ou `status === 'none'` → `/plans`
 
-Esse tipo de race é muito comum quando o estado de auth não é centralizado e é consumido em múltiplos hooks que se auto-instanciam.
+```text
+Lógica simplificada:
+┌─────────────────────────────────────────────────────┐
+│                    Login Success                     │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+            ┌────────────────────────┐
+            │   Fetch Subscription   │
+            └────────────────────────┘
+                         │
+          ┌──────────────┴──────────────┐
+          ▼                              ▼
+   trial/active?                   none/expired?
+          │                              │
+          ▼                              ▼
+     /home                           /plans
+```
 
----
+#### A2. Criar Componente de Notificação de Trial
 
-## Estratégia de correção (definitiva)
-### Princípio
-**Garantir que exista uma única fonte de verdade para autenticação** (um único estado compartilhado), para que `SubscriptionGuard` e `useSubscription` sempre enxerguem o mesmo `user/session` ao mesmo tempo.
+Criar `src/components/TrialBanner.tsx`:
+- Popup moderno fixo no canto inferior direito da tela.
+- Exibe apenas quando `status === 'trial'`.
+- Mostra quantos dias restam.
+- Design: card com gradiente sutil, ícone, texto e botão para assinar.
+- Pode ser dispensado (mas reaparece ao trocar de página ou recarregar).
+- Usa animação Framer Motion para entrada/saída suave.
 
-### Mudança-chave
-Implementar um `AuthProvider` com React Context e refatorar `useAuth()` para consumir esse contexto, ao invés de criar estado toda vez.
+**Design do componente:**
+```text
+┌─────────────────────────────────────────┐
+│  🎁  Período de teste                   │
+│                                         │
+│  Você ainda tem 5 dias de acesso.       │
+│                                         │
+│  [Assinar agora]         [Dispensar X]  │
+└─────────────────────────────────────────┘
+```
 
----
+#### A3. Integrar o TrialBanner no AppLayout
 
-## Plano de implementação (passo a passo)
+Em `src/components/AppLayout.tsx`:
+- Importar o novo componente `TrialBanner`.
+- Renderizar condicionalmente baseado no status do `useSubscription`.
 
-### 1) Criar um Provider global de autenticação (React Context)
-**Novos arquivos (frontend):**
-- `src/contexts/AuthContext.tsx` (ou `src/context/AuthContext.tsx`, mantendo padrão do projeto)
-  - Responsável por:
-    - manter `user`, `session`, `loading`
-    - registrar **uma única vez** o `supabase.auth.onAuthStateChange`
-    - executar `supabase.auth.getSession()` uma única vez ao montar
-  - Exportar:
-    - `AuthProvider`
-    - `useAuthContext` (hook interno do context)
+#### A4. Ajustar SubscriptionGuard
 
-**Comportamento esperado:**
-- Qualquer componente/hook que use auth receberá exatamente o mesmo `user`, no mesmo tick, sem instâncias “A/B”.
+Em `src/components/SubscriptionGuard.tsx`:
+- Remover o toast de 1 dia (já que teremos o banner persistente).
+- Manter a lógica de redirecionamento para `expired` e `none`.
+- Garantir que planos pagos expirados também redirecionem.
 
-### 2) Refatorar `src/hooks/useAuth.ts` para usar o Context
-- Manter a mesma API pública (para não quebrar o app):
-  - `user`, `session`, `loading`, `signUp`, `signIn`, `signOut`, `resetPassword`
-- Trocar o estado interno por consumo do Context:
-  - `const { user, session, loading } = useAuthContext()`
-- As funções `signUp/signIn/...` continuam usando o client `supabase` normalmente.
+#### A5. Validar Proteção de Renovação do Trial
 
-**Importante:**
-- Remover do `useAuth` atual:
-  - `useEffect` com `onAuthStateChange` e `getSession`
-- Essas responsabilidades passam para o Provider.
+A proteção já existe e funciona corretamente em `Plans.tsx`:
+```typescript
+const { data: existingTrial } = await supabase
+  .from('subscriptions')
+  .select('id')
+  .eq('user_id', user.id)
+  .eq('plan_type', 'trial')
+  .limit(1)
+  .maybeSingle();
 
-### 3) Envolver o App com `AuthProvider`
-Há duas opções seguras. Escolherei a mais previsível:
+if (existingTrial) {
+  toast.error("Você já utilizou seu período de teste gratuito.");
+  return;
+}
+```
 
-- Em `src/main.tsx`:
-  - envolver `<App />` com `<AuthProvider>`
+Esta lógica verifica se existe **qualquer** registro de trial (ativo ou expirado), impedindo a criação de um novo trial. Isso já garante que o usuário só pode usar o benefício uma vez.
 
-Isso garante que **todas** as rotas e guards estejam dentro do Provider.
-
-### 4) Corrigir `useSubscription` para não criar outra instância de auth
-Após o Context, `useSubscription` pode continuar chamando `useAuth()` (agora ele será estável e compartilhado).
-Mas ainda vamos fortalecer o fluxo para evitar “status none” durante transições:
-
-- Em `useSubscription.ts`:
-  - pegar `user` e também `loading` do `useAuth()`
-  - só rodar `checkSubscription` quando `authLoading === false`
-  - enquanto `authLoading === true`, manter `loading` de subscription true (ou pelo menos não setar status `none` prematuramente)
-
-Isso elimina o caso:
-- auth ainda carregando → `useSubscription` marca “none” → guard redireciona errado
-
-### 5) Garantir atualização imediata após iniciar trial (evitar depender de timing)
-Mesmo com Context, vale “selar” o comportamento do clique do trial para ser instantâneo:
-
-- Alterar `useSubscription` para expor um método `refetch()` (ou `refresh()`):
-  - `return { status, planType, expiresAt, daysRemaining, loading, refetch: checkSubscription }`
-
-- Em `Plans.tsx`, após inserir o trial com sucesso:
-  - chamar `await refetch()` antes do `navigate("/home")`
-  - usar `navigate("/home", { replace: true })` para evitar voltar para `/plans` via histórico
-
-Isso garante que, ao entrar em `/home`, o guard já terá o estado atualizado (ou muito mais provável de estar).
-
-### 6) Melhorias defensivas na página `/plans` (para UX e evitar confusões)
-- Se o usuário já tem assinatura/trial ativo (`status === 'trial' || status === 'active'`), redirecionar automaticamente para `/home`.
-  - Isso evita o cenário: usuário com trial ativo volta em `/plans` e acha que “não funcionou”.
-
-- Botão “Prefiro testar grátis...”:
-  - desabilitar caso `status === 'trial' || status === 'active'`
-  - e mostrar mensagem apropriada
-
-### 7) Debug orientado a evidências (temporário, para fechar o caso)
-Adicionar logs temporários (removíveis) para confirmar o fluxo real:
-- Em `SubscriptionGuard`:
-  - logar `authLoading, subLoading, user?.id, status`
-- Em `Plans.tsx`:
-  - logar que o insert terminou e que vai navegar
-
-Após confirmação em produção/teste, remover logs para não poluir.
+**Nenhuma alteração necessária para A5.**
 
 ---
 
-## Por que essa abordagem resolve “em definitivo”
-- Remove a classe inteira de bugs de “estado de auth duplicado” (que é a causa mais comum de loops com guards).
-- Faz `SubscriptionGuard` e `useSubscription` operarem com o mesmo estado real.
-- Reduz dependência de timing do banco/rede com `refetch()` antes de navegar.
+## PARTE B — Configuração de Acesso aos Canais
+
+### Diagnóstico do Problema Atual
+
+**Situação atual no banco de dados:**
+| Canal | Categoria (access_type) |
+|-------|-------------------------|
+| Geral | open |
+| Dúvidas | open |
+| Networking | subscribers |
+| Projetos Premium | premium |
+| Ferramentas | subscribers |
+
+**Problema identificado:**
+- "Geral" e "Dúvidas" estão com `access_type: 'open'`, mas não existem usuários gratuitos na plataforma.
+- A regra de negócio definida é:
+  - Assinantes (mensal + trial): todos os canais exceto Premium
+  - Premium (anual): todos os canais
+
+### Nova Definição de Regras de Acesso
+
+| Canal | access_type | Quem pode acessar |
+|-------|-------------|-------------------|
+| Geral | subscribers | Qualquer assinante (mensal, anual, trial) |
+| Dúvidas | subscribers | Qualquer assinante (mensal, anual, trial) |
+| Networking | subscribers | Qualquer assinante (mensal, anual, trial) |
+| Ferramentas | subscribers | Qualquer assinante (mensal, anual, trial) |
+| Projetos Premium | premium | Apenas assinantes anuais |
+
+### Solução Proposta
+
+#### B1. Atualizar os dados no banco
+
+Executar migração SQL para corrigir os canais "Geral" e "Dúvidas":
+
+```sql
+UPDATE public.channels 
+SET access_type = 'subscribers' 
+WHERE name IN ('Geral', 'Dúvidas');
+```
+
+#### B2. Revisar lógica de acesso no código
+
+A lógica em `useChannelAccess.ts` já está correta:
+- Linha 82-87: `subscribers` → qualquer assinatura ativa (incluindo trial)
+- Linha 89-94: `premium` → apenas `plan_type === 'yearly'`
+
+A lógica em `Channels.tsx` também está correta (linhas 123-131):
+```typescript
+if (accessType === 'subscribers') {
+  hasAccess = true; // qualquer userPlan
+} else if (accessType === 'premium') {
+  hasAccess = userPlan === 'yearly';
+}
+```
+
+A função SQL `can_access_channel` também está alinhada:
+- `subscribers` → qualquer assinatura ativa
+- `premium` → requer `plan_type = 'yearly'`
+
+**Nenhuma alteração de código necessária para B2.**
 
 ---
 
-## Validação (checklist de testes ponta a ponta)
-### Cenário A — Usuário novo (principal)
-1) Criar conta e fazer login
-2) Ir para `/plans`
-3) Clicar “Prefiro testar grátis por 7 dias →”
-4) Esperado:
-   - toast de sucesso
-   - navega para `/home`
-   - permanece em `/home` (sem voltar a `/plans`)
-5) Recarregar a página em `/home`
-6) Esperado:
-   - continua com acesso (não cai em `/plans`)
+## Arquivos a Serem Criados/Alterados
 
-### Cenário B — Usuário já com trial
-1) Usuário com trial ativo acessa `/plans`
-2) Esperado:
-   - redireciona automaticamente para `/home` ou desabilita o botão de trial com mensagem
+### Criar:
+1. `src/components/TrialBanner.tsx` — Componente de notificação de dias restantes do trial
 
-### Cenário C — Trial expirado
-1) Simular expiração (em ambiente de teste) ajustando `expires_at` para o passado
-2) Acessar `/home`
-3) Esperado:
-   - redireciona para `/plans`
-   - exibe mensagem de trial expirado
+### Alterar:
+1. `src/pages/Login.tsx` — Verificar assinatura antes de redirecionar
+2. `src/components/AppLayout.tsx` — Integrar o TrialBanner
+3. `src/components/SubscriptionGuard.tsx` — Remover toast de 1 dia (agora coberto pelo banner)
+
+### Migração SQL:
+1. Atualizar `access_type` de "Geral" e "Dúvidas" para `'subscribers'`
 
 ---
 
-## Arquivos que serão alterados/criados (resumo técnico)
-- Criar:
-  - `src/contexts/AuthContext.tsx`
-- Alterar:
-  - `src/main.tsx` (envolver App com AuthProvider)
-  - `src/hooks/useAuth.ts` (usar context, remover listeners duplicados)
-  - `src/hooks/useSubscription.ts` (aguardar authLoading, expor refetch)
-  - `src/components/SubscriptionGuard.tsx` (opcional: logs temporários / dependências mais estáveis)
-  - `src/pages/Plans.tsx` (chamar refetch e usar replace; UX defensiva)
+## Riscos e Mitigações
+
+| Risco | Probabilidade | Impacto | Mitigação |
+|-------|---------------|---------|-----------|
+| Loop de redirecionamento no login | Baixa | Alta | Usar `refetch()` e aguardar resposta antes de navegar |
+| Banner irritando usuários | Média | Baixa | Permitir dispensar e usar design discreto |
+| Usuário trial sem acesso aos canais | Baixa | Alta | Verificar que trial é tratado como assinante válido |
+| Migração falhar | Baixa | Média | SQL simples e testado |
 
 ---
 
-## Observações importantes
-- **Não requer novas mudanças no banco** (o trial já está sendo inserido).
-- O warning de `ref` no console (“Function components cannot be given refs…”) é um problema separado e não é a causa do loop. Podemos corrigir depois, mas não deve bloquear o trial.
+## Checklist de Validação (Testes)
+
+### Cenário 1 — Login de usuário com trial ativo
+- [ ] Faz login
+- [ ] É direcionado diretamente para `/home`
+- [ ] Vê o popup de trial com dias restantes
+- [ ] Pode dispensar o popup
+- [ ] Ao navegar para outra página, popup reaparece
+
+### Cenário 2 — Login de usuário com trial expirado
+- [ ] Faz login
+- [ ] É direcionado para `/plans`
+- [ ] Vê mensagem de trial expirado
+- [ ] Botão "testar grátis" não aparece ou está desabilitado
+
+### Cenário 3 — Login de usuário com plano mensal ativo
+- [ ] Faz login
+- [ ] É direcionado diretamente para `/home`
+- [ ] NÃO vê popup de trial
+- [ ] Tem acesso a todos os canais exceto Premium
+
+### Cenário 4 — Login de usuário com plano anual ativo
+- [ ] Faz login
+- [ ] É direcionado diretamente para `/home`
+- [ ] NÃO vê popup de trial
+- [ ] Tem acesso a TODOS os canais, incluindo Premium
+
+### Cenário 5 — Tentativa de renovar trial
+- [ ] Usuário com trial expirado tenta clicar em "testar grátis"
+- [ ] Recebe mensagem de erro informando que já usou o benefício
+- [ ] NÃO cria novo registro no banco
+
+### Cenário 6 — Acesso aos canais
+- [ ] Usuário trial/mensal acessa "Geral", "Dúvidas", "Networking", "Ferramentas" sem restrição
+- [ ] Usuário trial/mensal é bloqueado em "Projetos Premium"
+- [ ] Usuário anual acessa todos os canais sem restrição
+
+---
+
+## Detalhamento Técnico do TrialBanner
+
+### Props e Estado:
+```typescript
+interface TrialBannerProps {
+  daysRemaining: number;
+  onDismiss?: () => void;
+}
+```
+
+### Lógica de exibição:
+- Mostrar apenas se `status === 'trial'` e `daysRemaining > 0`
+- Estado local `isDismissed` para controlar visibilidade temporária
+- Reset do `isDismissed` ao mudar de rota (usando `useLocation`)
+
+### Estilização:
+- Posição fixa: `fixed bottom-4 right-4`
+- Z-index alto para sobrepor conteúdo
+- Animação de entrada: slide-in da direita
+- Sombra suave e bordas arredondadas
+- Cores: gradiente sutil de acordo com o tema
+
+---
+
+## Ordem de Implementação
+
+1. **Primeiro:** Executar migração SQL para corrigir canais (risco zero, impacto imediato)
+2. **Segundo:** Criar componente `TrialBanner.tsx`
+3. **Terceiro:** Alterar `AppLayout.tsx` para integrar o banner
+4. **Quarto:** Alterar `Login.tsx` para verificar assinatura antes de redirecionar
+5. **Quinto:** Ajustar `SubscriptionGuard.tsx` para remover toast redundante
+6. **Sexto:** Testar todos os cenários
 
