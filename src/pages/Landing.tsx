@@ -1,8 +1,10 @@
+import { useEffect, ForwardRefExoticComponent, RefAttributes } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Lightning, ShieldCheck, Sparkle, IconProps } from "@phosphor-icons/react";
-import { Link } from "react-router-dom";
-import { ForwardRefExoticComponent, RefAttributes } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 
 type PhosphorIcon = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
 
@@ -25,6 +27,32 @@ const features: { icon: PhosphorIcon; title: string; description: string }[] = [
 ];
 
 export default function Landing() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { status, loading: subLoading } = useSubscription();
+
+  // Redirect authenticated users to appropriate page
+  useEffect(() => {
+    if (authLoading || subLoading) return;
+    
+    if (user) {
+      if (status === 'trial' || status === 'active') {
+        navigate('/home', { replace: true });
+      } else {
+        navigate('/plans', { replace: true });
+      }
+    }
+  }, [user, authLoading, status, subLoading, navigate]);
+
+  // Show loading state while checking auth
+  if (authLoading || (user && subLoading)) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Glow effect */}
