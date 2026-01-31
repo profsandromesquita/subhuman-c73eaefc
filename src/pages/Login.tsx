@@ -7,14 +7,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { GoogleButton } from "@/components/GoogleButton";
+import { AuthDivider } from "@/components/AuthDivider";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { refetch } = useSubscription();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +54,21 @@ export default function Login() {
       toast.error("Erro inesperado ao fazer login");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        toast.error(error.message || "Erro ao fazer login com Google");
+        setIsGoogleLoading(false);
+      }
+      // If no error, the page will redirect to Google OAuth
+    } catch (err) {
+      toast.error("Erro inesperado ao fazer login com Google");
+      setIsGoogleLoading(false);
     }
   };
 
@@ -147,6 +165,14 @@ export default function Login() {
               {isLoading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+
+          <AuthDivider />
+
+          <GoogleButton
+            onClick={handleGoogleSignIn}
+            isLoading={isGoogleLoading}
+            label="Continuar com Google"
+          />
 
           <p className="text-center text-muted-foreground mt-8">
             Não tem uma conta?{" "}

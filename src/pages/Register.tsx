@@ -6,6 +6,8 @@ import { ArrowLeft, Eye, EyeSlash, Check } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { GoogleButton } from "@/components/GoogleButton";
+import { AuthDivider } from "@/components/AuthDivider";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -13,8 +15,9 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
 
   const passwordRequirements = [
     { label: "Mínimo 8 caracteres", met: password.length >= 8 },
@@ -54,6 +57,21 @@ export default function Register() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        toast.error(error.message || "Erro ao cadastrar com Google");
+        setIsGoogleLoading(false);
+      }
+      // If no error, the page will redirect to Google OAuth
+    } catch (err) {
+      toast.error("Erro inesperado ao cadastrar com Google");
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="fixed inset-0 pointer-events-none">
@@ -85,6 +103,14 @@ export default function Register() {
           <p className="text-muted-foreground mb-8">
             Comece sua jornada no futuro da IA
           </p>
+
+          <GoogleButton
+            onClick={handleGoogleSignIn}
+            isLoading={isGoogleLoading}
+            label="Cadastrar com Google"
+          />
+
+          <AuthDivider />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
