@@ -32,6 +32,9 @@ export default function Login() {
 
       toast.success("Login realizado com sucesso!");
       
+      // Clear trial banner flag so it shows again on new login
+      sessionStorage.removeItem('trial_banner_shown');
+      
       // Wait a moment for auth state to propagate, then check subscription
       await new Promise(resolve => setTimeout(resolve, 500));
       

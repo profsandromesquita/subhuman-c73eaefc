@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { 
   User as UserIcon, 
   Gear, 
@@ -39,12 +40,6 @@ const menuItems = [
     path: "/profile/security",
   },
   {
-    icon: CreditCard,
-    label: "Assinatura",
-    description: "Gerenciar plano",
-    path: "/profile/subscription",
-  },
-  {
     icon: Bell,
     label: "Preferências de notificação",
     description: "Gerenciar alertas",
@@ -63,6 +58,7 @@ export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -155,6 +151,36 @@ export default function Profile() {
           </div>
         </motion.div>
 
+        {/* Subscription Item (Opens Modal) */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-2"
+        >
+          <button 
+            onClick={() => setShowSubscriptionModal(true)} 
+            className="w-full text-left"
+          >
+            <Card className="hover:border-muted-foreground/30 transition-all duration-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary">
+                    <CreditCard className="w-5 h-5" weight="bold" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-sm">Assinatura</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Gerenciar plano
+                    </p>
+                  </div>
+                  <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+        </motion.div>
+
         {/* Menu Items */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -206,6 +232,12 @@ export default function Profile() {
             Sair da conta
           </Button>
         </motion.div>
+
+        {/* Subscription Modal */}
+        <SubscriptionModal 
+          isOpen={showSubscriptionModal} 
+          onClose={() => setShowSubscriptionModal(false)} 
+        />
       </div>
     </AppLayout>
   );
