@@ -1,525 +1,340 @@
 
-# Relatório de Auditoria Técnica Completa
-## Plataforma Subhumano - Responsividade, Performance e Escalabilidade
+
+# Auditoria Imparcial do Roadmap para Produção
+## Plataforma Subhumano - Análise Crítica por Item
 
 ---
 
-## Sumário Executivo
+## Resumo Executivo
 
-A plataforma Subhumano possui uma arquitetura sólida baseada em React + Vite + Supabase, com design system bem definido e estrutura mobile-first. Entretanto, a auditoria identificou **áreas críticas** que impactam performance, escalabilidade e manutenibilidade do código. Este relatório detalha cada problema encontrado e propõe soluções concretas.
-
----
-
-## 1. Arquitetura Geral
-
-### 1.1 Stack Tecnológica
-
-| Camada | Tecnologia | Status |
-|--------|------------|--------|
-| Framework | React 18.3 + TypeScript | Adequado |
-| Build Tool | Vite 5.4 | Adequado |
-| Styling | Tailwind CSS 3.4 | Adequado |
-| Backend | Supabase (Lovable Cloud) | Adequado |
-| Estado | Context API + useState | Parcialmente adequado |
-| Data Fetching | Supabase Client direto | Inadequado |
-| Animações | Framer Motion | Adequado |
-| PWA | vite-plugin-pwa | Parcialmente configurado |
-
-### 1.2 Estrutura de Diretórios
-
-```text
-src/
-├── components/      # 50+ componentes UI
-├── contexts/        # 1 contexto (AuthContext)
-├── hooks/           # 7 hooks customizados
-├── integrations/    # Cliente Supabase
-├── lib/             # Utilitários
-└── pages/           # 25+ páginas
-```
-
-**Diagnóstico:** Estrutura bem organizada, mas sem separação clara entre:
-- Componentes de apresentação vs containers
-- Lógica de domínio vs infraestrutura
+Analisei o código atual versus cada item do roadmap proposto. Minha avaliação é **honesta e baseada em evidências do código**. Alguns itens já estão parcialmente implementados, outros são realmente críticos, e alguns podem ser desprioritizados para um MVP de produção.
 
 ---
 
-## 2. Performance do Frontend
+## Fase 1: CORREÇÕES CRÍTICAS
 
-### 2.1 Code Splitting e Lazy Loading
+### P1. Implementar React Query nos 30+ componentes
 
-**Status: Crítico - Não Implementado**
-
-Todas as 25+ páginas são importadas sincronamente no `App.tsx`:
-
-```typescript
-// Atual - PROBLEMÁTICO
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Home from "./pages/Home";
-// ... 22+ mais imports
-```
-
-**Impacto:**
-- Bundle inicial: ~2-3MB (estimativa baseada nas dependências)
-- Tempo de First Contentful Paint (FCP) elevado
-- Todas as rotas carregadas mesmo que não sejam acessadas
-
-**Recomendação:**
-```typescript
-// Sugerido - Com Lazy Loading
-const Landing = lazy(() => import("./pages/Landing"));
-const Home = lazy(() => import("./pages/Home"));
-// ...
-
-<Suspense fallback={<LoadingSpinner />}>
-  <Routes>
-    <Route path="/" element={<Landing />} />
-  </Routes>
-</Suspense>
-```
-
----
-
-### 2.2 Memoização e Re-renders
-
-**Status: Parcialmente Adequado**
-
-| Uso | Encontrado | Recomendado |
-|-----|------------|-------------|
-| `useCallback` | 5 arquivos | 15+ arquivos |
-| `useMemo` | 3 arquivos | 10+ arquivos |
-| `React.memo` | 0 componentes | 10+ componentes |
-
-**Componentes que precisam de memoização:**
-- `BottomNav` - Re-renderiza em toda navegação
-- `CommentItem` - Re-renderiza em qualquer mudança de lista
-- `Card`, `Button` - Componentes base usados em listas
-- Todos os cards de listagem (highlights, posts, channels)
-
----
-
-### 2.3 Padrões de Fetching de Dados
-
-**Status: Crítico - Antipadrão N+1**
-
-O código atual sofre de **N+1 queries** em múltiplas páginas:
-
-```typescript
-// Home.tsx - Exemplo do problema
-const spacesWithCounts = await Promise.all(
-  subscriptions.map(async (sub) => {
-    // QUERY PARA CADA ESPAÇO
-    const { count } = await supabase
-      .from('space_updates')
-      .select('id', { count: 'exact', head: true })
-      .eq('space_id', space.id);
-    // ...
-  })
-);
-```
-
-**Páginas afetadas:**
-| Página | Queries por Load | Problema |
-|--------|------------------|----------|
-| Home | 50+ | Busca likes/comments para cada update individualmente |
-| SpaceDetail | 10-30 | N+1 para contagem de likes/comments |
-| ChannelDetail | 20-50 | N+1 para autor, likes, comments, media |
-| Channels | 15-25 | N+1 para posts_count, members_count por canal |
-| PostDetail | 10-20 | N+1 para likes em cada comentário |
-
-**Impacto:**
-- Latência alta em listas com muitos itens
-- Sobrecarga no banco de dados
-- Timeouts em conexões lentas
-
-**Recomendação:**
-1. Criar Views Materializadas no banco
-2. Usar batch queries com agregações SQL
-3. Implementar React Query para cache
-
----
-
-### 2.4 Ausência de Cache de Dados
-
-**Status: Crítico - Não Implementado**
-
-O projeto tem `@tanstack/react-query` instalado, mas **não está sendo utilizado**:
-
-```typescript
-// Instalado mas não usado
-"@tanstack/react-query": "^5.83.0"
-
-// Atual - fetch direto em cada componente
-const fetchSpaces = async () => {
-  const { data } = await supabase.from('spaces').select('*');
-  setSpaces(data);
-};
-```
-
-**Impacto:**
-- Dados são refetchados em cada navegação
-- Sem stale-while-revalidate
-- Sem dedupe de requests
-- Estados de loading duplicados em todos os componentes
-
----
-
-### 2.5 Imagens sem Otimização
-
-**Status: Moderado**
-
-```typescript
-// MediaGallery.tsx
-<img
-  src={item.file_url}
-  loading="lazy"  // Único atributo de otimização
-  className="..."
-/>
-```
-
-**Faltando:**
-- Compressão de imagens no upload
-- Geração de thumbnails
-- Formato WebP/AVIF
-- Srcset para diferentes densidades de tela
-- Placeholder blur enquanto carrega
-
----
-
-## 3. Arquitetura de Estado
-
-### 3.1 Contextos
-
-| Contexto | Propósito | Status |
-|----------|-----------|--------|
-| AuthContext | Autenticação | Adequado |
-| ThemeContext | - | Não existe |
-| DataContext | - | Não existe |
-
-**Problema:** Todo estado de dados está em `useState` local, causando:
-- Duplicação de lógica de fetching
-- Perda de dados ao navegar
-- Re-fetches desnecessários
-
----
-
-### 3.2 Hooks Customizados
-
-| Hook | Propósito | Qualidade |
-|------|-----------|-----------|
-| useAuth | Auth wrapper | Bom |
-| useSubscription | Status de assinatura | Bom |
-| useChannelAccess | Verificar acesso a canais | Bom |
-| useAdminAuth | Auth de admin | Bom |
-| useMediaUpload | Upload de mídia | Bom |
-| use-mobile | Detectar mobile | Básico |
-
-**Faltando hooks para:**
-- Fetching de dados com cache
-- Infinite scroll
-- Debounce de inputs
-- Websocket/Realtime
-
----
-
-## 4. Banco de Dados e Backend
-
-### 4.1 Schema Atual
-
-**Tabelas principais:**
-| Tabela | Registros | Tamanho |
-|--------|-----------|---------|
-| profiles | 10 | 32KB |
-| space_updates | 10 | 65KB |
-| spaces | 5 | 49KB |
-| channels | 5 | 32KB |
-| channel_posts | 4 | 32KB |
-| subscriptions | 5 | 32KB |
-
-**Diagnóstico:** Base de dados pequena atualmente, mas a estrutura está preparada para crescer.
-
----
-
-### 4.2 Índices
-
-**Índices existentes:**
-| Tabela | Índice | Tipo |
-|--------|--------|------|
-| spaces | spaces_slug_key | UNIQUE |
-| update_comments | idx_update_comments_parent_id | INDEX |
-| update_likes | update_id_user_id | UNIQUE |
-| channel_post_likes | post_id_user_id | UNIQUE |
-| saved_updates | update_id_user_id | UNIQUE |
-
-**Índices faltantes (crítico para escala):**
-
-```sql
--- Índices recomendados para performance
-CREATE INDEX idx_space_updates_space_published 
-  ON space_updates(space_id, is_published, published_at DESC);
-
-CREATE INDEX idx_channel_posts_channel_moderated 
-  ON channel_posts(channel_id, is_moderated, created_at DESC);
-
-CREATE INDEX idx_subscriptions_user_status 
-  ON subscriptions(user_id, status);
-
-CREATE INDEX idx_user_space_subscriptions_user 
-  ON user_space_subscriptions(user_id);
-
-CREATE INDEX idx_notifications_user_read 
-  ON notifications(user_id, is_read, created_at DESC);
-```
-
----
-
-### 4.3 RLS Policies
-
-**Status: Bem configurado**
-
-Todas as tabelas possuem RLS habilitado com policies apropriadas para:
-- Leitura pública de dados ativos
-- Escrita restrita a proprietários
-- Acesso administrativo para admins/moderadores
-
----
-
-### 4.4 Realtime
-
-**Status: Não Implementado**
-
-O projeto não utiliza Supabase Realtime para:
-- Notificações em tempo real
-- Atualizações de posts/comentários
-- Contagem de likes ao vivo
-
----
-
-## 5. PWA e Mobile
-
-### 5.1 Manifest
-
-**Status: Configurado**
-
-```json
-{
-  "name": "Subhumano",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "icons": [/* 192x192, 512x512 */]
-}
-```
-
----
-
-### 5.2 Service Worker
-
-**Status: Parcialmente Configurado**
-
-- `vite-plugin-pwa` está instalado mas não configurado no vite.config.ts
-- Sem estratégias de cache definidas
-- Sem offline support
-
----
-
-### 5.3 Responsividade
-
-**Status: Bom**
-
-- Design mobile-first implementado
-- `max-w-lg` usado consistentemente
-- `safe-area-inset` para notch
-- Bottom navigation fixa
-
-**Pontos de atenção:**
-- Algumas páginas admin não são responsivas
-- Tabelas não têm scroll horizontal em mobile
-
----
-
-## 6. Tratamento de Erros
-
-### 6.1 Error Boundaries
-
-**Status: Não Implementado**
-
-Não existe ErrorBoundary no projeto. Um erro em qualquer componente pode quebrar toda a aplicação.
-
----
-
-### 6.2 Tratamento de Erros de Rede
-
-**Status: Parcial**
-
-```typescript
-// Atual - inconsistente
-try {
-  const { data, error } = await supabase.from('...').select();
-  if (error) throw error;
-} catch (error) {
-  console.error('Error:', error);
-  // Às vezes mostra toast, às vezes não
-}
-```
-
-**Problemas:**
-- Sem retry automático
-- Sem fallback visual consistente
-- Alguns erros silenciados
-
----
-
-## 7. Segurança
-
-### 7.1 Autenticação
-
-**Status: Adequado**
-
-- JWT via Supabase Auth
-- Sessão persistida no localStorage
-- Refresh token automático
-
----
-
-### 7.2 Autorização
-
-**Status: Adequado**
-
-- RLS no banco de dados
-- Guards de rota (SubscriptionGuard, AdminGuard)
-- Verificação de roles via função `has_role()`
-
----
-
-### 7.3 Vulnerabilidades Potenciais
-
-| Item | Status | Recomendação |
-|------|--------|--------------|
-| XSS | DOMPurify instalado | Verificar uso consistente |
-| CSRF | Protegido pelo Supabase | Adequado |
-| Rate Limiting | Não implementado | Adicionar no backend |
-| Input Validation | Zod instalado | Usar consistentemente |
-
----
-
-## 8. Análise de Bundle
-
-### 8.1 Dependências Pesadas
-
-| Pacote | Uso | Peso Estimado |
-|--------|-----|---------------|
-| framer-motion | Animações | ~150KB |
-| recharts | Gráficos admin | ~300KB |
-| tiptap (10 pacotes) | Editor rico | ~400KB |
-| @radix-ui (25+ pacotes) | UI primitives | ~200KB |
-| date-fns | Formatação de datas | ~75KB |
-
-**Recomendação:**
-- Lazy load recharts (só usado no admin)
-- Lazy load tiptap (só usado na criação de posts)
-- Considerar alternativas mais leves para date-fns
-
----
-
-## 9. Escalabilidade
-
-### 9.1 Limites Conhecidos
-
-| Recurso | Limite Supabase | Status Atual |
-|---------|-----------------|--------------|
-| Conexões simultâneas | 60-200 (depende do plano) | OK |
-| Storage | 1GB (gratuito) | OK |
-| Database size | 500MB (gratuito) | OK |
-| Realtime connections | 200 (gratuito) | Não usado |
-
----
-
-### 9.2 Gargalos para Escala
-
-1. **N+1 Queries:** Com 1000 posts, a página Home faria 3000+ queries
-2. **Sem Cache:** Cada navegação refaz todas as requisições
-3. **Sem Paginação:** Listas carregam todos os itens de uma vez
-4. **Sem CDN:** Imagens servidas diretamente do storage
-
----
-
-## 10. Plano de Correção Priorizado
-
-### Prioridade 1 - Crítico (Performance Imediata)
-
-| Item | Esforço | Impacto |
-|------|---------|---------|
-| Implementar React Query | Alto | Muito Alto |
-| Corrigir N+1 queries | Médio | Muito Alto |
-| Code splitting com lazy() | Baixo | Alto |
-| Adicionar índices no banco | Baixo | Alto |
-
-### Prioridade 2 - Importante (Estabilidade)
-
-| Item | Esforço | Impacto |
-|------|---------|---------|
-| Error Boundaries | Baixo | Alto |
-| Paginação/Infinite Scroll | Médio | Alto |
-| Memoização de componentes | Médio | Médio |
-
-### Prioridade 3 - Desejável (Escalabilidade)
-
-| Item | Esforço | Impacto |
-|------|---------|---------|
-| Supabase Realtime | Médio | Médio |
-| Service Worker completo | Médio | Médio |
-| Otimização de imagens | Médio | Médio |
-| Rate limiting | Alto | Médio |
-
----
-
-## 11. Métricas Atuais Estimadas
-
-| Métrica | Valor Atual | Meta Recomendada |
-|---------|-------------|------------------|
-| Bundle Size | ~2-3MB | < 500KB inicial |
-| FCP (First Contentful Paint) | ~2-3s | < 1.5s |
-| TTI (Time to Interactive) | ~4-5s | < 2.5s |
-| Queries por página (Home) | 50+ | < 5 |
-| Cache hit rate | 0% | > 80% |
-
----
-
-## 12. Resumo de Arquivos para Modificação
-
-### Novas Criações
-
-| Arquivo | Propósito |
+| Aspecto | Avaliação |
 |---------|-----------|
-| `src/components/ErrorBoundary.tsx` | Tratamento de erros |
-| `src/hooks/useSpaces.ts` | Query hook para espaços |
-| `src/hooks/useChannels.ts` | Query hook para canais |
-| `src/hooks/usePosts.ts` | Query hook para posts |
-| `src/lib/queryClient.ts` | Configuração React Query |
+| **Status Atual** | Parcialmente Implementado (30%) |
+| **Prioridade Real** | Alta |
+| **Sua Avaliação** | Correta |
 
-### Modificações
+**Evidências do Código:**
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/App.tsx` | Lazy loading + ErrorBoundary |
-| `src/main.tsx` | QueryClientProvider |
-| `src/pages/Home.tsx` | Usar hooks com cache |
-| `src/pages/SpaceDetail.tsx` | Corrigir N+1 |
-| `src/pages/ChannelDetail.tsx` | Corrigir N+1 |
-| `src/pages/Channels.tsx` | Corrigir N+1 |
-| `vite.config.ts` | PWA config |
-| Migração SQL | Índices novos |
+React Query JA está implementado em:
+- `src/hooks/useSpaces.ts` - 4 hooks com useQuery
+- `src/hooks/useChannels.ts` - 2 hooks com useQuery  
+- `src/hooks/usePosts.ts` - 5 hooks com useQuery + 1 useMutation
+- `src/pages/Home.tsx` - Já usa `useHighlights`, `useSubscribedSpaces`, `useRecentDiscussions`
+- `src/pages/Channels.tsx` - Já usa `useChannels`
+- `src/pages/SpaceDetail.tsx` - Já usa `useSpace`, `useSpaceUpdates`
+- `src/pages/ChannelDetail.tsx` - Já usa `useChannel`, `useChannelPosts`
+
+**AINDA NÃO migrado (fetch direto):**
+- `src/pages/Spaces.tsx` - useState + useEffect + fetch manual (linhas 30-55)
+- `src/pages/Highlights.tsx` - useState + useEffect + fetch manual (linhas 79-173)
+- `src/pages/PostDetail.tsx` - useState + useEffect + fetch manual + **N+1 grave** (linhas 156-175)
+- `src/pages/ChannelPostDetail.tsx` - useState + useEffect + fetch manual + **N+1 grave** (linhas 147-193)
+- `src/pages/Notifications.tsx` - **DADOS MOCKADOS!** (linhas 16-49) - não busca do banco
+- `src/pages/profile/PersonalData.tsx` - fetch manual mas é aceitável para formulário
+- Páginas Admin (8 páginas) - fetch manual
+
+**Correção necessária:** ~15 componentes, não 30+. A maioria das páginas principais já foi migrada.
 
 ---
 
-## Conclusão
+### P2. Implementar paginação em listas
 
-A plataforma Subhumano possui uma base sólida de código e design, mas apresenta **problemas sérios de performance** que impactarão negativamente a experiência do usuário e a escalabilidade à medida que a base de usuários crescer. 
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Não Implementado |
+| **Prioridade Real** | Média-Alta |
+| **Sua Avaliação** | Correta, mas pode ser adiada para MVP |
 
-As correções mais urgentes são:
-1. **Implementar cache de dados com React Query**
-2. **Corrigir padrões N+1 de queries**
-3. **Adicionar code splitting**
-4. **Criar índices no banco de dados**
+**Evidências:**
+- Apenas 3 `.limit()` encontrados no código, todos em páginas admin
+- Nenhum infinite scroll implementado
+- Listas carregam todos os itens
 
-Com estas correções, a plataforma estará preparada para escalar de dezenas para milhares de usuários simultâneos sem degradação perceptível de performance.
+**Análise Crítica:**
+Para um MVP com poucos usuários (< 100 posts por espaço), isso é tolerável. Torna-se crítico quando:
+- Um espaço tiver 100+ posts
+- Canais tiverem 100+ discussões
+
+**Recomendação:** Implementar `.limit(20)` imediatamente, infinite scroll pode esperar 30 dias.
+
+---
+
+### P3. Bundle size optimization
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Parcialmente OK |
+| **Prioridade Real** | Média |
+| **Sua Avaliação** | Parcialmente correta |
+
+**O que JÁ está implementado:**
+- Lazy loading de TODAS as rotas está implementado em `src/App.tsx` (linhas 13-51)
+- Code splitting funcional
+
+**O que FALTA:**
+- Tree-shake do Framer Motion: Não implementado
+- PWA: `vite-plugin-pwa` está instalado mas NÃO configurado em `vite.config.ts`
+- Purify Tailwind: Já está configurado por padrão no Tailwind 3+
+
+**Análise das dependências pesadas:**
+```
+framer-motion: ^12.24.0  - ~150KB (usado em quase todas as páginas)
+recharts: ^2.15.4        - ~300KB (só admin, já lazy loaded)
+tiptap (10 pacotes)      - ~400KB (só criação de posts, já lazy loaded)
+@radix-ui (25+ pacotes)  - ~200KB (necessário para UI)
+```
+
+**Recomendação:** O bundle está aceitável com lazy loading. Framer Motion é o único ponto de atenção, mas removê-lo quebraria muitas animações.
+
+---
+
+### P4. Implementar rate limiting
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Não Implementado |
+| **Prioridade Real** | Baixa para MVP |
+| **Sua Avaliação** | Superestimada |
+
+**Análise Crítica:**
+Rate limiting é importante para apps em escala. Para MVP:
+- Supabase tem rate limiting nativo (100 requests/segundo por IP)
+- RLS protege contra abuso de dados
+- O maior risco é spam de comentários
+
+**Recomendação:** Adiar para pós-lançamento. Implementar apenas debounce em inputs de busca (se houver).
+
+---
+
+### P5. Adicionar input validation com Zod
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | NÃO Implementado (Crítico!) |
+| **Prioridade Real** | Alta |
+| **Sua Avaliação** | Correta |
+
+**Evidências:**
+- `zod: ^3.25.76` está instalado
+- `@hookform/resolvers: ^3.10.0` está instalado
+- **ZERO uso de validação Zod encontrado** no código
+
+**Formulários sem validação:**
+- Login/Register - sem validação de email/senha
+- Perfil pessoal - sem validação de campos
+- Criação de posts - sem validação de conteúdo
+- Comentários - sem validação
+
+**Impacto:**
+- Segurança: Inputs maliciosos podem passar
+- UX: Erros só aparecem do backend
+- Dados: Campos inválidos podem ser salvos
+
+**Recomendação:** CRÍTICO. Implementar antes de produção.
+
+---
+
+## Fase 2: MELHORIAS IMPORTANTES
+
+### P6. Adicionar logging/monitoring
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Não Implementado |
+| **Prioridade Real** | Média |
+| **Sua Avaliação** | Correta |
+
+**Análise:**
+- Nenhum Sentry ou similar encontrado
+- `console.error` usado para debugging
+
+**Recomendação:** Sentry é rápido de implementar (< 1 hora). Fazer antes do lançamento.
+
+---
+
+### P7. Implementar CI/CD básico
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Não Implementado |
+| **Prioridade Real** | Baixa |
+| **Sua Avaliação** | Superestimada para MVP |
+
+**Análise:**
+Lovable já faz deploy automático. CI/CD é nice-to-have para:
+- Múltiplos desenvolvedores
+- Testes automatizados (que não existem)
+
+**Recomendação:** Adiar. Foco em testes primeiro.
+
+---
+
+### P8. Image optimization
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Básico |
+| **Prioridade Real** | Média |
+| **Sua Avaliação** | Correta |
+
+**O que existe:**
+- `loading="lazy"` em imagens
+- Upload para Supabase Storage
+
+**O que falta:**
+- Compressão no upload
+- Conversão WebP
+- Responsive srcset
+- Thumbnails
+
+**Recomendação:** Implementar compressão no upload. O resto pode esperar.
+
+---
+
+### P9. Adicionar testes (10% coverage)
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | 0% |
+| **Prioridade Real** | Alta |
+| **Sua Avaliação** | Correta |
+
+**Evidências:**
+- Nenhum arquivo de teste encontrado
+- Jest/Vitest não configurado
+- Cypress não instalado
+
+**Análise Crítica:**
+Para produção segura, precisa de testes em:
+- Fluxo de autenticação
+- Criação de assinatura
+- Interações críticas (likes, comentários)
+
+**Recomendação:** Mínimo 5-10 testes E2E nas funcionalidades de pagamento/auth.
+
+---
+
+## Fase 3: ESCALABILIDADE
+
+### P10-P14: Realtime, Full-text search, Denormalization, CDN, Multi-region
+
+| Aspecto | Avaliação |
+|---------|-----------|
+| **Status Atual** | Não Implementado |
+| **Prioridade Real** | Baixa (pós-lançamento) |
+| **Sua Avaliação** | Correta para roadmap, mas não para MVP |
+
+**Análise:**
+Estes são problemas de escala. Para MVP com < 1000 usuários:
+- Realtime: Nice-to-have
+- Full-text: Supabase ilike funciona para início
+- Denormalization: Só quando houver performance issues
+- CDN: Supabase Storage já usa CDN
+- Multi-region: Só com 10k+ usuários globais
+
+---
+
+## Descobertas ADICIONAIS (não no seu roadmap)
+
+### BUG CRÍTICO: Notificações são MOCKADAS
+
+```typescript
+// src/pages/Notifications.tsx - linhas 16-49
+const notifications = [
+  {
+    id: 1,
+    type: "update",
+    title: "Nova atualização em Programação",
+    // ... DADOS HARDCODED
+  },
+];
+```
+
+**A página de notificações NÃO busca dados do banco!** Isso precisa ser corrigido antes de produção.
+
+---
+
+### Problema: N+1 em PostDetail e ChannelPostDetail
+
+```typescript
+// src/pages/PostDetail.tsx - linhas 156-175
+const commentsWithLikes = await Promise.all(
+  commentsData.map(async (comment) => {
+    const { count } = await supabase
+      .from("comment_likes")
+      .select("id", { count: "exact", head: true })
+      .eq("comment_id", comment.id);  // QUERY POR COMENTÁRIO!
+```
+
+Com 50 comentários = 50+ queries extras.
+
+---
+
+## Roadmap REVISADO com Priorização Real
+
+### Antes do Lançamento (1-2 semanas)
+
+| Item | Esforço | Impacto | Status |
+|------|---------|---------|--------|
+| Corrigir página Notifications (buscar do banco) | 2h | Crítico | Não feito |
+| Validação Zod em formulários críticos | 4h | Alto | Não feito |
+| Migrar Spaces.tsx, Highlights.tsx para React Query | 2h | Alto | Parcial |
+| Corrigir N+1 em PostDetail/ChannelPostDetail | 3h | Alto | Não feito |
+| Adicionar .limit(20) em todas as listas | 1h | Médio | Não feito |
+| Configurar Sentry básico | 1h | Médio | Não feito |
+
+**Total: ~13 horas de trabalho**
+
+### Pós-Lançamento (30 dias)
+
+| Item | Esforço | Prioridade |
+|------|---------|------------|
+| Infinite scroll | 4h | Média |
+| Compressão de imagens no upload | 3h | Média |
+| Testes E2E básicos (5-10) | 8h | Alta |
+| PWA completo com Service Worker | 4h | Baixa |
+
+### Escala (90+ dias)
+
+| Item | Gatilho |
+|------|---------|
+| Realtime | Quando usuários pedirem |
+| Full-text search | Quando tiver 1000+ posts |
+| Rate limiting customizado | Quando detectar abuso |
+| Multi-region | Quando tiver usuários internacionais significativos |
+
+---
+
+## Conclusão Imparcial
+
+### O que você acertou:
+- React Query é importante (mas já está 70% feito)
+- Validação Zod é crítica
+- Monitoring/Sentry é necessário
+- Testes são necessários
+
+### O que você superestimou:
+- Bundle size (lazy loading já resolve 80%)
+- Rate limiting (Supabase já tem nativo)
+- CI/CD (Lovable faz deploy automático)
+- Escalabilidade fase 3 (prematura para MVP)
+
+### O que você não viu:
+- Notificações estão MOCKADAS (bug crítico)
+- N+1 em páginas de detalhe ainda existe
+- Páginas admin não foram migradas para React Query
+
+### Veredicto Final
+
+A plataforma está mais próxima de produção do que você imagina. Com **~13 horas de trabalho focado**, pode ir ao ar com qualidade aceitável. Os itens de "escala" devem ser implementados **reativamente** conforme métricas indicarem necessidade, não proativamente.
+
+**Recomendação:** Lançar em 2 semanas com as correções críticas, iterar baseado em feedback real de usuários.
+
