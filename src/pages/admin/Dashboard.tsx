@@ -73,7 +73,7 @@ export default function Dashboard() {
         .from('notifications')
         .select('id, title, message, created_at')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       setRecentActivity(
         (notifications || []).map(n => ({
