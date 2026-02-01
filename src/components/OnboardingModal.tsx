@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/Logo";
 import { SquaresFour, ArrowDown, Sparkle } from "@phosphor-icons/react";
 
 interface OnboardingModalProps {
@@ -17,14 +18,14 @@ export function OnboardingModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onDismiss()}>
       <DialogContent className="max-w-sm mx-auto bg-card border-border p-6">
-        {/* Ícone animado */}
+        {/* Logo animada */}
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: "spring", delay: 0.1, stiffness: 200, damping: 15 }}
-          className="mx-auto w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center"
+          className="mx-auto flex items-center justify-center"
         >
-          <SquaresFour className="w-10 h-10 text-primary" weight="duotone" />
+          <Logo size="lg" />
         </motion.div>
 
         {/* Título e descrição */}
@@ -35,7 +36,7 @@ export function OnboardingModal({
           className="text-center space-y-3 mt-4"
         >
           <h2 className="text-xl font-bold">
-            Bem-vindo ao Subhumano!
+            Bem-vindo!
           </h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
             Para começar, escolha os <strong className="text-foreground">Espaços</strong> que 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Logo } from "@/components/Logo";
 import { ArrowLeft, Eye, EyeSlash } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -117,7 +118,7 @@ export default function Login() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center mb-12"
+          className="flex items-center mb-8"
         >
           <Link
             to="/"
@@ -125,6 +126,16 @@ export default function Login() {
           >
             <ArrowLeft className="w-5 h-5" weight="bold" />
           </Link>
+        </motion.div>
+
+        {/* Logo */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.05 }}
+          className="flex justify-center mb-8"
+        >
+          <Logo size="md" />
         </motion.div>
 
         {/* Content */}
