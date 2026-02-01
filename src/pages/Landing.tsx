@@ -1,6 +1,7 @@
 import { useEffect, useRef, ForwardRefExoticComponent, RefAttributes } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/Logo";
 import { ArrowRight, Lightning, ShieldCheck, Sparkle, IconProps } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -71,9 +72,7 @@ export default function Landing() {
           transition={{ duration: 0.5 }}
           className="mb-16"
         >
-          <h1 className="text-2xl font-bold tracking-tight">
-            sub<span className="text-muted-foreground">humano</span>
-          </h1>
+          <Logo size="xl" />
         </motion.div>
 
         {/* Hero */}

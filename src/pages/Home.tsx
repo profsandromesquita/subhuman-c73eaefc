@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AppLayout } from "@/components/AppLayout";
 import { PushPermissionBanner } from "@/components/PushPermissionBanner";
 import { OnboardingModal } from "@/components/OnboardingModal";
+import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
 import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
@@ -97,9 +98,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center"
         >
-          <h1 className="text-lg font-bold tracking-tight">
-            sub<span className="text-muted-foreground">humano</span>
-          </h1>
+          <Logo size="sm" />
         </motion.div>
 
         {/* Daily Highlights */}
