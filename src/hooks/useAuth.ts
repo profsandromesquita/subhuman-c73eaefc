@@ -8,7 +8,7 @@ export function useAuth() {
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -18,7 +18,12 @@ export function useAuth() {
         }
       }
     });
-    return { error };
+    
+    // Detecta se é um cadastro duplicado
+    // Quando o email já existe, identities vem vazio
+    const isExistingUser = data?.user?.identities?.length === 0;
+    
+    return { error, isExistingUser };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {

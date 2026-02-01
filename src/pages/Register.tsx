@@ -36,14 +36,26 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      const { error } = await signUp(email, password, name);
+      const { error, isExistingUser } = await signUp(email, password, name);
 
       if (error) {
-        if (error.message.includes("already registered")) {
+        if (error.message.includes("rate limit")) {
+          toast.error("Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.");
+        } else if (error.message.includes("already registered")) {
           toast.error("Este email já está cadastrado");
         } else {
           toast.error(error.message || "Erro ao criar conta");
         }
+        setIsLoading(false);
+        return;
+      }
+
+      // Detecta cadastro duplicado (email já existe)
+      if (isExistingUser) {
+        toast.info("Este email já está cadastrado. Faça login ou recupere sua senha.", {
+          duration: 5000,
+        });
+        navigate("/login");
         setIsLoading(false);
         return;
       }
