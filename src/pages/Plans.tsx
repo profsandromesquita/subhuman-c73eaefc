@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft } from "@phosphor-icons/react";
-import { Link, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { Check, ArrowLeft, Gift } from "@phosphor-icons/react";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { TrialOfferModal } from "@/components/TrialOfferModal";
 
 const plans = [
   {
@@ -42,6 +43,7 @@ export default function Plans() {
   const [selectedPlan, setSelectedPlan] = useState("yearly");
   const [isLoading, setIsLoading] = useState(false);
   const [isTrialLoading, setIsTrialLoading] = useState(false);
+  const [showTrialModal, setShowTrialModal] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { status, loading: subLoading, refetch } = useSubscription();
@@ -54,6 +56,14 @@ export default function Plans() {
 
   // Determine back navigation destination
   const backDestination = user ? '/home' : '/register';
+
+  const handleBackClick = () => {
+    if (canStartTrial) {
+      setShowTrialModal(true);
+    } else {
+      navigate(backDestination);
+    }
+  };
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -115,6 +125,7 @@ export default function Plans() {
       await refetch();
 
       toast.success("Período de teste iniciado! Você tem 7 dias de acesso gratuito.");
+      setShowTrialModal(false);
       navigate("/home", { replace: true });
     } catch (error) {
       console.error('Error starting trial:', error);
@@ -147,12 +158,12 @@ export default function Plans() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center mb-12"
         >
-          <Link
-            to={backDestination}
+          <button
+            onClick={handleBackClick}
             className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" weight="bold" />
-          </Link>
+          </button>
         </motion.div>
 
         {/* Content */}
@@ -171,7 +182,52 @@ export default function Plans() {
             }
           </p>
 
-          {/* Plans */}
+          {/* Trial Card - Prominent position BEFORE paid plans */}
+          {canStartTrial && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="mb-6"
+            >
+              <div className="relative p-5 rounded-xl border-2 border-green-500/50 bg-gradient-to-br from-green-500/10 to-green-500/5">
+                {/* Badge */}
+                <div className="absolute -top-3 left-4">
+                  <span className="px-3 py-1 text-xs font-bold uppercase tracking-wide bg-green-500 text-white rounded-full">
+                    Grátis
+                  </span>
+                </div>
+
+                <div className="flex items-start gap-4 mt-2">
+                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <Gift className="w-6 h-6 text-green-500" weight="fill" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg">Teste por 7 dias</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Acesso completo sem cartão de crédito
+                    </p>
+                    <Button
+                      onClick={handleStartTrial}
+                      disabled={isTrialLoading}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold"
+                    >
+                      {isTrialLoading ? "Iniciando..." : "Começar período gratuito"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-4 my-6">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-sm text-muted-foreground">ou escolha um plano</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Paid Plans */}
           <div className="space-y-4 mb-8">
             {plans.map((plan, index) => (
               <motion.button
@@ -246,29 +302,19 @@ export default function Plans() {
           <p className="text-center text-xs text-muted-foreground mt-4">
             Pagamento seguro via cartão de crédito ou PIX
           </p>
-
-          {/* Trial option - only show if status is 'none' (never had any subscription) */}
-          {canStartTrial && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="mt-8 pt-6 border-t border-border"
-            >
-              <button
-                onClick={handleStartTrial}
-                disabled={isTrialLoading}
-                className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                {isTrialLoading 
-                  ? "Iniciando..." 
-                  : "Prefiro testar grátis por 7 dias →"
-                }
-              </button>
-            </motion.div>
-          )}
         </motion.div>
       </div>
+
+      {/* Trial Offer Modal */}
+      <TrialOfferModal
+        isOpen={showTrialModal}
+        onClose={() => {
+          setShowTrialModal(false);
+          navigate(backDestination);
+        }}
+        onConfirmTrial={handleStartTrial}
+        isLoading={isTrialLoading}
+      />
     </div>
   );
 }
