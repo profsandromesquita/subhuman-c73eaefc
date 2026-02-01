@@ -126,53 +126,50 @@ export default function PostDetail() {
         created_at
       `)
       .eq("update_id", postId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-    if (error || !commentsData) return;
-
-    // Fetch unique user profiles for all commenters
-    const uniqueUserIds = [...new Set(commentsData.map(c => c.user_id))];
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", uniqueUserIds);
-    
-    const profilesMap = new Map(
-      profilesData?.map(p => [p.id, p.full_name]) || []
-    );
-
-    // Get liked comments by current user
-    let likedCommentIds: string[] = [];
-    if (user) {
-      const { data: likedData } = await supabase
-        .from("comment_likes")
-        .select("comment_id")
-        .eq("user_id", user.id);
-      
-      likedCommentIds = likedData?.map(l => l.comment_id) || [];
+    if (error || !commentsData || commentsData.length === 0) {
+      setComments([]);
+      return;
     }
 
-    // Get likes count for each comment
-    const commentsWithLikes = await Promise.all(
-      commentsData.map(async (comment) => {
-        const { count } = await supabase
-          .from("comment_likes")
-          .select("id", { count: "exact", head: true })
-          .eq("comment_id", comment.id);
-        
-        return {
-          id: comment.id,
-          content: comment.content,
-          authorName: profilesMap.get(comment.user_id) || "Usuário",
-          createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
-          likesCount: count || 0,
-          isLiked: likedCommentIds.includes(comment.id),
-          userId: comment.user_id,
-          parentId: comment.parent_id,
-          replies: [] as Comment[],
-        };
-      })
+    const commentIds = commentsData.map(c => c.id);
+    const uniqueUserIds = [...new Set(commentsData.map(c => c.user_id))];
+
+    // Batch fetch all related data in parallel (no N+1!)
+    const [profilesResult, likesCountResult, userLikesResult] = await Promise.all([
+      supabase.from("profiles").select("id, full_name").in("id", uniqueUserIds),
+      supabase.from("comment_likes").select("comment_id").in("comment_id", commentIds),
+      user 
+        ? supabase.from("comment_likes").select("comment_id").in("comment_id", commentIds).eq("user_id", user.id)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    // Build lookup maps
+    const profilesMap = new Map(
+      profilesResult.data?.map(p => [p.id, p.full_name]) || []
     );
+
+    const likesCountMap: Record<string, number> = {};
+    likesCountResult.data?.forEach((like) => {
+      likesCountMap[like.comment_id] = (likesCountMap[like.comment_id] || 0) + 1;
+    });
+
+    const userLikedSet = new Set(userLikesResult.data?.map(l => l.comment_id) || []);
+
+    // Build comments with engagement data
+    const commentsWithLikes = commentsData.map((comment) => ({
+      id: comment.id,
+      content: comment.content,
+      authorName: profilesMap.get(comment.user_id) || "Usuário",
+      createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
+      likesCount: likesCountMap[comment.id] || 0,
+      isLiked: userLikedSet.has(comment.id),
+      userId: comment.user_id,
+      parentId: comment.parent_id,
+      replies: [] as Comment[],
+    }));
 
     // Organize into parent/reply structure
     const parentComments: Comment[] = [];

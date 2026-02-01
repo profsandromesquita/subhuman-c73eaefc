@@ -41,7 +41,8 @@ export function useChannels() {
         .from("channels")
         .select("*")
         .eq("is_active", true)
-        .order("sort_order", { ascending: true });
+        .order("sort_order", { ascending: true })
+        .limit(50);
 
       if (error) throw error;
       if (!channelsData || channelsData.length === 0) return [];
@@ -53,7 +54,9 @@ export function useChannels() {
         .from("channel_posts")
         .select("id, channel_id, author_id, created_at")
         .in("channel_id", channelIds)
-        .eq("is_moderated", false);
+        .eq("is_moderated", false)
+        .order("created_at", { ascending: false })
+        .limit(1000);
 
       // Process posts to get stats per channel
       const statsMap: Record<

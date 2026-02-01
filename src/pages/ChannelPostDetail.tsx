@@ -136,61 +136,59 @@ export default function ChannelPostDetail() {
       .from('channel_post_comments')
       .select('*')
       .eq('post_id', postId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(100);
 
     if (error) {
       console.error('Error fetching comments:', error);
       return;
     }
 
-    // Enrich comments with author info and likes
-    const enrichedComments = await Promise.all(
-      (commentsData || []).map(async (comment) => {
-        // Get author profile
-        let authorName = 'Usuário';
-        let authorAvatar = null;
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', comment.user_id)
-          .single();
-        if (profile) {
-          authorName = profile.full_name || 'Usuário';
-          authorAvatar = profile.avatar_url;
-        }
+    if (!commentsData || commentsData.length === 0) {
+      setComments([]);
+      return;
+    }
 
-        // Get likes count
-        const { count: likesCount } = await supabase
-          .from('channel_post_comment_likes')
-          .select('*', { count: 'exact', head: true })
-          .eq('comment_id', comment.id);
+    const commentIds = commentsData.map(c => c.id);
+    const uniqueUserIds = [...new Set(commentsData.map(c => c.user_id))];
 
-        // Check if user liked
-        let isLiked = false;
-        if (user) {
-          const { data: likeData } = await supabase
-            .from('channel_post_comment_likes')
-            .select('id')
-            .eq('comment_id', comment.id)
-            .eq('user_id', user.id)
-            .maybeSingle();
-          isLiked = !!likeData;
-        }
+    // Batch fetch all related data in parallel (no N+1!)
+    const [profilesResult, likesCountResult, userLikesResult] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, avatar_url').in('id', uniqueUserIds),
+      supabase.from('channel_post_comment_likes').select('comment_id').in('comment_id', commentIds),
+      user
+        ? supabase.from('channel_post_comment_likes').select('comment_id').in('comment_id', commentIds).eq('user_id', user.id)
+        : Promise.resolve({ data: [] }),
+    ]);
 
-        return {
-          id: comment.id,
-          content: comment.content,
-          created_at: comment.created_at,
-          user_id: comment.user_id,
-          author_name: authorName,
-          author_avatar: authorAvatar,
-          parent_id: comment.parent_id,
-          likes_count: likesCount || 0,
-          is_liked: isLiked,
-          replies: [],
-        };
-      })
+    // Build lookup maps
+    const profilesMap = new Map(
+      profilesResult.data?.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]) || []
     );
+
+    const likesCountMap: Record<string, number> = {};
+    likesCountResult.data?.forEach((like) => {
+      likesCountMap[like.comment_id] = (likesCountMap[like.comment_id] || 0) + 1;
+    });
+
+    const userLikedSet = new Set(userLikesResult.data?.map(l => l.comment_id) || []);
+
+    // Build enriched comments
+    const enrichedComments = commentsData.map((comment) => {
+      const profile = profilesMap.get(comment.user_id);
+      return {
+        id: comment.id,
+        content: comment.content,
+        created_at: comment.created_at,
+        user_id: comment.user_id,
+        author_name: profile?.full_name || 'Usuário',
+        author_avatar: profile?.avatar_url || null,
+        parent_id: comment.parent_id,
+        likes_count: likesCountMap[comment.id] || 0,
+        is_liked: userLikedSet.has(comment.id),
+        replies: [] as Comment[],
+      };
+    });
 
     // Organize into tree structure
     const commentMap = new Map<string, Comment>();
