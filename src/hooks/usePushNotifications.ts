@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 const VAPID_CACHE_KEY = 'vapid-public-key';
+const SUBSCRIBED_CACHE_KEY = 'push-subscription-active';
 
 // Converte base64 para Uint8Array (necessário para applicationServerKey)
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -101,16 +102,39 @@ export function usePushNotifications() {
       // Verificar permissão atual
       const currentPermission = Notification.permission;
 
-      // Verificar se existe subscription no banco
-      const { data: existingSub } = await supabase
+      // Verificar cache local primeiro (fallback rápido para evitar flash)
+      const cachedSubscribed = localStorage.getItem(SUBSCRIBED_CACHE_KEY) === 'true';
+      if (cachedSubscribed && currentPermission === 'granted') {
+        setState({
+          permission: currentPermission,
+          isSubscribed: true,
+          isSupported: true,
+          loading: false,
+          error: null
+        });
+        return;
+      }
+
+      // Verificar se existe subscription no banco (usando limit em vez de maybeSingle)
+      // maybeSingle falha quando há múltiplos dispositivos do mesmo usuário
+      const { data: existingSubs, error } = await supabase
         .from('push_subscriptions')
         .select('id')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .limit(1);
+
+      const hasSubscription = !error && existingSubs && existingSubs.length > 0;
+
+      // Atualizar cache local se tiver subscription válida
+      if (hasSubscription && currentPermission === 'granted') {
+        localStorage.setItem(SUBSCRIBED_CACHE_KEY, 'true');
+      } else {
+        localStorage.removeItem(SUBSCRIBED_CACHE_KEY);
+      }
 
       setState({
         permission: currentPermission,
-        isSubscribed: !!existingSub && currentPermission === 'granted',
+        isSubscribed: hasSubscription && currentPermission === 'granted',
         isSupported: true,
         loading: false,
         error: null
@@ -202,6 +226,9 @@ export function usePushNotifications() {
         throw dbError;
       }
 
+      // Atualizar cache local
+      localStorage.setItem(SUBSCRIBED_CACHE_KEY, 'true');
+
       setState(prev => ({
         ...prev,
         isSubscribed: true,
@@ -250,6 +277,9 @@ export function usePushNotifications() {
           await subscription.unsubscribe();
         }
       }
+
+      // Limpar cache local
+      localStorage.removeItem(SUBSCRIBED_CACHE_KEY);
 
       setState(prev => ({
         ...prev,
