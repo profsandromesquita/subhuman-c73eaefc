@@ -30,8 +30,21 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      // Se a sessão não existir no servidor, força limpeza local
+      if (error && (error.message?.includes('Session not found') || error.status === 403)) {
+        await supabase.auth.signOut({ scope: 'local' });
+        return { error: null };
+      }
+      
+      return { error };
+    } catch (e) {
+      // Em caso de qualquer erro, força limpeza local
+      await supabase.auth.signOut({ scope: 'local' });
+      return { error: null };
+    }
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {

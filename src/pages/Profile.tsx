@@ -90,13 +90,9 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    const { error } = await signOut();
-    if (error) {
-      toast.error("Erro ao sair da conta");
-    } else {
-      toast.success("Você saiu da sua conta");
-      navigate("/");
-    }
+    await signOut();
+    toast.success("Você saiu da sua conta");
+    navigate("/");
   };
 
   const getInitials = (name: string | null) => {
