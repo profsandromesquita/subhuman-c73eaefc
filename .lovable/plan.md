@@ -1,177 +1,191 @@
 
 
-# Plano de Correção: Entrega de Emails de Confirmação
+# Plano: Modal de Confirmação de Trial + Visibilidade Melhorada
 
-## Diagnóstico da Investigação
+## Problema Identificado
 
-### O que os logs revelam
+Na página de planos atual:
 
-| Email | Status | Problema |
-|-------|--------|----------|
-| `contato@arduinoceara.cc` | Já cadastrado e confirmado (31/01/2026) | `user_repeated_signup` - não envia email |
-| `contato@profsandromesquita.com` | Já cadastrado e confirmado (20/01/2026) | `user_repeated_signup` - não envia email |
+| Problema | Impacto |
+|----------|---------|
+| Opção de trial escondida no final da página | Usuários não veem a opção gratuita |
+| Link de "7 dias grátis" em texto pequeno e cinza | Passa despercebido |
+| Botão "voltar" leva direto para outra página | Usuário fica em loop sem saber do trial |
+| Nenhum modal de confirmação | Não há "última chance" antes de sair |
 
-### Causa Raiz Identificada
+### Estado Atual do Trial (linha 258-267)
 
-**Não é um bug no código**, mas sim uma combinação de fatores:
-
-1. **Usuários já existem**: Ambos os emails já foram cadastrados anteriormente e estão confirmados
-2. **Comportamento do sistema de autenticação**: Quando um usuário tenta se cadastrar com um email que já existe, o sistema:
-   - Retorna status 200 (sucesso) para não revelar se o email existe (segurança)
-   - Marca como `user_repeated_signup` nos logs
-   - **NÃO envia novo email de confirmação** (anti-spam)
-3. **Rate limit atingido**: O log mostra `429: email rate limit exceeded` em tentativas anteriores
-
-### Por que o código atual não detecta isso?
-
-O `supabase.auth.signUp()` retorna sucesso (sem erro) mesmo quando o email já existe - isso é intencional por segurança para evitar enumeração de emails.
+```text
+╔═══════════════════════════════════════════════════════════════╗
+║  [Planos pagos chamando atenção]                              ║
+║  [Botão "Assinar agora" em destaque]                          ║
+║  ─────────────────────────────────────────────────────────────║
+║  Prefiro testar grátis por 7 dias →   ← Texto pequeno, cinza  ║
+╚═══════════════════════════════════════════════════════════════╝
+```
 
 ## Solução Proposta
 
-### Melhorar o tratamento de cadastros duplicados
+### 1. Card de Trial em Destaque (ANTES dos planos pagos)
 
-O sistema precisa detectar quando um cadastro é de um email já existente e informar adequadamente ao usuário.
+Mover a opção de trial para o topo e transformá-la em um card visualmente atrativo:
 
-### Arquivos a Modificar
+```text
+╔═══════════════════════════════════════════════════════════════╗
+║  ┌─────────────────────────────────────────────────────────┐  ║
+║  │  🎁 GRÁTIS                                              │  ║
+║  │  Teste por 7 dias                                       │  ║
+║  │  Acesso completo sem cartão de crédito                  │  ║
+║  │  [────────── Começar período gratuito ──────────]       │  ║
+║  └─────────────────────────────────────────────────────────┘  ║
+║                                                               ║
+║  ─── ou escolha um plano ───                                  ║
+║                                                               ║
+║  [Card Mensal]  [Card Anual]                                  ║
+╚═══════════════════════════════════════════════════════════════╝
+```
 
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/pages/Register.tsx` | Detectar cadastro duplicado e informar usuário |
-| `src/hooks/useAuth.ts` | Melhorar retorno do signUp com verificação adicional |
+### 2. Modal de Confirmação ao Clicar em Voltar
+
+Quando o usuário clicar no botão de voltar e puder usar o trial (`status === 'none'`), mostrar um modal perguntando se ele não quer experimentar grátis:
+
+```text
+╔═══════════════════════════════════════════════════════════════╗
+║              🎁 Espera! Que tal testar grátis?               ║
+║                                                               ║
+║  Você pode experimentar o Subhumano por 7 dias               ║
+║  completamente grátis, sem precisar informar                 ║
+║  nenhum dado de cartão de crédito.                           ║
+║                                                               ║
+║  ┌─────────────────────────────────────────────────────────┐  ║
+║  │           Quero meus 7 dias grátis                      │  ║
+║  └─────────────────────────────────────────────────────────┘  ║
+║                                                               ║
+║                   Não, voltar para a home                     ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+## Arquivos a Modificar/Criar
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/components/TrialOfferModal.tsx` | **Criar** | Modal de confirmação do trial |
+| `src/pages/Plans.tsx` | **Modificar** | Interceptar botão voltar + redesenhar layout |
 
 ## Implementação Detalhada
 
-### 1. Modificar signUp em useAuth.ts
+### 1. Criar TrialOfferModal.tsx
 
-Após chamar `signUp`, verificar se o usuário foi realmente criado ou se já existia:
+Um novo componente modal que será exibido quando o usuário tentar sair da página de planos:
 
-```typescript
-const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
-  const redirectUrl = `${window.location.origin}/`;
-  
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: redirectUrl,
-      data: { full_name: fullName }
-    }
-  });
-  
-  // Detecta se é um cadastro duplicado
-  // Quando o email já existe, identities vem vazio
-  const isExistingUser = data?.user?.identities?.length === 0;
-  
-  return { error, isExistingUser };
-}, []);
-```
+**Conteúdo do Modal:**
+- Ícone de presente (Gift) animado
+- Título: "Espera! Que tal testar grátis?"
+- Descrição explicando os benefícios do trial
+- Destaque: "Sem cartão de crédito"
+- Botão primário: "Quero meus 7 dias grátis"
+- Link secundário: "Não, voltar para a home"
 
-### 2. Modificar Register.tsx
+**Props do componente:**
+- `isOpen`: boolean para controlar visibilidade
+- `onClose`: callback para fechar o modal
+- `onConfirmTrial`: callback para iniciar o trial
+- `isLoading`: boolean para estado de carregamento
 
-Tratar o caso de usuário já existente:
+### 2. Modificar Plans.tsx
 
-```typescript
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // ... validações ...
-  
-  const { error, isExistingUser } = await signUp(email, password, name);
-  
-  if (error) {
-    // Tratamento de erro normal
-    return;
-  }
-  
-  if (isExistingUser) {
-    // Email já cadastrado - direcionar para login
-    toast.info(
-      "Este email já está cadastrado. Faça login ou recupere sua senha.",
-      { duration: 5000 }
-    );
-    navigate("/login");
-    return;
-  }
-  
-  // Cadastro novo - seguir fluxo normal
-  sessionStorage.setItem("pending_verification_email", email);
-  toast.success("Enviamos um link de confirmação para seu email!");
-  navigate("/verify-email");
-};
-```
+**2.1 - Interceptar navegação de volta:**
 
-### 3. Adicionar feedback para rate limit
+Ao invés de usar `<Link to={backDestination}>`, converter para um botão que:
+- Verifica se `canStartTrial` é true (usuário pode usar trial)
+- Se sim, abre o modal de confirmação
+- Se não (já tem assinatura), navega normalmente
 
-Tratar especificamente o erro de rate limit:
+**2.2 - Redesenhar seção de trial:**
 
-```typescript
-if (error) {
-  if (error.message.includes("rate limit")) {
-    toast.error(
-      "Muitas tentativas. Por favor, aguarde alguns minutos antes de tentar novamente."
-    );
-  } else if (error.message.includes("already registered")) {
-    toast.error("Este email já está cadastrado");
-  } else {
-    toast.error(error.message || "Erro ao criar conta");
-  }
-  return;
-}
-```
+Mover o card de trial para ANTES dos planos pagos com:
+- Badge "GRÁTIS" em destaque
+- Título "Teste por 7 dias"
+- Subtítulo "Acesso completo sem cartão de crédito"
+- Botão grande e visível "Começar período gratuito"
+- Separador visual "ou escolha um plano"
 
-## Fluxo Corrigido
+**2.3 - Estado do modal:**
+
+Adicionar estados para controlar o modal:
+- `showTrialModal`: boolean para abrir/fechar
+- Handler para o botão de voltar
+- Handler para confirmar o trial via modal
+
+## Fluxo de Navegação
 
 ```text
-Usuário tenta cadastrar
-        |
-        v
-signUp() chamado
-        |
-        +-- Erro de rate limit --> "Aguarde alguns minutos"
-        |
-        +-- isExistingUser = true --> "Email já cadastrado, faça login"
-        |
-        +-- Sucesso (novo usuário) --> Redireciona para /verify-email
+Usuário na página /plans
+        │
+        ▼
+Clica no botão "Voltar"
+        │
+        ├── status === 'none' (pode usar trial)
+        │   │
+        │   ▼
+        │   Abre modal "Quer testar grátis?"
+        │   │
+        │   ├── Clica "Quero 7 dias grátis"
+        │   │   │
+        │   │   ▼
+        │   │   Inicia trial → Navega para /home
+        │   │
+        │   └── Clica "Não, voltar"
+        │       │
+        │       ▼
+        │       Fecha modal → Navega para /home
+        │
+        └── status !== 'none' (já tem/teve assinatura)
+            │
+            ▼
+            Navega normalmente para /home
 ```
 
 ## Seção Técnica
 
-### Por que o sistema de autenticação não retorna erro para emails duplicados?
+### Componente TrialOfferModal
 
-Por segurança (prevenção de enumeração de emails). Se o sistema retornasse "email já cadastrado", um atacante poderia descobrir quais emails estão registrados na plataforma.
+```typescript
+interface TrialOfferModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirmTrial: () => void;
+  isLoading: boolean;
+}
+```
 
-### Como detectar cadastro duplicado?
+Usará os componentes Dialog existentes do projeto para manter consistência visual.
 
-O objeto `data.user.identities` retorna:
-- **Array com identidades**: Novo usuário criado
-- **Array vazio `[]`**: Email já existe no sistema
+### Interceptação do Botão Voltar
 
-### Rate Limits do Sistema de Autenticação
+```typescript
+const handleBackClick = () => {
+  if (canStartTrial) {
+    setShowTrialModal(true);
+  } else {
+    navigate(backDestination);
+  }
+};
+```
 
-| Tipo | Limite Aproximado |
-|------|-------------------|
-| Emails por hora | 4 por destinatário |
-| Emails por dia | 30 por destinatário |
-| Tentativas de signup | 60 por hora por IP |
+### Estrutura do Card de Trial em Destaque
 
-### Por que não usar serviço de email externo?
+O card terá:
+- Borda com destaque (ex: `border-green-500/50`)
+- Badge flutuante "GRÁTIS"
+- Gradiente sutil de fundo
+- Ícone de presente (Gift) com animação
 
-O Lovable Cloud já envia emails de confirmação automaticamente. Um serviço externo (como Resend) seria necessário apenas para:
-- Emails personalizados com branding
-- Emails transacionais (não relacionados a auth)
-- Maior volume de envios
+### Benefícios da Implementação
 
-## Benefícios da Correção
-
-1. **Feedback claro**: Usuário sabe se o email já está cadastrado
-2. **Redirecionamento inteligente**: Usuários existentes vão para login
-3. **Tratamento de rate limit**: Mensagem clara quando limite é atingido
-4. **Segurança mantida**: Não expõe informação de emails cadastrados de forma insegura
-
-## Para Testes Reais
-
-Para testar com emails novos (que nunca foram cadastrados), você pode:
-1. Usar um email pessoal diferente
-2. Usar serviços de email temporário (10minutemail, guerrillamail)
-3. Usar alias de Gmail: seuemail+teste1@gmail.com, seuemail+teste2@gmail.com
+1. **Visibilidade do Trial**: Card em destaque no topo da página
+2. **Última Chance**: Modal captura usuários que iriam sair
+3. **Transparência**: Deixa claro que não precisa de cartão
+4. **UX Melhorada**: Usuário não fica "preso" em loop
+5. **Conversão**: Aumenta chances de conversão para trial
 
