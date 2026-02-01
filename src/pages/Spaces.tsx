@@ -6,6 +6,7 @@ import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +23,7 @@ interface Space {
 
 export default function Spaces() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscriptions, setSubscriptions] = useState<Record<string, boolean>>({});
@@ -113,6 +115,10 @@ export default function Spaces() {
         if (error) throw error;
         toast.success("Inscrito com sucesso!");
       }
+      
+      // Invalidar cache para sincronizar com Home
+      queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
+      queryClient.invalidateQueries({ queryKey: ["highlights"] });
     } catch (error) {
       console.error('Error toggling subscription:', error);
       // Rollback on error
