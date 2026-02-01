@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppLayout } from "@/components/AppLayout";
 import { PushPermissionBanner } from "@/components/PushPermissionBanner";
+import { OnboardingModal } from "@/components/OnboardingModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
 import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
@@ -25,6 +27,35 @@ export default function Home() {
   const { data: highlights = [], isLoading: loadingHighlights } = useHighlights();
   const { data: discussions = [], isLoading: loadingDiscussions } = useRecentDiscussions();
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
+  
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Verifica se deve mostrar o modal de onboarding
+  useEffect(() => {
+    const hasSeenOnboarding = sessionStorage.getItem('onboarding-dismissed');
+    
+    if (
+      user && 
+      !authLoading &&
+      !loadingSpaces && 
+      subscribedSpaces.length === 0 && 
+      !hasSeenOnboarding
+    ) {
+      // Pequeno delay para não sobrepor outros elementos
+      const timer = setTimeout(() => setShowOnboarding(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [user, authLoading, loadingSpaces, subscribedSpaces]);
+
+  const handleNavigateToSpaces = () => {
+    setShowOnboarding(false);
+    navigate('/spaces');
+  };
+
+  const handleDismissOnboarding = () => {
+    setShowOnboarding(false);
+    sessionStorage.setItem('onboarding-dismissed', 'true');
+  };
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
@@ -49,7 +80,16 @@ export default function Home() {
 
   return (
     <AppLayout>
-      <PushPermissionBanner />
+      {/* Onboarding Modal para novos usuários */}
+      <OnboardingModal 
+        isOpen={showOnboarding}
+        onNavigateToSpaces={handleNavigateToSpaces}
+        onDismiss={handleDismissOnboarding}
+      />
+      
+      {/* Push banner só aparece se não estiver em onboarding */}
+      {!showOnboarding && <PushPermissionBanner />}
+      
       <div className="p-4 space-y-6 pb-24">
         {/* Header with Logo */}
         <motion.div
