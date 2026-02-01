@@ -4,13 +4,14 @@ import { Bell, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const DISMISSED_KEY = 'push-banner-dismissed';
 const DISMISS_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
 export function PushPermissionBanner() {
   const { user } = useAuth();
-  const { permission, isSubscribed, isSupported, subscribe, loading } = usePushNotifications();
+  const { permission, isSubscribed, isSupported, subscribe, loading, error } = usePushNotifications();
   const [dismissed, setDismissed] = useState(true); // Começa oculto para evitar flash
   const [isVisible, setIsVisible] = useState(false);
 
@@ -59,7 +60,15 @@ export function PushPermissionBanner() {
   const handleSubscribe = async () => {
     const success = await subscribe();
     if (success) {
+      toast.success('Notificações ativadas com sucesso!', {
+        description: 'Você receberá alertas sobre novos conteúdos.'
+      });
       setIsVisible(false);
+    } else {
+      // O erro já está no state, mostra o toast
+      toast.error(error || 'Não foi possível ativar as notificações', {
+        description: 'Por favor, tente novamente.'
+      });
     }
   };
 
@@ -98,6 +107,13 @@ export function PushPermissionBanner() {
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                 Receba alertas quando novos conteúdos forem publicados nos seus espaços favoritos.
               </p>
+              
+              {/* Mensagem de erro inline */}
+              {error && (
+                <p className="text-xs text-red-400 mt-2">
+                  {error}
+                </p>
+              )}
             </div>
           </div>
 
@@ -116,6 +132,7 @@ export function PushPermissionBanner() {
               size="sm"
               onClick={handleDismiss}
               className="text-muted-foreground"
+              disabled={loading}
             >
               Agora não
             </Button>

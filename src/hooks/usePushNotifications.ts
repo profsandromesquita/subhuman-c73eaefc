@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
-// VAPID public key - será substituída pela chave real do ambiente
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+const VAPID_CACHE_KEY = 'vapid-public-key';
 
 // Converte base64 para Uint8Array (necessário para applicationServerKey)
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -19,6 +18,45 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
+}
+
+// Busca a VAPID key do backend ou cache
+async function getVapidPublicKey(): Promise<string | null> {
+  // Primeiro tenta do .env (se estiver configurada)
+  const envKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  if (envKey && envKey.trim() !== '') {
+    return envKey;
+  }
+
+  // Verifica cache no localStorage
+  const cached = localStorage.getItem(VAPID_CACHE_KEY);
+  if (cached) {
+    return cached;
+  }
+
+  // Busca do backend
+  try {
+    console.log('Buscando VAPID key do backend...');
+    const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
+    
+    if (error) {
+      console.error('Erro ao invocar get-vapid-public-key:', error);
+      return null;
+    }
+
+    if (data?.publicKey) {
+      // Salva no cache
+      localStorage.setItem(VAPID_CACHE_KEY, data.publicKey);
+      console.log('VAPID key obtida e cacheada com sucesso');
+      return data.publicKey;
+    }
+
+    console.error('Resposta sem publicKey:', data);
+    return null;
+  } catch (e) {
+    console.error('Erro ao buscar VAPID key:', e);
+    return null;
+  }
 }
 
 export interface PushNotificationState {
@@ -38,6 +76,9 @@ export function usePushNotifications() {
     loading: true,
     error: null
   });
+  
+  // Ref para armazenar a VAPID key
+  const vapidKeyRef = useRef<string | null>(null);
 
   // Verifica se o browser suporta push notifications
   const isSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -51,6 +92,11 @@ export function usePushNotifications() {
 
     try {
       setState(prev => ({ ...prev, loading: true }));
+
+      // Pré-carregar a VAPID key
+      if (!vapidKeyRef.current) {
+        vapidKeyRef.current = await getVapidPublicKey();
+      }
 
       // Verificar permissão atual
       const currentPermission = Notification.permission;
@@ -86,16 +132,22 @@ export function usePushNotifications() {
       return false;
     }
 
-    if (!VAPID_PUBLIC_KEY) {
-      console.error('VAPID_PUBLIC_KEY não configurada');
-      setState(prev => ({ ...prev, error: 'Configuração incompleta' }));
-      return false;
-    }
-
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // 1. Solicitar permissão
+      // 1. Buscar VAPID key se ainda não tiver
+      if (!vapidKeyRef.current) {
+        vapidKeyRef.current = await getVapidPublicKey();
+      }
+
+      if (!vapidKeyRef.current) {
+        const errorMsg = 'Chave de notificação não configurada. Tente novamente mais tarde.';
+        console.error('VAPID_PUBLIC_KEY não disponível');
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+        return false;
+      }
+
+      // 2. Solicitar permissão
       const permission = await Notification.requestPermission();
       setState(prev => ({ ...prev, permission }));
 
@@ -103,12 +155,12 @@ export function usePushNotifications() {
         setState(prev => ({ 
           ...prev, 
           loading: false, 
-          error: 'Permissão negada' 
+          error: 'Você negou a permissão para notificações' 
         }));
         return false;
       }
 
-      // 2. Registrar Service Worker
+      // 3. Registrar Service Worker
       const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });
@@ -116,8 +168,8 @@ export function usePushNotifications() {
       // Aguardar SW estar pronto
       await navigator.serviceWorker.ready;
 
-      // 3. Criar push subscription
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      // 4. Criar push subscription
+      const applicationServerKey = urlBase64ToUint8Array(vapidKeyRef.current);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey.buffer as ArrayBuffer
@@ -129,7 +181,7 @@ export function usePushNotifications() {
         throw new Error('Subscription inválida');
       }
 
-      // 4. Salvar no banco de dados
+      // 5. Salvar no banco de dados
       const { error: dbError } = await supabase
         .from('push_subscriptions')
         .upsert({
@@ -160,10 +212,18 @@ export function usePushNotifications() {
       return true;
     } catch (error: any) {
       console.error('Erro ao ativar push:', error);
+      
+      let errorMessage = 'Erro ao ativar notificações';
+      if (error.message?.includes('denied')) {
+        errorMessage = 'Permissão negada pelo navegador';
+      } else if (error.message?.includes('network')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet.';
+      }
+      
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error.message || 'Erro ao ativar notificações'
+        error: errorMessage
       }));
       return false;
     }
