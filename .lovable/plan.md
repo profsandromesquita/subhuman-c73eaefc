@@ -1,119 +1,177 @@
 
 
-# Plano de Correção: Logout Robusto
+# Plano de Correção: Entrega de Emails de Confirmação
 
-## Problema Identificado
+## Diagnóstico da Investigação
 
-Os logs de autenticação mostram múltiplas tentativas de logout falhando com erro **403 - Session not found**:
+### O que os logs revelam
 
-```
-session id (8dd2515a-0f15-4873-9590-ed90f6ce5951) doesn't exist
-```
+| Email | Status | Problema |
+|-------|--------|----------|
+| `contato@arduinoceara.cc` | Já cadastrado e confirmado (31/01/2026) | `user_repeated_signup` - não envia email |
+| `contato@profsandromesquita.com` | Já cadastrado e confirmado (20/01/2026) | `user_repeated_signup` - não envia email |
 
-Isso significa que a sessão já expirou ou foi invalidada no servidor, mas o cliente ainda tenta fazer logout normalmente - e quando recebe o erro 403, mostra "Erro ao sair da conta" ao invés de simplesmente limpar o estado local.
+### Causa Raiz Identificada
 
-## Causa Raiz
+**Não é um bug no código**, mas sim uma combinação de fatores:
 
-| Situação | Comportamento Atual | Comportamento Esperado |
-|----------|---------------------|------------------------|
-| Sessão válida | Logout funciona | OK |
-| Sessão expirada | Mostra erro 403 | Deveria limpar estado local e redirecionar |
-| Token inválido | Mostra erro | Deveria limpar estado local e redirecionar |
+1. **Usuários já existem**: Ambos os emails já foram cadastrados anteriormente e estão confirmados
+2. **Comportamento do sistema de autenticação**: Quando um usuário tenta se cadastrar com um email que já existe, o sistema:
+   - Retorna status 200 (sucesso) para não revelar se o email existe (segurança)
+   - Marca como `user_repeated_signup` nos logs
+   - **NÃO envia novo email de confirmação** (anti-spam)
+3. **Rate limit atingido**: O log mostra `429: email rate limit exceeded` em tentativas anteriores
+
+### Por que o código atual não detecta isso?
+
+O `supabase.auth.signUp()` retorna sucesso (sem erro) mesmo quando o email já existe - isso é intencional por segurança para evitar enumeração de emails.
 
 ## Solução Proposta
 
-### Lógica de Logout Resiliente
+### Melhorar o tratamento de cadastros duplicados
 
-Modificar o fluxo de logout para que **SEMPRE** limpe o estado local, independentemente se a chamada ao servidor teve sucesso ou não:
-
-1. Tentar fazer logout no servidor (para invalidar a sessão lá)
-2. **Independentemente do resultado**, limpar o localStorage
-3. Resetar o estado do React
-4. Redirecionar para a página inicial
+O sistema precisa detectar quando um cadastro é de um email já existente e informar adequadamente ao usuário.
 
 ### Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/hooks/useAuth.ts` | Tornar `signOut` resiliente a erros de sessão |
-| `src/pages/Profile.tsx` | Ajustar tratamento de erro no `handleLogout` |
+| `src/pages/Register.tsx` | Detectar cadastro duplicado e informar usuário |
+| `src/hooks/useAuth.ts` | Melhorar retorno do signUp com verificação adicional |
 
 ## Implementação Detalhada
 
-### 1. Modificar useAuth.ts
+### 1. Modificar signUp em useAuth.ts
 
-O `signOut` será modificado para usar `scope: 'local'` quando a sessão não existir no servidor, garantindo limpeza do estado local:
+Após chamar `signUp`, verificar se o usuário foi realmente criado ou se já existia:
 
 ```typescript
-const signOut = useCallback(async () => {
-  try {
-    // Tenta logout global primeiro
-    const { error } = await supabase.auth.signOut();
-    
-    // Se a sessão não existir, força limpeza local
-    if (error && error.message?.includes('Session not found')) {
-      await supabase.auth.signOut({ scope: 'local' });
-      return { error: null }; // Considera sucesso pois o objetivo é deslogar
+const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
+  const redirectUrl = `${window.location.origin}/`;
+  
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: redirectUrl,
+      data: { full_name: fullName }
     }
-    
-    return { error };
-  } catch (e) {
-    // Em caso de qualquer erro, força limpeza local
-    await supabase.auth.signOut({ scope: 'local' });
-    return { error: null };
-  }
+  });
+  
+  // Detecta se é um cadastro duplicado
+  // Quando o email já existe, identities vem vazio
+  const isExistingUser = data?.user?.identities?.length === 0;
+  
+  return { error, isExistingUser };
 }, []);
 ```
 
-### 2. Modificar Profile.tsx
+### 2. Modificar Register.tsx
 
-Simplificar o `handleLogout` para sempre considerar sucesso após o signOut:
+Tratar o caso de usuário já existente:
 
 ```typescript
-const handleLogout = async () => {
-  await signOut();
-  toast.success("Você saiu da sua conta");
-  navigate("/");
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // ... validações ...
+  
+  const { error, isExistingUser } = await signUp(email, password, name);
+  
+  if (error) {
+    // Tratamento de erro normal
+    return;
+  }
+  
+  if (isExistingUser) {
+    // Email já cadastrado - direcionar para login
+    toast.info(
+      "Este email já está cadastrado. Faça login ou recupere sua senha.",
+      { duration: 5000 }
+    );
+    navigate("/login");
+    return;
+  }
+  
+  // Cadastro novo - seguir fluxo normal
+  sessionStorage.setItem("pending_verification_email", email);
+  toast.success("Enviamos um link de confirmação para seu email!");
+  navigate("/verify-email");
 };
 ```
 
-## Fluxo Após Correção
+### 3. Adicionar feedback para rate limit
+
+Tratar especificamente o erro de rate limit:
+
+```typescript
+if (error) {
+  if (error.message.includes("rate limit")) {
+    toast.error(
+      "Muitas tentativas. Por favor, aguarde alguns minutos antes de tentar novamente."
+    );
+  } else if (error.message.includes("already registered")) {
+    toast.error("Este email já está cadastrado");
+  } else {
+    toast.error(error.message || "Erro ao criar conta");
+  }
+  return;
+}
+```
+
+## Fluxo Corrigido
 
 ```text
-Usuário clica "Sair"
+Usuário tenta cadastrar
         |
         v
-Tenta signOut() no servidor
+signUp() chamado
         |
-        +-- Sucesso (204) --> Limpa estado --> Redireciona --> FIM
+        +-- Erro de rate limit --> "Aguarde alguns minutos"
         |
-        +-- Erro 403 (Session not found) --> signOut({ scope: 'local' }) --> Redireciona --> FIM
+        +-- isExistingUser = true --> "Email já cadastrado, faça login"
         |
-        +-- Qualquer outro erro --> signOut({ scope: 'local' }) --> Redireciona --> FIM
+        +-- Sucesso (novo usuário) --> Redireciona para /verify-email
 ```
 
 ## Seção Técnica
 
-### O que é `scope: 'local'`?
+### Por que o sistema de autenticação não retorna erro para emails duplicados?
 
-O Supabase oferece duas opções de logout:
+Por segurança (prevenção de enumeração de emails). Se o sistema retornasse "email já cadastrado", um atacante poderia descobrir quais emails estão registrados na plataforma.
 
-- **`scope: 'global'`** (padrão): Invalida a sessão no servidor E limpa localStorage
-- **`scope: 'local'`**: Apenas limpa o localStorage sem chamar o servidor
+### Como detectar cadastro duplicado?
 
-Quando a sessão já não existe no servidor, usar `scope: 'local'` garante que o estado local seja limpo mesmo assim.
+O objeto `data.user.identities` retorna:
+- **Array com identidades**: Novo usuário criado
+- **Array vazio `[]`**: Email já existe no sistema
 
-### Por que a sessão pode não existir?
+### Rate Limits do Sistema de Autenticação
 
-1. **Expiração**: Tokens têm validade (geralmente 1 hora para access, 1 semana para refresh)
-2. **Logout em outro dispositivo**: Usuário fez logout em outro lugar
-3. **Revogação manual**: Admin revogou a sessão
-4. **Limpeza automática**: Servidor limpou sessões antigas
+| Tipo | Limite Aproximado |
+|------|-------------------|
+| Emails por hora | 4 por destinatário |
+| Emails por dia | 30 por destinatário |
+| Tentativas de signup | 60 por hora por IP |
 
-### Benefícios da Correção
+### Por que não usar serviço de email externo?
 
-- Logout **sempre funciona** do ponto de vista do usuário
-- Não exibe mensagens de erro confusas
-- Estado local fica consistente com o servidor
-- Funciona em todos os cenários de sessão inválida
+O Lovable Cloud já envia emails de confirmação automaticamente. Um serviço externo (como Resend) seria necessário apenas para:
+- Emails personalizados com branding
+- Emails transacionais (não relacionados a auth)
+- Maior volume de envios
+
+## Benefícios da Correção
+
+1. **Feedback claro**: Usuário sabe se o email já está cadastrado
+2. **Redirecionamento inteligente**: Usuários existentes vão para login
+3. **Tratamento de rate limit**: Mensagem clara quando limite é atingido
+4. **Segurança mantida**: Não expõe informação de emails cadastrados de forma insegura
+
+## Para Testes Reais
+
+Para testar com emails novos (que nunca foram cadastrados), você pode:
+1. Usar um email pessoal diferente
+2. Usar serviços de email temporário (10minutemail, guerrillamail)
+3. Usar alias de Gmail: seuemail+teste1@gmail.com, seuemail+teste2@gmail.com
 
