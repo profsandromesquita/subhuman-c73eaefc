@@ -1,198 +1,241 @@
 
+# Plano de Implementação: Logo Subhumano na Plataforma
 
-# Plano de Correção: Modal de Onboarding Reaparecendo
+## Análise da Logo
 
-## Diagnóstico do Bug
+A logo fornecida (`logo-subumano-ia-br-transparente.svg`) é um arquivo SVG vetorial com as seguintes características:
 
-### Causa Raiz Identificada
+| Característica | Valor |
+|----------------|-------|
+| Formato | SVG vetorial |
+| Dimensões originais | 1200x1200px (quadrada) |
+| Fundo | Transparente |
+| Compatibilidade | Perfeita para modo escuro |
 
-O modal de onboarding continua aparecendo mesmo após o usuário inscrever-se em espaços devido a **dois problemas distintos**:
+## Estado Atual da Marca
 
-| Problema | Arquivo | Descrição |
-|----------|---------|-----------|
-| Cache desatualizado | `Spaces.tsx` | A página de Espaços **não invalida** o cache do React Query após alterar inscrições |
-| staleTime alto | `queryClient.ts` | O cache é considerado "fresh" por 5 minutos, então dados antigos são usados |
+Atualmente, a marca "subhumano" aparece como **texto estilizado** em vários locais:
 
-### Fluxo Atual (Com Bug)
+| Local | Implementação Atual |
+|-------|---------------------|
+| Landing Page | `<h1>sub<span>humano</span></h1>` (texto bicolor) |
+| Home (header) | `<h1>sub<span>humano</span></h1>` (texto menor) |
+| Onboarding Modal | Apenas texto "Subhumano" no título |
+| PWA Manifest | Apenas nome "Subhumano" |
+| Favicon/Ícones | Ícones PNG genéricos |
+
+## Proposta de Implementação
+
+### Locais para Aplicação da Logo
+
+| Prioridade | Local | Tamanho Recomendado | Justificativa |
+|------------|-------|---------------------|---------------|
+| Alta | Landing Page (hero) | 120-150px altura | Primeira impressão da marca |
+| Alta | Home Page (header) | 32-40px altura | Identificação em uso diário |
+| Alta | Favicon/PWA | 192px, 512px | Ícone do app |
+| Média | Onboarding Modal | 48-56px altura | Reforço de marca no primeiro uso |
+| Média | Telas de Auth (Login/Register) | 40-48px altura | Branding consistente |
+| Baixa | Splash/Loading | 80-100px altura | Experiência de carregamento |
+
+### Hierarquia Visual Proposta
 
 ```text
-1. Usuário abre /home
-   └─> useSubscribedSpaces() retorna [] (vazio)
-   └─> Modal aparece ✓
-
-2. Usuário navega para /spaces
-   └─> toggleSubscription() insere no banco ✓
-   └─> Atualiza estado LOCAL do Spaces.tsx ✓
-   └─> NÃO invalida cache do React Query ✗
-
-3. Usuário volta para /home
-   └─> useSubscribedSpaces() retorna cache antigo (ainda [])
-   └─> Modal aparece novamente ✗ ← BUG
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  LANDING PAGE (primeira visita)                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                                                     │    │
+│  │        [LOGO 120-150px]                             │    │
+│  │                                                     │    │
+│  │     O futuro da IA, direto no seu bolso.            │    │
+│  │                                                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  HOME PAGE (uso diário)                                     │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  [LOGO 32-40px] ─────────── Destaques da semana     │    │
+│  │                                                     │    │
+│  │  Cards de conteúdo...                               │    │
+│  │                                                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  AUTH PAGES (Login/Register)                                │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  ← [LOGO 40-48px] centralizada ou alinhada à esq.   │    │
+│  │                                                     │    │
+│  │     Bem-vindo de volta                              │    │
+│  │     (formulário)                                    │    │
+│  │                                                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### O Que Acontece Tecnicamente
-
-1. **Em `Spaces.tsx`** (linha 78-127):
-   - A função `toggleSubscription()` atualiza o banco de dados corretamente
-   - Mas apenas atualiza o estado local (`setSubscriptions`)
-   - **Não chama** `queryClient.invalidateQueries()` para limpar o cache
-
-2. **Em `queryClient.ts`** (linha 7):
-   - `staleTime: 1000 * 60 * 5` (5 minutos)
-   - O cache antigo é considerado "fresco" e não é recarregado
-
-3. **Em `Home.tsx`** (linha 29):
-   - `useSubscribedSpaces()` retorna dados do cache
-   - Como o cache tem dados antigos (array vazio), o modal reaparece
-
-## Correção Proposta
-
-### Solução Principal: Invalidar Cache ao Alterar Inscrições
-
-Modificar `Spaces.tsx` para invalidar a query `subscribed-spaces` após cada toggle de inscrição:
-
-```typescript
-// Em Spaces.tsx
-import { useQueryClient } from "@tanstack/react-query";
-
-// Dentro do componente
-const queryClient = useQueryClient();
-
-// Dentro de toggleSubscription, após sucesso
-queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
-```
-
-Isso garante que ao voltar para `/home`, a query será reexecutada com os dados atualizados.
-
-## Arquivos a Modificar
+## Arquivos a Criar/Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/Spaces.tsx` | Modificar | Adicionar invalidação de cache após alternar inscrição |
+| `src/assets/logo.svg` | Criar | Copiar logo para assets |
+| `src/components/Logo.tsx` | Criar | Componente reutilizável da logo |
+| `src/pages/Landing.tsx` | Modificar | Substituir texto por logo |
+| `src/pages/Home.tsx` | Modificar | Substituir texto por logo no header |
+| `src/pages/Login.tsx` | Modificar | Adicionar logo no topo |
+| `src/pages/Register.tsx` | Modificar | Adicionar logo no topo |
+| `src/components/OnboardingModal.tsx` | Modificar | Adicionar logo pequena |
+| `public/icon-192.png` | Substituir | Gerar do SVG |
+| `public/icon-512.png` | Substituir | Gerar do SVG |
+| `public/favicon.ico` | Substituir | Gerar do SVG |
 
 ## Implementação Detalhada
 
-### Modificação em `Spaces.tsx`
+### 1. Componente Logo Reutilizável
 
-Adicionar import do `useQueryClient` e invalidar o cache após operações bem-sucedidas:
+Criar um componente único para garantir consistência:
 
-```typescript
-// Linha 8: Adicionar import
-import { useQueryClient } from "@tanstack/react-query";
+```tsx
+// src/components/Logo.tsx
+import logoSrc from "@/assets/logo.svg";
 
-// Dentro do componente (após linha 28):
-const queryClient = useQueryClient();
+interface LogoProps {
+  size?: "sm" | "md" | "lg" | "xl";
+  className?: string;
+}
 
-// Dentro de toggleSubscription, após cada sucesso (linhas 103 e 114):
-// Após "toast.success" em ambos os casos:
-queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
-
-// Também invalidar highlights que dependem dos espaços inscritos:
-queryClient.invalidateQueries({ queryKey: ["highlights"] });
-```
-
-### Código Modificado da Função `toggleSubscription`
-
-```typescript
-const toggleSubscription = async (spaceId: string) => {
-  if (!user) {
-    toast.error("Faça login para se inscrever nos espaços");
-    return;
-  }
-
-  if (processingIds.has(spaceId)) return;
-  setProcessingIds(prev => new Set(prev).add(spaceId));
-
-  const isCurrentlySubscribed = subscriptions[spaceId] || false;
-
-  // Optimistic update
-  setSubscriptions(prev => ({ ...prev, [spaceId]: !isCurrentlySubscribed }));
-
-  try {
-    if (isCurrentlySubscribed) {
-      const { error } = await supabase
-        .from('user_space_subscriptions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('space_id', spaceId);
-
-      if (error) throw error;
-      toast.success("Inscrição removida");
-    } else {
-      const { error } = await supabase
-        .from('user_space_subscriptions')
-        .insert({
-          user_id: user.id,
-          space_id: spaceId
-        });
-
-      if (error) throw error;
-      toast.success("Inscrito com sucesso!");
-    }
-    
-    // ✅ CORREÇÃO: Invalidar cache após sucesso
-    queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
-    queryClient.invalidateQueries({ queryKey: ["highlights"] });
-    
-  } catch (error) {
-    console.error('Error toggling subscription:', error);
-    setSubscriptions(prev => ({ ...prev, [spaceId]: isCurrentlySubscribed }));
-    toast.error("Erro ao atualizar inscrição");
-  } finally {
-    setProcessingIds(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(spaceId);
-      return newSet;
-    });
-  }
+const sizeMap = {
+  sm: "h-8",     // 32px - header home
+  md: "h-10",    // 40px - auth pages
+  lg: "h-12",    // 48px - onboarding
+  xl: "h-32",    // 128px - landing hero
 };
+
+export function Logo({ size = "md", className = "" }: LogoProps) {
+  return (
+    <img 
+      src={logoSrc} 
+      alt="Subhumano" 
+      className={`${sizeMap[size]} w-auto ${className}`}
+    />
+  );
+}
 ```
 
-## Fluxo Corrigido
+### 2. Atualização Landing Page
 
-```text
-1. Usuário abre /home
-   └─> useSubscribedSpaces() retorna [] (vazio)
-   └─> Modal aparece ✓
+Substituir o texto estilizado pela logo visual:
 
-2. Usuário navega para /spaces
-   └─> toggleSubscription() insere no banco ✓
-   └─> Atualiza estado LOCAL do Spaces.tsx ✓
-   └─> queryClient.invalidateQueries(["subscribed-spaces"]) ✓
+```tsx
+// Antes (texto)
+<h1 className="text-2xl font-bold tracking-tight">
+  sub<span className="text-muted-foreground">humano</span>
+</h1>
 
-3. Usuário volta para /home
-   └─> useSubscribedSpaces() detecta cache inválido
-   └─> Refaz query ao banco → retorna [espaço inscrito]
-   └─> Modal NÃO aparece ✓
+// Depois (logo)
+<Logo size="xl" />
 ```
+
+### 3. Atualização Home Page
+
+Header mais compacto com logo:
+
+```tsx
+// Antes
+<h1 className="text-lg font-bold tracking-tight">
+  sub<span className="text-muted-foreground">humano</span>
+</h1>
+
+// Depois
+<Logo size="sm" />
+```
+
+### 4. Telas de Autenticação
+
+Adicionar logo no topo das páginas Login e Register:
+
+```tsx
+// Adicionar após o header com botão voltar
+<div className="flex justify-center mb-8">
+  <Logo size="md" />
+</div>
+```
+
+### 5. Onboarding Modal
+
+Integrar logo no modal de boas-vindas:
+
+```tsx
+// No título do modal
+<div className="flex flex-col items-center gap-2">
+  <Logo size="lg" />
+  <h2 className="text-xl font-bold mt-2">
+    Bem-vindo!
+  </h2>
+</div>
+```
+
+### 6. PWA e Favicon
+
+Para os ícones do PWA e favicon, serão necessários:
+
+1. **Gerar ícones PNG a partir do SVG** (manualmente ou via ferramenta)
+2. **Substituir arquivos existentes**:
+   - `public/icon-192.png` (192x192)
+   - `public/icon-512.png` (512x512)
+   - `public/apple-touch-icon.png` (180x180)
+   - `public/favicon.ico` (múltiplos tamanhos)
 
 ## Seção Técnica
 
-### Por que o Bug Aconteceu?
+### Por que usar o componente Logo?
 
-O `Spaces.tsx` usa **gerenciamento de estado local** (`useState`) em vez de utilizar o mesmo hook `useSubscribedSpaces()` que o `Home.tsx` usa. Isso cria duas fontes de verdade:
+| Benefício | Descrição |
+|-----------|-----------|
+| Consistência | Mesma aparência em toda a plataforma |
+| Manutenibilidade | Alterar em um lugar, atualiza em todos |
+| Performance | Import ES6 permite otimização do bundler |
+| Acessibilidade | Alt text centralizado |
+| Type Safety | Props tipadas com TypeScript |
 
-- `Spaces.tsx`: estado local (`subscriptions`)
-- `Home.tsx`: cache do React Query (`useSubscribedSpaces`)
+### Decisões de Design
 
-Quando o usuário altera inscrições em `Spaces.tsx`, apenas o estado local é atualizado. O cache do React Query permanece com dados antigos.
+**Tamanhos escolhidos:**
+- **32-40px (sm/md)**: Ideal para headers internos. Não compete com o conteúdo, mas mantém presença
+- **48px (lg)**: Destaque em modais sem ser excessivo
+- **128-150px (xl)**: Impacto na landing page, primeira impressão memorável
 
-### Alternativa Considerada (Mais Robusta)
+**Posicionamento:**
+- Landing: Topo esquerdo (padrão de leitura ocidental)
+- Home: Header compacto, alinhado à esquerda
+- Auth: Centralizado para foco visual
+- Modal: Centralizado com hierarquia clara
 
-Refatorar `Spaces.tsx` para usar `useSubscribedSpaces()` e mutations do React Query em vez de estado local. Isso garantiria uma única fonte de verdade. Porém, a correção proposta é mais simples e resolve o problema imediato.
+### Fallback de Acessibilidade
 
-### Queries Relacionadas a Invalidar
+O componente inclui `alt="Subhumano"` para:
+- Leitores de tela
+- Indexação de busca
+- Fallback se imagem não carregar
 
-| Query Key | Motivo |
-|-----------|--------|
-| `["subscribed-spaces"]` | Lista de espaços inscritos |
-| `["highlights"]` | Destaques filtrados por espaços inscritos |
+## Ordem de Implementação
+
+1. Copiar SVG para `src/assets/logo.svg`
+2. Criar componente `src/components/Logo.tsx`
+3. Atualizar `Landing.tsx` (maior impacto visual)
+4. Atualizar `Home.tsx` (uso diário)
+5. Atualizar `Login.tsx` e `Register.tsx`
+6. Atualizar `OnboardingModal.tsx`
+7. (Opcional) Gerar e substituir ícones PWA
 
 ## Resultado Esperado
 
-Após a correção:
+Após implementação:
 
-1. O modal de onboarding aparece apenas quando o usuário não tem espaços inscritos
-2. Ao inscrever-se em pelo menos 1 espaço e voltar para Home, o modal não reaparece
-3. Os destaques e outras seções da Home refletem imediatamente os espaços escolhidos
+1. Marca visual consistente em toda a plataforma
+2. Logo profissional substituindo texto estilizado
+3. Melhor reconhecimento de marca
+4. Experiência premium e polida
+5. PWA com ícone oficial da marca
 
