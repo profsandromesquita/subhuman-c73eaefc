@@ -1,276 +1,244 @@
 
 
-# Plano de Correção: Banner de Notificações Reaparecendo
+# Plano de Correção: Safe Areas para iPhone
 
-## Diagnóstico do Bug
+## Problema Identificado
 
-### Causa Raiz Identificada
+No iPhone 15 Pro Max (e outros modelos com Dynamic Island/notch), o conteúdo da aplicação está sendo renderizado por baixo da barra de status do sistema (hora, câmera, Dynamic Island), tornando elementos no topo da tela inacessíveis.
 
-O banner de notificações push continua aparecendo após ativação devido a **dois problemas principais**:
+### Causa Raiz
 
-| Problema | Arquivo | Descrição |
-|----------|---------|-----------|
-| Query retorna erro com múltiplos registros | `usePushNotifications.ts` | `.maybeSingle()` falha quando usuário tem múltiplas subscriptions (diferentes dispositivos) |
-| Banner aparece antes da verificação completar | `PushPermissionBanner.tsx` | Não aguarda o estado `loading` do hook antes de avaliar visibilidade |
+| Aspecto | Estado Atual | Problema |
+|---------|--------------|----------|
+| Viewport | `viewport-fit=cover` | Permite renderizar na área do notch/Dynamic Island |
+| CSS Safe Areas | Apenas `safe-area-pb` (bottom) | Falta `safe-area-pt` (top) e laterais |
+| AppLayout | `min-h-screen` sem padding top | Conteúdo começa no topo absoluto |
+| Headers fixos | `top-0` sem offset | Ficam sob a barra de status |
 
-### Dados do Banco de Dados
+### Elementos Afetados
 
-O usuário possui **2 registros** na tabela `push_subscriptions` (mesmo user_id, endpoints diferentes):
+| Local | Elemento | Impacto |
+|-------|----------|---------|
+| Login/Register | Botão "Voltar" | Inacessível |
+| SpaceDetail | Botão "Voltar" + título | Inacessível |
+| ChannelDetail | Botão "Voltar" + header | Inacessível |
+| PostDetail | Header fixo com ações | Inacessível |
+| Páginas gerais | Logo e títulos | Parcialmente ocultados |
 
-| endpoint | created_at |
-|----------|------------|
-| web.push.apple.com/QJodp... | 2026-02-01 19:05:47 |
-| web.push.apple.com/QCwi5... | 2026-02-01 20:27:11 |
+## Solução Proposta
 
-Quando `.maybeSingle()` encontra múltiplos registros, retorna erro em vez de dados, fazendo `existingSub` ser `null`.
+### Estratégia de Implementação
 
-### Fluxo Atual (Com Bug)
+Usar **CSS environment variables** (`env(safe-area-inset-*)`) que o iOS fornece automaticamente para indicar as áreas "seguras" da tela.
 
 ```text
-1. Página carrega
-   └─> usePushNotifications() inicia com loading=true, isSubscribed=false
-
-2. Query ao banco com .maybeSingle()
-   └─> Múltiplos registros existem
-   └─> Supabase retorna erro (expected 0-1 rows, got 2)
-   └─> existingSub = null
-   └─> isSubscribed = false
-
-3. PushPermissionBanner avalia condições
-   └─> permission='granted', isSubscribed=false
-   └─> Condição (permission === 'granted' && isSubscribed) é FALSE
-   └─> Banner aparece mesmo com permissão concedida
-```
-
-## Correção Proposta
-
-### Solução 1: Corrigir Query no Hook
-
-Modificar `usePushNotifications.ts` para usar `.select().limit(1).maybeSingle()` ou simplesmente verificar se existe algum registro:
-
-```typescript
-// Antes (problema com múltiplos registros)
-const { data: existingSub } = await supabase
-  .from('push_subscriptions')
-  .select('id')
-  .eq('user_id', user.id)
-  .maybeSingle();  // ❌ Falha se > 1 registro
-
-// Depois (funciona com qualquer quantidade)
-const { data: existingSubs } = await supabase
-  .from('push_subscriptions')
-  .select('id')
-  .eq('user_id', user.id)
-  .limit(1);
-
-const hasSubscription = existingSubs && existingSubs.length > 0;
-```
-
-### Solução 2: Banner Aguardar Loading
-
-Modificar `PushPermissionBanner.tsx` para não avaliar visibilidade enquanto `loading` for `true`:
-
-```typescript
-useEffect(() => {
-  // Aguardar carregamento do estado do hook
-  if (loading) {
-    return;
-  }
-  
-  // ... resto da lógica de visibilidade
-}, [user, isSupported, permission, isSubscribed, loading]);
-```
-
-### Solução 3: Persistência Local como Fallback
-
-Adicionar cache local no `usePushNotifications.ts` para evitar dependência total do banco:
-
-```typescript
-const SUBSCRIBED_CACHE_KEY = 'push-subscribed';
-
-// No subscribe() após sucesso:
-localStorage.setItem(SUBSCRIBED_CACHE_KEY, 'true');
-
-// Na verificação inicial:
-const localSubscribed = localStorage.getItem(SUBSCRIBED_CACHE_KEY) === 'true';
-if (localSubscribed && currentPermission === 'granted') {
-  setState({
-    permission: currentPermission,
-    isSubscribed: true,  // Confia no cache local
-    ...
-  });
-  return;
-}
+┌────────────────────────────────────────┐
+│ ████████ Dynamic Island ████████████  │ ← env(safe-area-inset-top)
+├────────────────────────────────────────┤
+│                                        │
+│   ┌────────────────────────────────┐   │
+│   │                                │   │
+│   │   ÁREA SEGURA DO CONTEÚDO     │   │
+│   │                                │   │
+│   │   (onde elementos devem estar) │   │
+│   │                                │   │
+│   └────────────────────────────────┘   │
+│                                        │
+├────────────────────────────────────────┤
+│ ████████ Home Indicator ███████████   │ ← env(safe-area-inset-bottom)
+└────────────────────────────────────────┘
 ```
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/hooks/usePushNotifications.ts` | Corrigir query e adicionar cache local |
-| `src/components/PushPermissionBanner.tsx` | Aguardar loading antes de avaliar visibilidade |
+| `index.html` | Adicionar classe CSS `.safe-area-pt` para padding-top |
+| `src/index.css` | Definir classes utilitárias para safe areas |
+| `src/components/AppLayout.tsx` | Adicionar safe-area-inset-top no container principal |
+| `src/components/BottomNav.tsx` | Já tem safe-area-pb (OK) |
+| `src/components/post/PostHeader.tsx` | Adicionar padding-top para safe area em header fixo |
+| `src/pages/Login.tsx` | Adicionar safe area no container |
+| `src/pages/Register.tsx` | Adicionar safe area no container |
+| `src/pages/Landing.tsx` | Adicionar safe area no container |
+| `src/pages/SpaceDetail.tsx` | Herda de AppLayout (será corrigido automaticamente) |
+| `src/pages/ChannelDetail.tsx` | Herda de AppLayout (será corrigido automaticamente) |
+| `src/pages/PostDetail.tsx` | Adicionar safe area no container (não usa AppLayout) |
 
 ## Implementação Detalhada
 
-### 1. Modificar `usePushNotifications.ts`
+### 1. Atualizar `index.html`
 
-**Adicionar constante para cache:**
-```typescript
-const SUBSCRIBED_CACHE_KEY = 'push-subscription-active';
+Adicionar classes utilitárias para todas as safe areas:
+
+```html
+<style>
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .safe-area-insets {
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+</style>
 ```
 
-**Corrigir função `checkSubscription`:**
-```typescript
-const checkSubscription = useCallback(async () => {
-  if (!isSupported || !user) {
-    setState(prev => ({ ...prev, loading: false, isSupported }));
-    return;
+### 2. Atualizar `src/index.css`
+
+Adicionar utilitários Tailwind-like para safe areas:
+
+```css
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
   }
-
-  try {
-    setState(prev => ({ ...prev, loading: true }));
-
-    // Pré-carregar a VAPID key
-    if (!vapidKeyRef.current) {
-      vapidKeyRef.current = await getVapidPublicKey();
-    }
-
-    // Verificar permissão atual
-    const currentPermission = Notification.permission;
-    
-    // Verificar cache local primeiro (fallback rápido)
-    const cachedSubscribed = localStorage.getItem(SUBSCRIBED_CACHE_KEY) === 'true';
-    if (cachedSubscribed && currentPermission === 'granted') {
-      setState({
-        permission: currentPermission,
-        isSubscribed: true,
-        isSupported: true,
-        loading: false,
-        error: null
-      });
-      return;
-    }
-
-    // Verificar se existe subscription no banco (usando limit em vez de maybeSingle)
-    const { data: existingSubs, error } = await supabase
-      .from('push_subscriptions')
-      .select('id')
-      .eq('user_id', user.id)
-      .limit(1);
-
-    const hasSubscription = !error && existingSubs && existingSubs.length > 0;
-    
-    // Atualizar cache local
-    if (hasSubscription && currentPermission === 'granted') {
-      localStorage.setItem(SUBSCRIBED_CACHE_KEY, 'true');
-    }
-
-    setState({
-      permission: currentPermission,
-      isSubscribed: hasSubscription && currentPermission === 'granted',
-      isSupported: true,
-      loading: false,
-      error: null
-    });
-  } catch (error) {
-    console.error('Erro ao verificar subscription:', error);
-    setState(prev => ({ 
-      ...prev, 
-      loading: false, 
-      error: 'Erro ao verificar status' 
-    }));
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
-}, [user, isSupported]);
+  
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+  
+  .top-safe {
+    top: env(safe-area-inset-top, 0);
+  }
+}
 ```
 
-**Na função `subscribe`, após sucesso, atualizar cache:**
-```typescript
-// Após setState com isSubscribed: true
-localStorage.setItem(SUBSCRIBED_CACHE_KEY, 'true');
+### 3. Atualizar `src/components/AppLayout.tsx`
+
+Adicionar safe-area no container principal:
+
+```tsx
+// Antes
+<div className="min-h-screen bg-background">
+  <main className={showNav ? "pb-20" : ""}>
+    {children}
+  </main>
+  ...
+</div>
+
+// Depois
+<div className="min-h-screen bg-background pt-safe">
+  <main className={showNav ? "pb-20" : ""}>
+    {children}
+  </main>
+  ...
+</div>
 ```
 
-**Na função `unsubscribe`, limpar cache:**
-```typescript
-// Após setState com isSubscribed: false
-localStorage.removeItem(SUBSCRIBED_CACHE_KEY);
+### 4. Atualizar `src/components/post/PostHeader.tsx`
+
+Ajustar header fixo para respeitar safe area:
+
+```tsx
+// Antes
+<motion.header
+  className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
+>
+  <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+
+// Depois
+<motion.header
+  className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md pt-safe"
+>
+  <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
 ```
 
-### 2. Modificar `PushPermissionBanner.tsx`
+### 5. Atualizar páginas sem AppLayout
 
-**Adicionar `loading` às dependências e aguardar:**
-```typescript
-const { permission, isSubscribed, isSupported, subscribe, loading, error } = usePushNotifications();
+**Login.tsx, Register.tsx, Landing.tsx:**
+```tsx
+// Antes
+<div className="min-h-screen bg-background">
+  <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
 
-useEffect(() => {
-  // Não avaliar visibilidade enquanto está carregando
-  if (loading) {
-    return;
-  }
-
-  if (!user || !isSupported) {
-    setIsVisible(false);
-    return;
-  }
-
-  // Se já tem permissão concedida e está inscrito, não mostra
-  if (permission === 'granted' && isSubscribed) {
-    setIsVisible(false);
-    return;
-  }
-
-  // ... resto do código permanece igual
-}, [user, isSupported, permission, isSubscribed, loading]);  // ← Adicionar loading
+// Depois
+<div className="min-h-screen bg-background pt-safe">
+  <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
 ```
 
-## Fluxo Corrigido
+**PostDetail.tsx:**
+```tsx
+// No container principal, adicionar pt-safe
+<div className="min-h-screen bg-background pt-safe">
+  ...
+</div>
+```
 
-```text
-1. Página carrega
-   └─> usePushNotifications() inicia com loading=true
+### 6. Ajustar padding do conteúdo em PostDetail
 
-2. Banner verifica estado
-   └─> loading=true → não avalia, aguarda
+Como o header terá padding-top para a safe area, o conteúdo precisa considerar isso:
 
-3. Hook verifica cache local
-   └─> SUBSCRIBED_CACHE_KEY='true' existe
-   └─> permission='granted'
-   └─> isSubscribed=true (do cache)
-   └─> loading=false
-
-4. Banner reavalia
-   └─> permission='granted' && isSubscribed=true
-   └─> Banner NÃO aparece ✓
+```tsx
+// Aumentar pt-14 para pt-[calc(3.5rem+env(safe-area-inset-top))]
+// Ou usar uma classe customizada
 ```
 
 ## Seção Técnica
 
-### Por que o Bug Aconteceu?
+### Como `env(safe-area-inset-*)` funciona
 
-1. **`.maybeSingle()` do Supabase**: Este método espera 0 ou 1 resultado. Quando há 2+ registros com o mesmo `user_id` (diferentes dispositivos/endpoints), ele retorna erro em vez de dados.
+| Variable | iPhone SE | iPhone 15 Pro Max | Android |
+|----------|-----------|-------------------|---------|
+| `safe-area-inset-top` | 20px | ~59px (Dynamic Island) | 0-24px |
+| `safe-area-inset-bottom` | 0px | ~34px (Home Indicator) | 0-48px |
+| `safe-area-inset-left` | 0px | 0px | Varia |
+| `safe-area-inset-right` | 0px | 0px | Varia |
 
-2. **Race condition**: O banner avaliava visibilidade antes do hook completar a verificação, usando o estado inicial `isSubscribed: false`.
+### Fallback para navegadores sem suporte
 
-### Múltiplos Dispositivos
+A sintaxe `env(safe-area-inset-top, 0)` inclui fallback de `0` para navegadores que não suportam essas variáveis.
 
-Um usuário pode ter múltiplas subscriptions ativas (ex: Safari desktop + Safari mobile). A correção garante que qualquer subscription válida seja reconhecida.
+### Compatibilidade
 
-### Cache Local como Otimização
+- iOS Safari: Suporte total
+- Chrome Android: Suporte parcial (depende do dispositivo)
+- Desktop: Ignora (valores são 0)
 
-O cache evita:
-- Latência da query ao banco a cada refresh
-- Falhas temporárias de rede
-- Race conditions no carregamento
+## Fluxo Visual Após Correção
 
-O cache é invalidado quando:
-- O usuário faz unsubscribe manualmente
-- A permissão do navegador é revogada (verificada em runtime)
+```text
+iPhone 15 Pro Max:
+┌────────────────────────────────────────┐
+│ ████ 14:30 ████ Dynamic Island        │ ← Status bar do sistema
+├────────────────────────────────────────┤
+│                                        │ ← padding-top: env(safe-area-inset-top)
+│  ← [Voltar]        [Logo]              │ ← Elementos agora acessíveis!
+│                                        │
+│  Título da Página                      │
+│  Conteúdo...                           │
+│                                        │
+│                                        │
+├────────────────────────────────────────┤
+│  [Início] [Espaços] [Canais] [Perfil]  │ ← BottomNav (já tem safe-area-pb)
+│ ──────────────────────────────────────  │ ← Home indicator
+└────────────────────────────────────────┘
+```
+
+## Ordem de Implementação
+
+1. Adicionar classes CSS em `index.html` e `src/index.css`
+2. Atualizar `AppLayout.tsx` (corrige Home, Spaces, Channels, Notifications, Profile)
+3. Atualizar `PostHeader.tsx` (corrige headers fixos em detalhes de posts)
+4. Atualizar `PostDetail.tsx` (não usa AppLayout)
+5. Atualizar `Login.tsx`, `Register.tsx`, `Landing.tsx` (páginas de auth)
 
 ## Resultado Esperado
 
-Após a correção:
+Após implementação:
 
-1. O banner não aparece se o usuário já ativou notificações
-2. O estado é lembrado mesmo com múltiplos dispositivos
-3. O carregamento é mais rápido (cache local)
-4. Sem race conditions no carregamento da página
+1. Todos os botões de voltar serão clicáveis no iPhone
+2. Headers fixos respeitarão a área do Dynamic Island
+3. Conteúdo não ficará escondido sob a barra de status
+4. Experiência consistente entre iPhone SE, 15, 15 Pro Max
+5. Sem impacto visual em dispositivos sem notch (fallback 0)
 
