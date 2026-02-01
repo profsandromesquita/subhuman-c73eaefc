@@ -17,8 +17,23 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, resendConfirmationEmail } = useAuth();
   const { refetch } = useSubscription();
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      toast.error("Digite seu email para reenviar a confirmação");
+      return;
+    }
+    
+    const { error } = await resendConfirmationEmail(email);
+    if (error) {
+      toast.error(error.message || "Erro ao reenviar email");
+    } else {
+      sessionStorage.setItem("pending_verification_email", email);
+      navigate("/verify-email");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +43,24 @@ export default function Login() {
       const { error } = await signIn(email, password);
 
       if (error) {
+        // Handle email not confirmed error
+        if (error.message.includes("Email not confirmed") || error.message.includes("email_not_confirmed")) {
+          toast.error(
+            <div className="space-y-2">
+              <p>Por favor, confirme seu email antes de fazer login.</p>
+              <button
+                onClick={handleResendConfirmation}
+                className="text-sm underline hover:no-underline"
+              >
+                Reenviar email de confirmação
+              </button>
+            </div>,
+            { duration: 10000 }
+          );
+          setIsLoading(false);
+          return;
+        }
+        
         toast.error(error.message || "Erro ao fazer login");
         setIsLoading(false);
         return;

@@ -48,8 +48,11 @@ export default function Register() {
         return;
       }
 
-      toast.success("Conta criada com sucesso!");
-      navigate("/plans");
+      // Store email for verification page
+      sessionStorage.setItem("pending_verification_email", email);
+      
+      toast.success("Enviamos um link de confirmação para seu email!");
+      navigate("/verify-email");
     } catch (err) {
       toast.error("Erro inesperado ao criar conta");
     } finally {
