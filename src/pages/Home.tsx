@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppLayout } from "@/components/AppLayout";
+import { PushPermissionBanner } from "@/components/PushPermissionBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
 import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
@@ -48,6 +49,7 @@ export default function Home() {
 
   return (
     <AppLayout>
+      <PushPermissionBanner />
       <div className="p-4 space-y-6 pb-24">
         {/* Header with Logo */}
         <motion.div
