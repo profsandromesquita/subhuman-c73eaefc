@@ -490,7 +490,7 @@ export default function PostDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background pt-safe">
         <div className="pt-14 px-5 max-w-2xl mx-auto space-y-4">
           <Skeleton className="w-full aspect-video" />
           <Skeleton className="h-6 w-32" />
@@ -503,7 +503,7 @@ export default function PostDetail() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background pt-safe flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Post não encontrado</p>
           <button 
@@ -518,7 +518,7 @@ export default function PostDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-safe">
       <PostHeader
         isSaved={isSaved}
         onSaveToggle={handleSaveToggle}

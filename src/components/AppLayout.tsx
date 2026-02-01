@@ -12,7 +12,7 @@ export function AppLayout({ children, showNav = true }: AppLayoutProps) {
   const { status, daysRemaining } = useSubscription();
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-safe">
       <main className={showNav ? "pb-20" : ""}>
         {children}
       </main>
