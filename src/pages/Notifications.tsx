@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
+import { Logo } from "@/components/Logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
@@ -101,6 +102,8 @@ export default function Notifications() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 pt-8">
+        <Logo size="sm" className="mb-4" />
+        
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
