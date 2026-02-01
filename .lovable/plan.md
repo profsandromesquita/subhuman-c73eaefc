@@ -1,266 +1,358 @@
 
 
-# Plano de Correção: Sistema de Notificações Push
+# Plano: Modal de Onboarding para Novos Usuários
 
-## Diagnóstico do Problema
+## Problema Identificado
 
-### Problema Identificado
+Quando um usuário acessa o Subhumano pela primeira vez, a página Início aparece completamente vazia porque ele ainda não escolheu nenhum espaço para seguir. Isso gera uma experiência confusa onde o usuário não sabe qual é o próximo passo.
 
-| Sintoma | Causa Raiz |
-|---------|------------|
-| Botão "Ativar notificações" não responde ao clique | A variável `VITE_VAPID_PUBLIC_KEY` está **vazia** no arquivo `.env` |
-| Erro no console: "VAPID_PUBLIC_KEY não configurada" | Hook retorna `false` imediatamente na linha 89-93 do código |
-| Botão "Agora não" funciona | Não depende da VAPID key, apenas salva no localStorage |
-
-### Fluxo Atual (Quebrado)
+### Estado Atual
 
 ```text
-Usuário clica "Ativar notificações"
+Novo usuário faz login
         │
         ▼
-handleSubscribe() → subscribe()
+Redirecionado para /home
         │
         ▼
-Verifica VAPID_PUBLIC_KEY → VAZIA!
+Vê página vazia com mensagens:
+  - "Inscreva-se em espaços para ver os destaques"
+  - "Nenhuma discussão em alta no momento"
+  - "Você ainda não segue nenhum espaço"
         │
         ▼
-console.error('VAPID_PUBLIC_KEY não configurada')
-        │
-        ▼
-setState({ error: 'Configuração incompleta' })
-        │
-        ▼
-return false (silenciosamente)
+Usuário fica perdido, não sabe o que fazer
 ```
 
-O botão parece "não clicável" porque o hook detecta que a chave VAPID não está configurada no frontend e falha silenciosamente, sem feedback visual para o usuário.
+## Solução Proposta
 
-### Estado Atual da Configuração
+Criar um modal de onboarding interativo que aparece automaticamente quando o usuário logado não possui nenhum espaço inscrito. O modal deve:
 
-| Componente | Status | Descrição |
-|------------|--------|-----------|
-| Secret `VAPID_PUBLIC_KEY` no backend | OK | Configurada nos secrets do backend |
-| Secret `VAPID_PRIVATE_KEY` no backend | OK | Configurada nos secrets do backend |
-| Variável `VITE_VAPID_PUBLIC_KEY` no .env | VAZIA | Não foi copiada para o frontend |
-| Service Worker (`sw.js`) | OK | Implementado corretamente |
-| Hook `usePushNotifications` | PARCIAL | Falta feedback de erro visível |
-| Edge Function | PARCIAL | Criptografia Web Push incompleta |
+1. Explicar brevemente o funcionamento da plataforma
+2. Guiar visualmente o usuário até a aba Espaços
+3. Usar o vídeo fornecido (opcional) ou animações
+4. Ser dispensável mas persistente (aparece até o usuário escolher pelo menos 1 espaço)
 
-## Problemas a Corrigir
+## Arquitetura da Solução
 
-### 1. VAPID Key no Frontend (CRÍTICO)
-
-O arquivo `.env` está assim:
+### Novo Fluxo de Onboarding
 
 ```text
-VITE_VAPID_PUBLIC_KEY=""
+Novo usuário faz login
+        │
+        ▼
+Redirecionado para /home
+        │
+        ├── Tem espaços inscritos? → Sim → Exibe feed normal
+        │
+        └── Não tem espaços?
+                │
+                ▼
+        Exibe OnboardingModal automaticamente
+                │
+                ▼
+        Usuário clica "Ir para Espaços"
+                │
+                ▼
+        Navega para /spaces com destaque visual
+                │
+                ▼
+        Usuário escolhe pelo menos 1 espaço
+                │
+                ▼
+        Modal não aparece mais
 ```
 
-A chave pública VAPID precisa ser copiada do secret do backend para o frontend. Isso não foi feito automaticamente.
+## Componentes a Criar
 
-### 2. Falta de Feedback Visual
-
-Quando o subscribe falha, o usuário não recebe nenhuma indicação visual. O botão simplesmente "não faz nada".
-
-### 3. Edge Function - Criptografia Incompleta
-
-A edge function atual não implementa a criptografia completa do Web Push (RFC 8291). Isso pode causar falhas ao enviar para alguns browsers.
-
-## Correções Propostas
-
-### Correção 1: Configurar VAPID Key no Frontend
-
-Copiar a chave pública VAPID do secret para a variável de ambiente do frontend.
-
-**Opção A (Recomendada)**: Hardcode no código
-- Vantagem: Funciona imediatamente
-- A chave pública não é secreta, pode estar no código
-
-**Opção B**: Buscar dinamicamente do backend
-- Criar endpoint que retorna a chave pública
-- Mais complexo, mas mais flexível
-
-Usaremos a **Opção A** por simplicidade.
-
-### Correção 2: Melhorar Feedback de Erro no Banner
-
-Modificar o `PushPermissionBanner` para:
-- Mostrar toast de erro quando falhar
-- Exibir mensagem clara se as notificações não estiverem configuradas
-- Dar feedback visual durante o loading
-
-### Correção 3: Simplificar Edge Function
-
-Para o MVP, usar uma abordagem mais simples que funcione:
-- Implementar usando a biblioteca `web-push` via npm
-- Ou usar um serviço externo como OneSignal/Firebase
-
-Por ora, vamos manter a edge function atual mas garantir que o fluxo básico funcione.
-
-## Arquivos a Modificar
-
-| Arquivo | Ação | Descrição |
+| Arquivo | Tipo | Descrição |
 |---------|------|-----------|
-| `src/hooks/usePushNotifications.ts` | Modificar | Buscar VAPID key do backend ou usar hardcoded |
-| `src/components/PushPermissionBanner.tsx` | Modificar | Adicionar feedback visual de erro |
-| `supabase/functions/get-vapid-public-key/index.ts` | Criar | Endpoint para fornecer a chave pública |
+| `src/components/OnboardingModal.tsx` | Novo componente | Modal interativo de onboarding |
+| `src/pages/Home.tsx` | Modificar | Integrar o modal |
 
 ## Implementação Detalhada
 
-### 1. Criar Edge Function para Fornecer VAPID Key
+### 1. Componente OnboardingModal
 
-Nova edge function que retorna a chave pública VAPID de forma segura:
-
-```typescript
-// supabase/functions/get-vapid-public-key/index.ts
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
-  
-  return new Response(
-    JSON.stringify({ publicKey: vapidPublicKey || null }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-});
-```
-
-### 2. Atualizar Hook para Buscar VAPID Key Dinamicamente
-
-Modificar o hook para buscar a chave do backend se não estiver no .env:
-
-```typescript
-// src/hooks/usePushNotifications.ts
-
-// Buscar VAPID key do backend
-const fetchVapidKey = async (): Promise<string | null> => {
-  // Primeiro tenta do .env
-  const envKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-  if (envKey) return envKey;
-  
-  // Senão busca do backend
-  try {
-    const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
-    if (error) throw error;
-    return data?.publicKey || null;
-  } catch (e) {
-    console.error('Erro ao buscar VAPID key:', e);
-    return null;
-  }
-};
-```
-
-### 3. Melhorar Feedback no Banner
-
-Adicionar toast de erro e mensagem visual quando falhar:
-
-```typescript
-// src/components/PushPermissionBanner.tsx
-import { toast } from 'sonner';
-
-const handleSubscribe = async () => {
-  const success = await subscribe();
-  if (success) {
-    toast.success('Notificações ativadas!');
-    setIsVisible(false);
-  } else {
-    // Mostrar erro baseado no state.error
-    toast.error(error || 'Não foi possível ativar as notificações');
-  }
-};
-```
-
-### 4. Adicionar Estado de Erro Visível
-
-Mostrar mensagem de erro diretamente no banner se algo falhar:
+Criar um modal elegante e animado com Framer Motion:
 
 ```tsx
-{error && (
-  <p className="text-xs text-red-400 mt-2">
-    {error}
-  </p>
-)}
+// src/components/OnboardingModal.tsx
+import { motion } from "framer-motion";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { SquaresFour, ArrowRight, Sparkle } from "@phosphor-icons/react";
+
+interface OnboardingModalProps {
+  isOpen: boolean;
+  onNavigateToSpaces: () => void;
+  onDismiss: () => void;
+}
+
+export function OnboardingModal({ 
+  isOpen, 
+  onNavigateToSpaces,
+  onDismiss 
+}: OnboardingModalProps) {
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onDismiss()}>
+      <DialogContent className="max-w-sm mx-auto bg-card border-border">
+        {/* Ícone animado */}
+        <motion.div
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", delay: 0.1 }}
+          className="mx-auto w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center"
+        >
+          <SquaresFour className="w-10 h-10 text-primary" weight="duotone" />
+        </motion.div>
+
+        {/* Título e descrição */}
+        <div className="text-center space-y-3 mt-4">
+          <h2 className="text-xl font-bold">
+            Bem-vindo ao Subhumano!
+          </h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Para começar, escolha os <strong className="text-foreground">Espaços</strong> que 
+            mais combinam com você. A plataforma vai filtrar 
+            as melhores atualizações de IA para você.
+          </p>
+        </div>
+
+        {/* Indicador visual do menu */}
+        <motion.div 
+          className="mt-6 p-4 rounded-xl bg-secondary/50 border border-border"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <span className="text-muted-foreground">Clique em</span>
+            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary font-medium">
+              <SquaresFour className="w-4 h-4" weight="fill" />
+              Espaços
+            </div>
+            <span className="text-muted-foreground">no menu abaixo</span>
+          </div>
+          
+          {/* Seta animada apontando para baixo */}
+          <motion.div
+            className="flex justify-center mt-3"
+            animate={{ y: [0, 8, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+          >
+            <ArrowDown className="w-6 h-6 text-primary" />
+          </motion.div>
+        </motion.div>
+
+        {/* Botões de ação */}
+        <div className="mt-6 space-y-3">
+          <Button
+            onClick={onNavigateToSpaces}
+            className="w-full bg-white text-black font-semibold py-3 hover:bg-gray-100"
+          >
+            <Sparkle className="w-4 h-4 mr-2" weight="fill" />
+            Escolher meus espaços
+          </Button>
+
+          <button
+            onClick={onDismiss}
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+          >
+            Ver a home primeiro
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 ```
 
-## Fluxo Corrigido
+### 2. Lógica de Exibição do Modal
 
-```text
-Usuário clica "Ativar notificações"
-        │
-        ▼
-handleSubscribe() → subscribe()
-        │
-        ├── VAPID key do .env? → Não
-        │
-        ▼
-Busca VAPID key do backend (get-vapid-public-key)
-        │
-        ▼
-Solicita permissão do browser
-        │
-        ├── Usuário permite → Registra SW → Salva subscription → SUCESSO
-        │
-        └── Usuário nega → toast.error('Permissão negada')
-```
+O modal deve aparecer quando:
+- Usuário está logado
+- Não possui nenhum espaço inscrito
+- Não dispensou o modal na sessão atual
 
-## Seção Técnica
+Modificar `src/pages/Home.tsx`:
 
-### Sobre a Chave VAPID Pública
+```tsx
+// Dentro de Home.tsx
+const [showOnboarding, setShowOnboarding] = useState(false);
 
-A chave pública VAPID **não é um segredo**. Ela pode ser:
-- Exposta no frontend
-- Hardcoded no código
-- Enviada via endpoint público
-
-Apenas a chave **privada** precisa ficar protegida no backend.
-
-### Formato da Chave VAPID
-
-A chave pública é uma string Base64URL, tipicamente com ~87 caracteres:
-
-```text
-BLBx-hf5H3...kJ7g
-```
-
-### Alternativa: Hardcode Temporário
-
-Se preferir uma solução imediata, podemos fazer o hook buscar a chave diretamente do backend e armazená-la em cache no localStorage:
-
-```typescript
-const VAPID_CACHE_KEY = 'vapid-public-key';
-
-const getVapidKey = async () => {
-  // Verifica cache
-  const cached = localStorage.getItem(VAPID_CACHE_KEY);
-  if (cached) return cached;
+// Verifica se deve mostrar o onboarding
+useEffect(() => {
+  const hasSeenOnboarding = sessionStorage.getItem('onboarding-dismissed');
   
-  // Busca do backend
-  const { data } = await supabase.functions.invoke('get-vapid-public-key');
-  if (data?.publicKey) {
-    localStorage.setItem(VAPID_CACHE_KEY, data.publicKey);
-    return data.publicKey;
+  if (
+    user && 
+    !loadingSpaces && 
+    subscribedSpaces.length === 0 && 
+    !hasSeenOnboarding
+  ) {
+    // Pequeno delay para não sobrepor outros elementos
+    const timer = setTimeout(() => setShowOnboarding(true), 500);
+    return () => clearTimeout(timer);
   }
-  
-  return null;
+}, [user, loadingSpaces, subscribedSpaces]);
+
+const handleNavigateToSpaces = () => {
+  setShowOnboarding(false);
+  navigate('/spaces');
+};
+
+const handleDismissOnboarding = () => {
+  setShowOnboarding(false);
+  sessionStorage.setItem('onboarding-dismissed', 'true');
 };
 ```
+
+### 3. Design Visual
+
+O modal seguirá o design system do Subhumano:
+
+| Elemento | Estilo |
+|----------|--------|
+| Background | `bg-card` (#141414) |
+| Ícone principal | Duotone, cor primária, animado |
+| Texto título | `text-xl font-bold` branco |
+| Texto descrição | `text-muted-foreground text-sm` |
+| Destaque "Espaços" | Badge com `bg-primary/10 text-primary` |
+| Botão principal | `bg-white text-black` (padrão CTA) |
+| Botão secundário | `text-muted-foreground` link sutil |
+
+### 4. Animações
+
+Usar Framer Motion para criar uma experiência fluida:
+
+```tsx
+// Animação da seta apontando para baixo
+<motion.div
+  animate={{ y: [0, 8, 0] }}
+  transition={{ 
+    repeat: Infinity, 
+    duration: 1.5, 
+    ease: "easeInOut" 
+  }}
+>
+  <ArrowDown className="w-6 h-6 text-primary" />
+</motion.div>
+
+// Destaque pulsante no ícone de Espaços
+<motion.div
+  animate={{ 
+    scale: [1, 1.1, 1],
+    opacity: [0.5, 1, 0.5] 
+  }}
+  transition={{ repeat: Infinity, duration: 2 }}
+>
+  <SquaresFour />
+</motion.div>
+```
+
+## Fluxo de Experiência do Usuário
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                                                         │
+│         ┌───────────────────────────────┐               │
+│         │                               │               │
+│         │    ╭──────────────────╮       │               │
+│         │    │   ⊞              │       │               │
+│         │    │  Espaços         │       │               │
+│         │    ╰──────────────────╯       │               │
+│         │                               │               │
+│         │  Bem-vindo ao Subhumano!      │               │
+│         │                               │               │
+│         │  Para começar, escolha os     │               │
+│         │  Espaços que mais combinam    │               │
+│         │  com você.                    │               │
+│         │                               │               │
+│         │  ┌─────────────────────────┐  │               │
+│         │  │ Clique em [Espaços] ▼   │  │               │
+│         │  │          ↓              │  │               │
+│         │  └─────────────────────────┘  │               │
+│         │                               │               │
+│         │  [ Escolher meus espaços ]    │               │
+│         │                               │               │
+│         │     Ver a home primeiro       │               │
+│         │                               │               │
+│         └───────────────────────────────┘               │
+│                                                         │
+│  ─────────────────────────────────────────────────────  │
+│  🏠 Início   ⊞ Espaços   💬 Canais   🔔 Avisos   👤     │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Alternativa: Usar o Vídeo WebM
+
+Se preferir usar o vídeo que você enviou em vez de animações:
+
+```tsx
+// Opção com vídeo
+<video
+  src="/onboarding-guide.webm"
+  autoPlay
+  loop
+  muted
+  playsInline
+  className="w-full rounded-xl"
+/>
+```
+
+Para isso:
+1. Copiar o arquivo webm para `public/onboarding-guide.webm`
+2. Usar a tag `<video>` no modal
+
+Recomendo usar animações CSS/Framer Motion para:
+- Menor tamanho de arquivo
+- Melhor performance em dispositivos móveis
+- Mais controle sobre a experiência
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/OnboardingModal.tsx` | Criar |
+| `src/pages/Home.tsx` | Modificar (adicionar modal) |
+
+## Seção Tecnica
+
+### Persistência do Estado
+
+| Storage | Uso |
+|---------|-----|
+| `sessionStorage` | Dispensar modal temporariamente (volta ao fechar browser) |
+| Banco de dados | Não necessário - o modal para de aparecer naturalmente quando o usuário inscreve-se em espaços |
+
+### Prioridade de Modais
+
+Se o usuário for novo, pode haver conflito com outros modais (como push notifications). Ordem de prioridade:
+
+1. OnboardingModal (primeiro a aparecer)
+2. PushPermissionBanner (só após interação)
+
+Para evitar sobreposição:
+```tsx
+// Só mostra push banner se não estiver em onboarding
+{!showOnboarding && <PushPermissionBanner />}
+```
+
+### Acessibilidade
+
+- Modal com `role="dialog"`
+- Foco automaticamente movido para o modal
+- Tecla ESC fecha o modal
+- Botões com labels descritivos
 
 ## Resultado Esperado
 
 Após implementação:
 
-1. Botão "Ativar notificações" funcionará corretamente
-2. Usuário verá feedback visual de sucesso ou erro
-3. Sistema buscará automaticamente a chave VAPID do backend
-4. Não dependerá mais do arquivo `.env` para a chave pública
-5. Erros serão exibidos claramente ao usuário
-
-## Ordem de Implementação
-
-1. Criar edge function `get-vapid-public-key`
-2. Atualizar hook `usePushNotifications` para buscar chave dinamicamente
-3. Atualizar `PushPermissionBanner` com feedback de erro
-4. Testar fluxo completo
+1. Novos usuários verão um modal amigável explicando o próximo passo
+2. O modal direciona visualmente para a aba "Espaços"
+3. Animação de seta reforça a localização do menu
+4. Usuário pode dispensar o modal se preferir explorar primeiro
+5. Modal não aparece mais após o usuário inscrever-se em pelo menos 1 espaço
 
