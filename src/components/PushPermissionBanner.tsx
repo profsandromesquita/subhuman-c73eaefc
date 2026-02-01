@@ -17,6 +17,11 @@ export function PushPermissionBanner() {
 
   // Verificar se deve mostrar o banner
   useEffect(() => {
+    // Aguardar carregamento do estado antes de avaliar visibilidade
+    if (loading) {
+      return;
+    }
+
     if (!user || !isSupported) {
       setIsVisible(false);
       return;
@@ -49,7 +54,7 @@ export function PushPermissionBanner() {
     setDismissed(false);
     const timer = setTimeout(() => setIsVisible(true), 2000);
     return () => clearTimeout(timer);
-  }, [user, isSupported, permission, isSubscribed]);
+  }, [user, isSupported, permission, isSubscribed, loading]);
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_KEY, Date.now().toString());
