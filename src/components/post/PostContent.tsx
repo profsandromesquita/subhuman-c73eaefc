@@ -2,6 +2,16 @@ import { motion } from "framer-motion";
 import { PlayCircle, Clock, User } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import DOMPurify from "dompurify";
+import { MediaGallery } from "@/components/post/MediaGallery";
+
+interface MediaItem {
+  id: string;
+  file_url: string;
+  file_type: string;
+  file_name: string | null;
+  youtube_id: string | null;
+}
 
 interface PostContentProps {
   title: string;
@@ -13,6 +23,7 @@ interface PostContentProps {
   authorName: string;
   publishedAt: string;
   readTime: string;
+  media?: MediaItem[];
 }
 
 export function PostContent({
@@ -25,6 +36,7 @@ export function PostContent({
   authorName,
   publishedAt,
   readTime,
+  media,
 }: PostContentProps) {
   return (
     <motion.article
@@ -95,13 +107,17 @@ export function PostContent({
         <div className="w-full h-px bg-border mb-8" />
 
         {/* Content */}
-        <div className="prose prose-invert prose-lg max-w-none">
-          <div 
-            className="text-foreground/90 leading-relaxed space-y-4 whitespace-pre-wrap"
-          >
-            {content}
+        <div 
+          className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '') }}
+        />
+
+        {/* Media Gallery */}
+        {media && media.length > 0 && (
+          <div className="mt-8">
+            <MediaGallery media={media} />
           </div>
-        </div>
+        )}
       </div>
     </motion.article>
   );

@@ -9,12 +9,16 @@ import {
   Quotes,
   Code,
   Palette,
-  HighlighterCircle
+  HighlighterCircle,
+  Image as ImageIcon
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMediaUpload } from "@/hooks/useMediaUpload";
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -46,6 +50,9 @@ const HIGHLIGHT_COLORS = [
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const { uploadFile, uploading } = useMediaUpload();
 
   const setLink = useCallback(() => {
     if (!editor) return;
@@ -60,6 +67,24 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
     setLinkUrl("");
     setShowLinkInput(false);
   }, [editor, linkUrl]);
+
+  const insertImageFromUrl = useCallback(() => {
+    if (!editor || !imageUrl) return;
+    const url = imageUrl.startsWith("http") ? imageUrl : `https://${imageUrl}`;
+    editor.chain().focus().setImage({ src: url }).run();
+    setImageUrl("");
+    setShowImageDialog(false);
+  }, [editor, imageUrl]);
+
+  const handleImageUpload = useCallback(async (files: FileList | null) => {
+    if (!files || !editor) return;
+    const file = files[0];
+    const media = await uploadFile(file);
+    if (media) {
+      editor.chain().focus().setImage({ src: media.url }).run();
+      setShowImageDialog(false);
+    }
+  }, [editor, uploadFile]);
 
   if (!editor) return null;
 
@@ -216,6 +241,63 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           )}
         </PopoverContent>
       </Popover>
+
+      {/* Image Insertion */}
+      <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Inserir imagem"
+          >
+            <ImageIcon className="w-4 h-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Inserir imagem</DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="url">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="url">URL</TabsTrigger>
+              <TabsTrigger value="upload">Upload</TabsTrigger>
+            </TabsList>
+            <TabsContent value="url" className="space-y-4 mt-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://exemplo.com/imagem.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && insertImageFromUrl()}
+                />
+                <Button onClick={insertImageFromUrl} disabled={!imageUrl}>
+                  Inserir
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="upload" className="space-y-4 mt-4">
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="inline-image-upload"
+                  onChange={(e) => handleImageUpload(e.target.files)}
+                  disabled={uploading}
+                />
+                <label htmlFor="inline-image-upload" className="cursor-pointer">
+                  <ImageIcon className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    {uploading ? "Enviando..." : "Clique para selecionar uma imagem"}
+                  </p>
+                </label>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       <div className="editor-toolbar-separator" />
 
