@@ -50,6 +50,7 @@ export default function PostDetail() {
   const [likesCount, setLikesCount] = useState(0);
   const [comments, setComments] = useState<Comment[]>([]);
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
+  const [media, setMedia] = useState<any[]>([]);
 
   useEffect(() => {
     if (postId) {
@@ -105,6 +106,15 @@ export default function PostDetail() {
       .eq("update_id", postId);
     
     setLikesCount(likesCountResult || 0);
+
+    // Fetch media for this post
+    const { data: mediaData } = await supabase
+      .from("space_update_media")
+      .select("*")
+      .eq("update_id", postId)
+      .order("sort_order");
+
+    setMedia(mediaData || []);
 
     // Fetch comments with profiles
     await fetchComments();
@@ -535,6 +545,7 @@ export default function PostDetail() {
         authorName="Admin"
         publishedAt={formatTime(post.published_at || post.created_at)}
         readTime={estimateReadTime(post.content)}
+        media={media}
       />
 
       <PostEngagement

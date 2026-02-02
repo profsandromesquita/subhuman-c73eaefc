@@ -110,6 +110,9 @@ export default function SpaceContent() {
 
   const handleSave = async (publish = false) => {
     try {
+      // Find first image for thumbnail
+      const firstImage = media.find(m => m.type === 'image');
+
       const updateData = {
         space_id: formData.space_id,
         title: formData.title,
@@ -117,7 +120,9 @@ export default function SpaceContent() {
         author_id: user?.id,
         is_published: publish,
         published_at: publish ? new Date().toISOString() : null,
-        scheduled_at: formData.scheduled_at || null
+        scheduled_at: formData.scheduled_at || null,
+        thumbnail_url: firstImage?.url || null,
+        media_type: firstImage ? 'image' : null
       };
 
       let updateId: string | undefined;
