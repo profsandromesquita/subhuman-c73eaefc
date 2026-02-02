@@ -2,7 +2,7 @@
 
 .tiptap-editor {
   @apply prose prose-sm dark:prose-invert max-w-none;
-  @apply min-h-[200px] p-4 focus:outline-none;
+  @apply min-h-[150px] p-4 focus:outline-none;
 }
 
 .tiptap-editor:focus {

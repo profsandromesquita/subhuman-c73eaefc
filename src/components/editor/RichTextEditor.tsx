@@ -71,7 +71,9 @@ export function RichTextEditor({
   return (
     <div className="border border-border rounded-lg overflow-hidden bg-card">
       <EditorToolbar editor={editor} />
-      <EditorContent editor={editor} />
+      <div className="max-h-[300px] overflow-y-auto">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }
