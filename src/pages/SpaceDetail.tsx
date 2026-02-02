@@ -17,6 +17,14 @@ import { ptBR } from "date-fns/locale";
 import { useSpace } from "@/hooks/useSpaces";
 import { useSpaceUpdates } from "@/hooks/usePosts";
 
+const SPACE_TAGLINES: Record<string, string> = {
+  'produtividade': 'Produtividade não é trabalhar mais, é renderizar o resultado mais rápido.',
+  'marketing': 'Marketing sem dados é arte; com IA, é ciência de conversão.',
+  'programacao': 'Você não precisa ser sênior em Python, precisa ser sênior em resolver problemas.',
+  'audiovisual': 'A qualidade de cinema agora cabe no orçamento de freelancer.',
+  'estilo-vida': 'A tecnologia deve servir ao humano, não o contrário.',
+};
+
 export default function SpaceDetail() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
@@ -121,6 +129,18 @@ export default function SpaceDetail() {
             <p className="text-xs text-muted-foreground">{updates.length} atualizações</p>
           </div>
         </motion.div>
+
+        {/* Frase de impacto */}
+        {spaceId && SPACE_TAGLINES[spaceId] && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="text-sm text-muted-foreground italic mb-6 leading-relaxed"
+          >
+            "{SPACE_TAGLINES[spaceId]}"
+          </motion.p>
+        )}
 
         {/* Updates Feed */}
         {updates.length === 0 ? (
