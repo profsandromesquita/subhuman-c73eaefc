@@ -1,244 +1,125 @@
 
 
-# Plano de Correção: Safe Areas para iPhone
+# Plano: Adicionar Frases de Impacto nos Espaços
 
-## Problema Identificado
+## Objetivo
 
-No iPhone 15 Pro Max (e outros modelos com Dynamic Island/notch), o conteúdo da aplicação está sendo renderizado por baixo da barra de status do sistema (hora, câmera, Dynamic Island), tornando elementos no topo da tela inacessíveis.
+Inserir frases motivacionais/de impacto em cada página de detalhe de Espaço, posicionadas entre o header (título do espaço) e o primeiro card de notícia.
 
-### Causa Raiz
+## Mapeamento das Frases
 
-| Aspecto | Estado Atual | Problema |
-|---------|--------------|----------|
-| Viewport | `viewport-fit=cover` | Permite renderizar na área do notch/Dynamic Island |
-| CSS Safe Areas | Apenas `safe-area-pb` (bottom) | Falta `safe-area-pt` (top) e laterais |
-| AppLayout | `min-h-screen` sem padding top | Conteúdo começa no topo absoluto |
-| Headers fixos | `top-0` sem offset | Ficam sob a barra de status |
+| Slug | Espaço | Frase |
+|------|--------|-------|
+| `produtividade` | Produtividade Pessoal | "Produtividade não é trabalhar mais, é renderizar o resultado mais rápido." |
+| `marketing` | Marketing e Vendas | "Marketing sem dados é arte; com IA, é ciência de conversão." |
+| `programacao` | Programação e Automação | "Você não precisa ser sênior em Python, precisa ser sênior em resolver problemas." |
+| `audiovisual` | AudioVisual | "A qualidade de cinema agora cabe no orçamento de freelancer." |
+| `estilo-vida` | Estilo de Vida | "A tecnologia deve servir ao humano, não o contrário." |
 
-### Elementos Afetados
-
-| Local | Elemento | Impacto |
-|-------|----------|---------|
-| Login/Register | Botão "Voltar" | Inacessível |
-| SpaceDetail | Botão "Voltar" + título | Inacessível |
-| ChannelDetail | Botão "Voltar" + header | Inacessível |
-| PostDetail | Header fixo com ações | Inacessível |
-| Páginas gerais | Logo e títulos | Parcialmente ocultados |
-
-## Solução Proposta
-
-### Estratégia de Implementação
-
-Usar **CSS environment variables** (`env(safe-area-inset-*)`) que o iOS fornece automaticamente para indicar as áreas "seguras" da tela.
+## Layout Visual Proposto
 
 ```text
-┌────────────────────────────────────────┐
-│ ████████ Dynamic Island ████████████  │ ← env(safe-area-inset-top)
-├────────────────────────────────────────┤
-│                                        │
-│   ┌────────────────────────────────┐   │
-│   │                                │   │
-│   │   ÁREA SEGURA DO CONTEÚDO     │   │
-│   │                                │   │
-│   │   (onde elementos devem estar) │   │
-│   │                                │   │
-│   └────────────────────────────────┘   │
-│                                        │
-├────────────────────────────────────────┤
-│ ████████ Home Indicator ███████████   │ ← env(safe-area-inset-bottom)
-└────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│  ← [Voltar]   Produtividade Pessoal     │  ← Header existente
+│               12 atualizações           │
+├─────────────────────────────────────────┤
+│                                         │
+│  "Produtividade não é trabalhar mais,   │  ← NOVA FRASE
+│   é renderizar o resultado mais rápido."│     (itálico, texto secundário)
+│                                         │
+├─────────────────────────────────────────┤
+│  [Card da notícia 1]                    │
+│  [Card da notícia 2]                    │
+│  ...                                    │
+└─────────────────────────────────────────┘
 ```
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `index.html` | Adicionar classe CSS `.safe-area-pt` para padding-top |
-| `src/index.css` | Definir classes utilitárias para safe areas |
-| `src/components/AppLayout.tsx` | Adicionar safe-area-inset-top no container principal |
-| `src/components/BottomNav.tsx` | Já tem safe-area-pb (OK) |
-| `src/components/post/PostHeader.tsx` | Adicionar padding-top para safe area em header fixo |
-| `src/pages/Login.tsx` | Adicionar safe area no container |
-| `src/pages/Register.tsx` | Adicionar safe area no container |
-| `src/pages/Landing.tsx` | Adicionar safe area no container |
-| `src/pages/SpaceDetail.tsx` | Herda de AppLayout (será corrigido automaticamente) |
-| `src/pages/ChannelDetail.tsx` | Herda de AppLayout (será corrigido automaticamente) |
-| `src/pages/PostDetail.tsx` | Adicionar safe area no container (não usa AppLayout) |
+| `src/pages/SpaceDetail.tsx` | Adicionar objeto de frases e renderizar entre header e feed |
 
 ## Implementação Detalhada
 
-### 1. Atualizar `index.html`
-
-Adicionar classes utilitárias para todas as safe areas:
-
-```html
-<style>
-  .safe-area-pt {
-    padding-top: env(safe-area-inset-top, 0);
-  }
-  .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .safe-area-insets {
-    padding-top: env(safe-area-inset-top, 0);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-    padding-left: env(safe-area-inset-left, 0);
-    padding-right: env(safe-area-inset-right, 0);
-  }
-</style>
-```
-
-### 2. Atualizar `src/index.css`
-
-Adicionar utilitários Tailwind-like para safe areas:
-
-```css
-@layer utilities {
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0);
-  }
-  
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  
-  .px-safe {
-    padding-left: env(safe-area-inset-left, 0);
-    padding-right: env(safe-area-inset-right, 0);
-  }
-  
-  .top-safe {
-    top: env(safe-area-inset-top, 0);
-  }
-}
-```
-
-### 3. Atualizar `src/components/AppLayout.tsx`
-
-Adicionar safe-area no container principal:
+### 1. Criar objeto de mapeamento das frases
 
 ```tsx
-// Antes
-<div className="min-h-screen bg-background">
-  <main className={showNav ? "pb-20" : ""}>
-    {children}
-  </main>
-  ...
-</div>
-
-// Depois
-<div className="min-h-screen bg-background pt-safe">
-  <main className={showNav ? "pb-20" : ""}>
-    {children}
-  </main>
-  ...
-</div>
+const SPACE_TAGLINES: Record<string, string> = {
+  'produtividade': 'Produtividade não é trabalhar mais, é renderizar o resultado mais rápido.',
+  'marketing': 'Marketing sem dados é arte; com IA, é ciência de conversão.',
+  'programacao': 'Você não precisa ser sênior em Python, precisa ser sênior em resolver problemas.',
+  'audiovisual': 'A qualidade de cinema agora cabe no orçamento de freelancer.',
+  'estilo-vida': 'A tecnologia deve servir ao humano, não o contrário.',
+};
 ```
 
-### 4. Atualizar `src/components/post/PostHeader.tsx`
+### 2. Renderizar a frase após o header
 
-Ajustar header fixo para respeitar safe area:
+A frase será inserida entre o `</motion.div>` do header (linha 123) e o início do feed de updates (linha 125):
 
 ```tsx
-// Antes
-<motion.header
-  className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
->
-  <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-
-// Depois
-<motion.header
-  className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md pt-safe"
->
-  <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+{/* Frase de impacto */}
+{spaceId && SPACE_TAGLINES[spaceId] && (
+  <motion.p
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.1 }}
+    className="text-sm text-muted-foreground italic mb-6 leading-relaxed"
+  >
+    "{SPACE_TAGLINES[spaceId]}"
+  </motion.p>
+)}
 ```
 
-### 5. Atualizar páginas sem AppLayout
+## Estilização
 
-**Login.tsx, Register.tsx, Landing.tsx:**
-```tsx
-// Antes
-<div className="min-h-screen bg-background">
-  <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
+| Propriedade | Valor | Motivo |
+|-------------|-------|--------|
+| `text-sm` | 14px | Tamanho discreto, não compete com títulos |
+| `text-muted-foreground` | Cinza (#9ca3af) | Seguindo design system do Subhumano |
+| `italic` | Itálico | Diferencia visualmente como citação/frase |
+| `mb-6` | 24px | Espaçamento antes dos cards |
+| `leading-relaxed` | 1.625 | Melhor legibilidade para frases longas |
 
-// Depois
-<div className="min-h-screen bg-background pt-safe">
-  <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
-```
+## Animação
 
-**PostDetail.tsx:**
-```tsx
-// No container principal, adicionar pt-safe
-<div className="min-h-screen bg-background pt-safe">
-  ...
-</div>
-```
+A frase terá uma animação sutil de fade-in com delay de 0.1s, aparecendo logo após o header para criar uma transição suave.
 
-### 6. Ajustar padding do conteúdo em PostDetail
-
-Como o header terá padding-top para a safe area, o conteúdo precisa considerar isso:
+## Código Final (trecho relevante)
 
 ```tsx
-// Aumentar pt-14 para pt-[calc(3.5rem+env(safe-area-inset-top))]
-// Ou usar uma classe customizada
+const SPACE_TAGLINES: Record<string, string> = {
+  'produtividade': 'Produtividade não é trabalhar mais, é renderizar o resultado mais rápido.',
+  'marketing': 'Marketing sem dados é arte; com IA, é ciência de conversão.',
+  'programacao': 'Você não precisa ser sênior em Python, precisa ser sênior em resolver problemas.',
+  'audiovisual': 'A qualidade de cinema agora cabe no orçamento de freelancer.',
+  'estilo-vida': 'A tecnologia deve servir ao humano, não o contrário.',
+};
+
+// ... dentro do return, após o header:
+
+{/* Frase de impacto */}
+{spaceId && SPACE_TAGLINES[spaceId] && (
+  <motion.p
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.1 }}
+    className="text-sm text-muted-foreground italic mb-6 leading-relaxed"
+  >
+    "{SPACE_TAGLINES[spaceId]}"
+  </motion.p>
+)}
+
+{/* Updates Feed */}
+{updates.length === 0 ? (
+  // ...
 ```
-
-## Seção Técnica
-
-### Como `env(safe-area-inset-*)` funciona
-
-| Variable | iPhone SE | iPhone 15 Pro Max | Android |
-|----------|-----------|-------------------|---------|
-| `safe-area-inset-top` | 20px | ~59px (Dynamic Island) | 0-24px |
-| `safe-area-inset-bottom` | 0px | ~34px (Home Indicator) | 0-48px |
-| `safe-area-inset-left` | 0px | 0px | Varia |
-| `safe-area-inset-right` | 0px | 0px | Varia |
-
-### Fallback para navegadores sem suporte
-
-A sintaxe `env(safe-area-inset-top, 0)` inclui fallback de `0` para navegadores que não suportam essas variáveis.
-
-### Compatibilidade
-
-- iOS Safari: Suporte total
-- Chrome Android: Suporte parcial (depende do dispositivo)
-- Desktop: Ignora (valores são 0)
-
-## Fluxo Visual Após Correção
-
-```text
-iPhone 15 Pro Max:
-┌────────────────────────────────────────┐
-│ ████ 14:30 ████ Dynamic Island        │ ← Status bar do sistema
-├────────────────────────────────────────┤
-│                                        │ ← padding-top: env(safe-area-inset-top)
-│  ← [Voltar]        [Logo]              │ ← Elementos agora acessíveis!
-│                                        │
-│  Título da Página                      │
-│  Conteúdo...                           │
-│                                        │
-│                                        │
-├────────────────────────────────────────┤
-│  [Início] [Espaços] [Canais] [Perfil]  │ ← BottomNav (já tem safe-area-pb)
-│ ──────────────────────────────────────  │ ← Home indicator
-└────────────────────────────────────────┘
-```
-
-## Ordem de Implementação
-
-1. Adicionar classes CSS em `index.html` e `src/index.css`
-2. Atualizar `AppLayout.tsx` (corrige Home, Spaces, Channels, Notifications, Profile)
-3. Atualizar `PostHeader.tsx` (corrige headers fixos em detalhes de posts)
-4. Atualizar `PostDetail.tsx` (não usa AppLayout)
-5. Atualizar `Login.tsx`, `Register.tsx`, `Landing.tsx` (páginas de auth)
 
 ## Resultado Esperado
 
-Após implementação:
-
-1. Todos os botões de voltar serão clicáveis no iPhone
-2. Headers fixos respeitarão a área do Dynamic Island
-3. Conteúdo não ficará escondido sob a barra de status
-4. Experiência consistente entre iPhone SE, 15, 15 Pro Max
-5. Sem impacto visual em dispositivos sem notch (fallback 0)
+1. Cada página de Espaço exibirá sua frase de impacto única
+2. A frase aparece com animação sutil após o carregamento
+3. Design consistente com o sistema visual do Subhumano (minimalista, dark mode)
+4. Sem impacto em espaços sem frase configurada (fallback silencioso)
 
