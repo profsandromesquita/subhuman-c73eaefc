@@ -4,7 +4,6 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { DataTable } from '@/components/admin/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Plus,
   MagnifyingGlass,
@@ -36,6 +35,9 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
+import { MediaUploader } from '@/components/editor/MediaUploader';
+import { useMediaUpload, MediaFile } from '@/hooks/useMediaUpload';
 
 interface SpaceUpdate {
   id: string;
@@ -56,12 +58,14 @@ interface Space {
 
 export default function SpaceContent() {
   const { user } = useAdminAuth();
+  const { saveMediaToSpaceUpdate, deleteMediaFromSpaceUpdate, getMediaForSpaceUpdate } = useMediaUpload();
   const [updates, setUpdates] = useState<SpaceUpdate[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUpdate, setEditingUpdate] = useState<SpaceUpdate | null>(null);
+  const [media, setMedia] = useState<MediaFile[]>([]);
   const [formData, setFormData] = useState({
     space_id: '',
     title: '',
@@ -116,6 +120,8 @@ export default function SpaceContent() {
         scheduled_at: formData.scheduled_at || null
       };
 
+      let updateId: string | undefined;
+
       if (editingUpdate) {
         const { error } = await supabase
           .from('space_updates')
@@ -123,19 +129,32 @@ export default function SpaceContent() {
           .eq('id', editingUpdate.id);
 
         if (error) throw error;
+        updateId = editingUpdate.id;
+
+        // Delete old media and save new
+        await deleteMediaFromSpaceUpdate(editingUpdate.id);
         toast.success('Conteúdo atualizado!');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('space_updates')
-          .insert(updateData);
+          .insert(updateData)
+          .select('id')
+          .single();
 
         if (error) throw error;
+        updateId = data?.id;
         toast.success(publish ? 'Conteúdo publicado!' : 'Rascunho salvo!');
+      }
+
+      // Save media if any
+      if (updateId && media.length > 0) {
+        await saveMediaToSpaceUpdate(updateId, media);
       }
 
       setIsDialogOpen(false);
       setEditingUpdate(null);
       setFormData({ space_id: '', title: '', content: '', scheduled_at: '' });
+      setMedia([]);
       fetchData();
     } catch (error) {
       console.error('Error saving content:', error);
@@ -143,7 +162,7 @@ export default function SpaceContent() {
     }
   };
 
-  const handleEdit = (update: SpaceUpdate) => {
+  const handleEdit = async (update: SpaceUpdate) => {
     setEditingUpdate(update);
     setFormData({
       space_id: update.space_id,
@@ -151,6 +170,9 @@ export default function SpaceContent() {
       content: update.content || '',
       scheduled_at: update.scheduled_at || ''
     });
+    // Load existing media
+    const existingMedia = await getMediaForSpaceUpdate(update.id);
+    setMedia(existingMedia);
     setIsDialogOpen(true);
   };
 
@@ -296,6 +318,7 @@ export default function SpaceContent() {
             onClick={() => {
               setEditingUpdate(null);
               setFormData({ space_id: '', title: '', content: '', scheduled_at: '' });
+              setMedia([]);
               setIsDialogOpen(true);
             }}
           >
@@ -369,13 +392,22 @@ export default function SpaceContent() {
                 <label className="text-sm font-medium text-muted-foreground">
                   Conteúdo
                 </label>
-                <Textarea
-                  value={formData.content}
-                  onChange={(e) =>
-                    setFormData({ ...formData, content: e.target.value })
+                <RichTextEditor
+                  content={formData.content}
+                  onChange={(content) =>
+                    setFormData({ ...formData, content })
                   }
                   placeholder="Escreva o conteúdo aqui..."
-                  rows={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Mídia
+                </label>
+                <MediaUploader
+                  media={media}
+                  onMediaAdd={(m) => setMedia(prev => [...prev, m])}
+                  onMediaRemove={(i) => setMedia(prev => prev.filter((_, idx) => idx !== i))}
                 />
               </div>
               <div className="space-y-2">

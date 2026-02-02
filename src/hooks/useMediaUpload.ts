@@ -110,6 +110,64 @@ export function useMediaUpload() {
     }
   };
 
+  const saveMediaToSpaceUpdate = async (updateId: string, media: MediaFile[]) => {
+    if (media.length === 0) return;
+
+    const mediaRecords = media.map((m, index) => ({
+      update_id: updateId,
+      file_url: m.url,
+      file_type: m.type,
+      file_name: m.name,
+      file_size: m.size || null,
+      mime_type: m.mimeType || null,
+      youtube_id: m.youtubeId || null,
+      sort_order: index,
+    }));
+
+    const { error } = await supabase
+      .from("space_update_media")
+      .insert(mediaRecords);
+
+    if (error) {
+      console.error("Error saving space update media:", error);
+      toast.error("Erro ao salvar mídias");
+    }
+  };
+
+  const deleteMediaFromSpaceUpdate = async (updateId: string) => {
+    const { error } = await supabase
+      .from("space_update_media")
+      .delete()
+      .eq("update_id", updateId);
+
+    if (error) {
+      console.error("Error deleting space update media:", error);
+    }
+  };
+
+  const getMediaForSpaceUpdate = async (updateId: string): Promise<MediaFile[]> => {
+    const { data, error } = await supabase
+      .from("space_update_media")
+      .select("*")
+      .eq("update_id", updateId)
+      .order("sort_order");
+
+    if (error) {
+      console.error("Error fetching space update media:", error);
+      return [];
+    }
+
+    return (data || []).map((m) => ({
+      id: m.id,
+      url: m.file_url,
+      type: m.file_type as MediaType,
+      name: m.file_name || "",
+      size: m.file_size || undefined,
+      mimeType: m.mime_type || undefined,
+      youtubeId: m.youtube_id || undefined,
+    }));
+  };
+
   const extractYoutubeId = (url: string): string | null => {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
@@ -155,6 +213,9 @@ export function useMediaUpload() {
   return {
     uploadFile,
     saveMediaToPost,
+    saveMediaToSpaceUpdate,
+    deleteMediaFromSpaceUpdate,
+    getMediaForSpaceUpdate,
     createYoutubeMedia,
     extractYoutubeId,
     getAcceptedMimeTypes,

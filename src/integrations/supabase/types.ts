@@ -511,6 +511,53 @@ export type Database = {
           },
         ]
       }
+      space_update_media: {
+        Row: {
+          created_at: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string
+          file_url: string
+          id: string
+          mime_type: string | null
+          sort_order: number | null
+          update_id: string
+          youtube_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type: string
+          file_url: string
+          id?: string
+          mime_type?: string | null
+          sort_order?: number | null
+          update_id: string
+          youtube_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string
+          file_url?: string
+          id?: string
+          mime_type?: string | null
+          sort_order?: number | null
+          update_id?: string
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_update_media_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "space_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       space_updates: {
         Row: {
           author_id: string | null
