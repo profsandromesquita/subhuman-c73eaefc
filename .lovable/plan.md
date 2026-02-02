@@ -1,246 +1,200 @@
 
-# Plano: Editor Rich Text na Área Admin (/admin/content)
 
-## Contexto Atual
+# Plano de Correção: Scrollbar no Editor Rich Text da Área Admin
 
-A página `/admin/content` (SpaceContent.tsx) usa um `<Textarea>` simples para criação de conteúdos dos Espaços, sem opções de:
-- Formatação de texto (negrito, itálico, cores, listas)
-- Anexar imagens, vídeos ou áudios
-- Adicionar links
+## Problema Identificado
 
-## Componentes Já Existentes
+Analisando a imagem anexada e o código atual, identifiquei que ao colar textos grandes no editor da página `/admin/content`, o conteúdo ultrapassa os limites da tela sem exibir scrollbar, tornando a edição impossível.
 
-O projeto já possui componentes prontos que são usados nos Canais:
+### Análise Técnica
 
-| Componente | Descrição |
-|------------|-----------|
-| `RichTextEditor` | Editor Tiptap com formatação completa |
-| `EditorToolbar` | Barra de ferramentas (negrito, itálico, cores, links, listas, citações, código) |
-| `MediaUploader` | Upload de imagens, vídeos, áudios, PDFs e YouTube |
-| `useMediaUpload` | Hook para gerenciar uploads no Storage |
+| Componente | Estado Atual | Problema |
+|------------|--------------|----------|
+| `DialogContent` | `fixed top-[50%] translate-y-[-50%]` | Sem `max-height`, cresce indefinidamente |
+| `RichTextEditor` | `min-h-[200px]` | Sem `max-height` nem `overflow-y: auto` |
+| `.tiptap-editor` (CSS) | `min-h-[200px]` | Sem limite de altura máxima |
 
-## Estrutura do Banco de Dados
+### Fluxo do Problema
 
-A tabela `space_updates` já possui:
-- `content` (text) - armazenará HTML do editor
-- `thumbnail_url` (text) - URL da imagem de capa
-- `media_type` (text) - tipo da mídia
+```text
+┌─────────────────────────────────────────────┐
+│          Viewport (tela)                    │
+│  ┌─────────────────────────────────────────┐│
+│  │         Dialog (sem max-height)         ││
+│  │  ┌───────────────────────────────────┐  ││
+│  │  │    Editor (sem max-height)        │  ││
+│  │  │                                   │  ││
+│  │  │    Texto cresce infinitamente...  │  ││
+│  │  │    ...ultrapassa a viewport...    │  ││
+│──│──│────────────────────────────────────│──││
+│  │  │    ...parte fica inacessível      │  ││ ← Área fora da tela
+│  │  └───────────────────────────────────┘  ││
+│  └─────────────────────────────────────────┘│
+└─────────────────────────────────────────────┘
+```
 
-Para suportar múltiplas mídias como nos Canais, será criada uma nova tabela `space_update_media` similar a `channel_post_media`.
+## Solução Proposta
+
+Implementar scroll em **duas camadas**:
+
+### 1. Dialog com altura máxima e scroll
+
+O `DialogContent` precisa ter altura máxima relativa à viewport e scroll interno:
+
+```text
+┌─────────────────────────────────────────────┐
+│          Viewport (tela)                    │
+│                                             │
+│  ┌─────────────────────────────────────────┐│
+│  │  Dialog (max-h-[90vh] overflow-y-auto)  ││
+│  │  ┌───────────────────────────────────┐  ││
+│  │  │  Header fixo                      │  ││
+│  │  ├───────────────────────────────────┤  ││
+│  │  │  Formulário com scroll ↕          │  ││
+│  │  │  ────────────────────────────     │  ││
+│  │  │  Editor (max-h-[300px])           │  ││ ← Scroll interno
+│  │  │  ────────────────────────────     │  ││
+│  │  │  Mídia                            │  ││
+│  │  │  ────────────────────────────     │  ││
+│  │  │  Botões                           │  ││
+│  │  └───────────────────────────────────┘  ││
+│  └─────────────────────────────────────────┘│
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+### 2. Editor com altura máxima e scroll próprio
+
+O editor Tiptap terá limite de altura e scrollbar quando o conteúdo exceder.
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/pages/admin/SpaceContent.tsx` | Substituir Textarea pelo RichTextEditor + MediaUploader |
-| `src/hooks/useMediaUpload.ts` | Adicionar função para salvar mídia em space_updates |
-| Nova migração SQL | Criar tabela `space_update_media` |
+| `src/pages/admin/SpaceContent.tsx` | Adicionar classes de scroll no DialogContent e wrapper do form |
+| `src/components/editor/RichTextEditor.tsx` | Adicionar `max-height` e `overflow-y-auto` no container do editor |
+| `src/components/editor/editor.css` | Adicionar `max-height` e `overflow-y-auto` na classe `.tiptap-editor` |
 
 ## Implementação Detalhada
 
-### 1. Criar Tabela de Mídia para Space Updates
+### 1. Modificar `src/pages/admin/SpaceContent.tsx`
 
-```sql
-CREATE TABLE IF NOT EXISTS public.space_update_media (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  update_id uuid NOT NULL REFERENCES public.space_updates(id) ON DELETE CASCADE,
-  file_url text NOT NULL,
-  file_type text NOT NULL,
-  file_name text,
-  file_size integer,
-  mime_type text,
-  youtube_id text,
-  sort_order integer DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
-
--- RLS Policies
-ALTER TABLE public.space_update_media ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can view space update media"
-  ON public.space_update_media FOR SELECT USING (true);
-
-CREATE POLICY "Admins can manage space update media"
-  ON public.space_update_media FOR ALL
-  USING (is_admin_or_moderator(auth.uid()));
-```
-
-### 2. Modificar SpaceContent.tsx
-
-**Imports a adicionar:**
-```tsx
-import { RichTextEditor } from '@/components/editor/RichTextEditor';
-import { MediaUploader } from '@/components/editor/MediaUploader';
-import { useMediaUpload, MediaFile } from '@/hooks/useMediaUpload';
-```
-
-**Estado para mídia:**
-```tsx
-const [media, setMedia] = useState<MediaFile[]>([]);
-const { saveMediaToSpaceUpdate } = useMediaUpload();
-```
-
-**Substituir o Textarea pelo RichTextEditor:**
+**Linha 350 - DialogContent:**
 ```tsx
 // Antes
-<Textarea
-  value={formData.content}
-  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-  placeholder="Escreva o conteúdo aqui..."
-  rows={8}
-/>
+<DialogContent className="max-w-2xl">
 
 // Depois
-<RichTextEditor
-  content={formData.content}
-  onChange={(content) => setFormData({ ...formData, content })}
-  placeholder="Escreva o conteúdo aqui..."
-/>
+<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 ```
 
-**Adicionar seção de mídia:**
+### 2. Modificar `src/components/editor/RichTextEditor.tsx`
+
+**Linhas 71-76 - Container do editor:**
 ```tsx
-<div className="space-y-2">
-  <label className="text-sm font-medium text-muted-foreground">
-    Mídia
-  </label>
-  <MediaUploader
-    media={media}
-    onMediaAdd={(m) => setMedia(prev => [...prev, m])}
-    onMediaRemove={(i) => setMedia(prev => prev.filter((_, idx) => idx !== i))}
-  />
-</div>
+// Antes
+return (
+  <div className="border border-border rounded-lg overflow-hidden bg-card">
+    <EditorToolbar editor={editor} />
+    <EditorContent editor={editor} />
+  </div>
+);
+
+// Depois
+return (
+  <div className="border border-border rounded-lg overflow-hidden bg-card">
+    <EditorToolbar editor={editor} />
+    <div className="max-h-[300px] overflow-y-auto">
+      <EditorContent editor={editor} />
+    </div>
+  </div>
+);
 ```
 
-**Atualizar handleSave para salvar mídia:**
-```tsx
-const handleSave = async (publish = false) => {
-  // ... criar update
+### 3. Modificar `src/components/editor/editor.css`
 
-  // Salvar mídia se houver
-  if (media.length > 0 && result.data?.id) {
-    await saveMediaToSpaceUpdate(result.data.id, media);
-  }
-  
-  // Resetar mídia
-  setMedia([]);
-  // ...
-};
+**Linhas 3-6 - Estilo do .tiptap-editor:**
+```css
+/* Antes */
+.tiptap-editor {
+  @apply prose prose-sm dark:prose-invert max-w-none;
+  @apply min-h-[200px] p-4 focus:outline-none;
+}
+
+/* Depois */
+.tiptap-editor {
+  @apply prose prose-sm dark:prose-invert max-w-none;
+  @apply min-h-[150px] p-4 focus:outline-none;
+}
 ```
 
-### 3. Atualizar useMediaUpload.ts
+## Resultado Visual Esperado
 
-Adicionar função para salvar mídia em space_updates:
-
-```tsx
-const saveMediaToSpaceUpdate = async (updateId: string, media: MediaFile[]) => {
-  if (media.length === 0) return;
-
-  const mediaRecords = media.map((m, index) => ({
-    update_id: updateId,
-    file_url: m.url,
-    file_type: m.type,
-    file_name: m.name,
-    file_size: m.size || null,
-    mime_type: m.mimeType || null,
-    youtube_id: m.youtubeId || null,
-    sort_order: index,
-  }));
-
-  const { error } = await supabase
-    .from("space_update_media")
-    .insert(mediaRecords);
-
-  if (error) {
-    console.error("Error saving media:", error);
-    toast.error("Erro ao salvar mídias");
-  }
-};
-```
-
-### 4. Layout Visual do Dialog Atualizado
-
+### Antes da Correção
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  Novo Conteúdo                                              │
-├─────────────────────────────────────────────────────────────┤
-│  Espaço                                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Selecione um espaço                             ▼   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  Título                                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Título do conteúdo                                  │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  Conteúdo                                                   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ [B] [I] [U] │ [🎨] [🖍] │ [🔗] │ [•] [1.] │ ["] [<>] │   │  ← Toolbar
-│  ├─────────────────────────────────────────────────────┤   │
-│  │                                                     │   │
-│  │  Área de edição rich text                          │   │  ← Editor
-│  │  com formatação visual                              │   │
-│  │                                                     │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  Mídia                                                      │
-│  ┌───────────┐ ┌───────────┐                               │
-│  │  🖼 img1  │ │  🎬 video │  ← Preview das mídias         │
-│  └───────────┘ └───────────┘                               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              + Adicionar mídia                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  Agendar para (opcional)                                    │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 📅 dd/mm/aaaa hh:mm                                 │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌──────────────────────┐ ┌──────────────────────────┐    │
-│  │   Salvar Rascunho    │ │    Publicar Agora  ✨    │    │
-│  └──────────────────────┘ └──────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────┐
+│  Dialog SEM SCROLL         │
+│  ──────────────────────────│
+│  Editor cresce...          │
+│  ...infinitamente...       │
+│  ...ultrapassa a tela...   │
+│──────────────────────────────  ← Corta aqui
+│  ...texto inacessível      │
+└────────────────────────────┘
 ```
 
-## Funcionalidades Incluídas
+### Depois da Correção
+```text
+┌────────────────────────────┐
+│  Dialog COM SCROLL         │
+│  ──────────────────────────│
+│  Editor com altura fixa:   │
+│  ┌──────────────────────┐ ▲│
+│  │ Texto visível...     │ │││
+│  │ Mais texto...        │ ████  ← Scrollbar
+│  │ E mais texto...      │ ││
+│  └──────────────────────┘ ▼│
+│                            │
+│  [Salvar]     [Publicar]   │
+└────────────────────────────┘
+```
 
-| Recurso | Descrição |
-|---------|-----------|
-| Negrito, Itálico, Sublinhado | Formatação básica de texto |
-| Cores de texto | 10 cores para personalização |
-| Marcador (highlight) | 7 cores de destaque |
-| Links | Inserir e editar URLs |
-| Listas | Bullets e numeradas |
-| Citações | Blocos de citação estilizados |
-| Código | Formatação de código inline |
-| Upload de imagens | JPG, PNG, GIF, WebP (até 50MB) |
-| Upload de vídeos | MP4, WebM, MOV (até 50MB) |
-| Upload de áudios | MP3, WAV, OGG (até 50MB) |
-| Upload de PDFs | Documentos PDF (até 50MB) |
-| YouTube | Embed via URL |
+## Comportamento Final
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Texto curto | Editor mostra todo o conteúdo, sem scrollbar visível |
+| Texto longo | Editor exibe scrollbar vertical, altura fixa de 300px |
+| Dialog cheio | Dialog exibe scrollbar, altura máxima de 90vh |
+| Mobile | Comportamento responsivo mantido |
 
 ## Considerações Técnicas
 
-### Armazenamento de Mídia
-- Os arquivos serão salvos no bucket `channel-media` do Storage (já configurado)
-- As URLs públicas serão armazenadas na tabela `space_update_media`
-- Limite de 50MB por arquivo (política existente)
+### Hierarquia de Scroll
 
-### Edição de Conteúdo Existente
-- Ao editar um conteúdo, carregar as mídias associadas da tabela `space_update_media`
-- Permitir adicionar/remover mídias durante a edição
-- Ao salvar, atualizar a lista de mídias (deletar antigas, inserir novas)
+1. **Dialog (externo)**: `max-h-[90vh] overflow-y-auto`
+   - Garante que o modal nunca ultrapasse 90% da altura da viewport
+   - Permite scroll de todo o formulário se necessário
 
-### Compatibilidade
-- O conteúdo HTML gerado pelo Tiptap será renderizado corretamente no frontend
-- O componente `PostContent.tsx` já usa DOMPurify para sanitização segura
+2. **Editor (interno)**: `max-h-[300px] overflow-y-auto`
+   - Limita a altura do editor a 300px
+   - Permite scroll apenas do conteúdo do editor
+   - Toolbar permanece visível e fixa no topo do editor
 
-## Resultado Esperado
+### Altura do Editor
 
-1. Administradores terão acesso a um editor rich text completo
-2. Poderão formatar texto com negrito, itálico, cores, listas, etc.
-3. Poderão anexar múltiplas imagens, vídeos, áudios e PDFs
-4. Poderão incorporar vídeos do YouTube
-5. Poderão adicionar links clicáveis
-6. Interface consistente com o editor já usado nos Canais
+A altura de 300px foi escolhida para:
+- Permitir espaço suficiente para outros campos do formulário
+- Mostrar quantidade razoável de texto sem scroll
+- Manter boa experiência em telas menores
+
+## Testes Recomendados
+
+Após implementação, verificar:
+
+1. Colar texto longo (10+ parágrafos) → Editor deve exibir scrollbar
+2. Scroll dentro do editor → Toolbar permanece visível
+3. Scroll do dialog → Formulário completo acessível
+4. Mobile → Comportamento responsivo funcional
+5. Editar conteúdo existente longo → Scroll funcionando corretamente
+
