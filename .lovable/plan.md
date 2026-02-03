@@ -1,485 +1,469 @@
 
-# Plano: Permitir Edição e Exclusão de Publicações nos Canais
+# Plano de Implementação: Funcionalidade Podcast
 
-## Problema Identificado
+## Visão Geral
 
-Analisando o código e as políticas RLS do banco de dados, identifiquei que:
-
-1. **Políticas RLS atuais:**
-   - Autores podem ATUALIZAR suas próprias publicações
-   - Admins/moderadores podem ATUALIZAR e EXCLUIR qualquer publicação
-   - **Falta:** Autores não podem EXCLUIR suas próprias publicações
-
-2. **Interface sem botões de ação:** A página `ChannelPostDetail.tsx` não possui menu dropdown com opções de editar/excluir
-
-3. **Sem mutations no hook:** O `usePosts.ts` não possui funções para deletar ou atualizar publicações
-
-4. **Sem página de edição:** Não existe uma rota ou lógica para editar publicações existentes
+A funcionalidade Podcast será uma nova seção do ecossistema Subhumano, acessível através da barra de navegação inferior. Os administradores poderão importar áudios com metadados (título, descrição, capa, tags) e os usuários poderão filtrar por espaços temáticos.
 
 ---
 
-## Solução Proposta
+## Arquitetura de Dados
 
-### 1. Adicionar Política RLS para Autores Excluírem
+### Nova Tabela: `podcasts`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | Identificador único (PK) |
+| space_id | uuid | FK para espaços (filtro temático) |
+| author_id | uuid | FK para profiles (quem criou) |
+| title | text | Título do episódio |
+| description | text | Descrição/resumo |
+| audio_url | text | URL do arquivo de áudio |
+| cover_url | text | URL da imagem de capa |
+| duration_seconds | integer | Duração em segundos |
+| tags | text[] | Array de hashtags para busca |
+| is_published | boolean | Se está publicado |
+| published_at | timestamptz | Data de publicação |
+| created_at | timestamptz | Data de criação |
+| updated_at | timestamptz | Data de atualização |
+
+### Políticas RLS
 
 ```sql
-CREATE POLICY "Authors can delete own posts" 
-ON public.channel_posts 
-FOR DELETE 
-TO authenticated 
-USING (auth.uid() = author_id);
+-- Leitura pública para publicados
+CREATE POLICY "Anyone can view published podcasts"
+ON public.podcasts FOR SELECT
+USING (is_published = true);
+
+-- Admin/moderador pode ver todos
+CREATE POLICY "Admins can view all podcasts"
+ON public.podcasts FOR SELECT
+USING (is_admin_or_moderator(auth.uid()));
+
+-- Admin/moderador pode criar
+CREATE POLICY "Admins can insert podcasts"
+ON public.podcasts FOR INSERT
+WITH CHECK (is_admin_or_moderator(auth.uid()));
+
+-- Admin/moderador pode editar
+CREATE POLICY "Admins can update podcasts"
+ON public.podcasts FOR UPDATE
+USING (is_admin_or_moderator(auth.uid()));
+
+-- Apenas admin pode deletar
+CREATE POLICY "Admins can delete podcasts"
+ON public.podcasts FOR DELETE
+USING (has_role(auth.uid(), 'admin'));
 ```
-
-### 2. Adicionar Mutations no usePosts.ts
-
-```typescript
-// Deletar publicação
-export function useDeleteChannelPost() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (postId: string) => {
-      // Primeiro deletar mídia associada
-      await supabase
-        .from("channel_post_media")
-        .delete()
-        .eq("post_id", postId);
-      
-      // Depois deletar comentários e likes
-      await supabase
-        .from("channel_post_comments")
-        .delete()
-        .eq("post_id", postId);
-      
-      await supabase
-        .from("channel_post_likes")
-        .delete()
-        .eq("post_id", postId);
-      
-      // Finalmente deletar o post
-      const { error } = await supabase
-        .from("channel_posts")
-        .delete()
-        .eq("id", postId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
-    },
-  });
-}
-
-// Atualizar publicação
-export function useUpdateChannelPost() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ 
-      postId, 
-      title, 
-      content 
-    }: { 
-      postId: string; 
-      title: string | null; 
-      content: string 
-    }) => {
-      const { error } = await supabase
-        .from("channel_posts")
-        .update({ title, content, updated_at: new Date().toISOString() })
-        .eq("id", postId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
-    },
-  });
-}
-```
-
-### 3. Adicionar Menu Dropdown no ChannelPostDetail.tsx
-
-Na seção do autor (linha ~447), adicionar um menu de três pontos:
-
-```text
-┌─────────────────────────────────────────────┐
-│  [◄]  Canal Nome                            │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ┌──────┐                        ┌───┐     │
-│  │ 👤  │  Nome do Autor         │ ⋮ │     │
-│  └──────┘  há 2 horas            └───┘     │
-│                                    │        │
-│                        ┌───────────┴───┐   │
-│                        │ ✏️ Editar     │   │
-│                        │ 🗑️ Excluir    │   │
-│                        └───────────────┘   │
-│                                             │
-│  Título da Publicação                       │
-│  ...                                        │
-└─────────────────────────────────────────────┘
-```
-
-**Lógica de exibição:**
-- Mostrar menu se: `user?.id === post.author_id || isAdminOrModerator`
-- Autor vê: "Editar" e "Excluir"
-- Admin vê: apenas "Excluir" (moderação)
-
-### 4. Modificar CreateChannelPost para Modo de Edição
-
-Reutilizar a página existente com parâmetro opcional `postId`:
-- Nova rota: `/channels/:channelId/edit/:postId`
-- Se `postId` existe, buscar dados e preencher formulário
-- Botão muda de "Publicar" para "Salvar alterações"
 
 ---
+
+## Storage
+
+### Bucket: `podcast-media`
+
+Configuração necessária:
+- **Público**: Sim (para streaming de áudio)
+- **Limite de tamanho**: 100MB (áudios podem ser grandes)
+- **Tipos aceitos**: audio/mpeg, audio/mp3, audio/wav, audio/ogg, image/jpeg, image/png, image/webp
+
+---
+
+## Estrutura de Arquivos
+
+```text
+src/
+├── pages/
+│   ├── Podcasts.tsx              # Listagem de podcasts
+│   └── PodcastDetail.tsx         # Player e detalhes do episódio
+│   └── admin/
+│       └── Podcasts.tsx          # Gestão de podcasts (admin)
+├── hooks/
+│   └── usePodcasts.ts            # Hooks para dados de podcasts
+├── components/
+│   └── podcast/
+│       ├── PodcastCard.tsx       # Card de podcast na listagem
+│       ├── PodcastPlayer.tsx     # Player de áudio customizado
+│       └── PodcastFilters.tsx    # Filtros por espaço e tags
+```
+
+---
+
+## Navegação
+
+### BottomNav (Atualização)
+
+Substituir o item "Avisos" por "Podcast":
+
+```tsx
+const navItems = [
+  { icon: House, label: "Início", path: "/home" },
+  { icon: SquaresFour, label: "Espaços", path: "/spaces" },
+  { icon: Microphone, label: "Podcast", path: "/podcasts" },  // NOVO
+  { icon: ChatCircle, label: "Canais", path: "/channels" },
+  { icon: User, label: "Perfil", path: "/profile" },
+];
+```
+
+**Observação**: O ícone de notificações (Bell) será movido para o header da home ou acessível via perfil.
+
+### Rotas (App.tsx)
+
+```tsx
+// Novas rotas públicas protegidas
+<Route path="/podcasts" element={<SubscriptionGuard><Podcasts /></SubscriptionGuard>} />
+<Route path="/podcasts/:podcastId" element={<SubscriptionGuard><PodcastDetail /></SubscriptionGuard>} />
+
+// Nova rota admin
+<Route path="/admin/podcasts" element={<AdminGuard><AdminPodcasts /></AdminGuard>} />
+```
+
+### AdminSidebar (Atualização)
+
+Adicionar item "Podcasts" na seção de Conteúdo:
+
+```tsx
+const contentNavItems = [
+  { title: 'Espaços', url: '/admin/spaces', icon: Folders },
+  { title: 'Conteúdos', url: '/admin/content', icon: Article },
+  { title: 'Podcasts', url: '/admin/podcasts', icon: Microphone },  // NOVO
+  { title: 'Canais', url: '/admin/channels', icon: ChatCircle },
+  { title: 'Moderação', url: '/admin/moderation', icon: Shield },
+];
+```
+
+---
+
+## Componentes
+
+### 1. PodcastCard
+
+Card para exibição na listagem:
+
+```text
+┌─────────────────────────────────────────────────┐
+│  ┌───────┐                                      │
+│  │ CAPA  │  Título do Episódio                  │
+│  │  60   │  Descrição curta...                  │
+│  │  min  │                                      │
+│  └───────┘  #tag1 #tag2 #tag3                   │
+│             Produtividade · 2h atrás            │
+└─────────────────────────────────────────────────┘
+```
+
+### 2. PodcastPlayer
+
+Player de áudio customizado com controles:
+
+```text
+┌─────────────────────────────────────────────────┐
+│  ┌─────────────────────────────────────────┐    │
+│  │                                         │    │
+│  │              CAPA GRANDE                │    │
+│  │                                         │    │
+│  └─────────────────────────────────────────┘    │
+│                                                 │
+│  Título do Episódio                             │
+│  Espaço: Produtividade                          │
+│                                                 │
+│  ━━━━━━━━━━━○━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━    │
+│  12:34                              45:00       │
+│                                                 │
+│        ⏪    ▶️    ⏩       🔊                 │
+│       -15s        +15s                          │
+│                                                 │
+│  Descrição completa do episódio...              │
+│                                                 │
+│  #tag1 #tag2 #tag3                              │
+└─────────────────────────────────────────────────┘
+```
+
+### 3. PodcastFilters
+
+Filtros horizontais scrolláveis:
+
+```text
+┌─────────────────────────────────────────────────┐
+│  [ Todos ] [ Produtividade ] [ Marketing ] ...  │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## Hooks
+
+### usePodcasts.ts
+
+```tsx
+// Lista de podcasts com filtros
+export function usePodcasts(spaceId?: string) {
+  return useQuery({
+    queryKey: ["podcasts", spaceId],
+    queryFn: async () => {
+      let query = supabase
+        .from("podcasts")
+        .select(`
+          *,
+          spaces(id, name, slug, icon)
+        `)
+        .eq("is_published", true)
+        .order("published_at", { ascending: false });
+      
+      if (spaceId) {
+        query = query.eq("space_id", spaceId);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// Podcast individual
+export function usePodcast(podcastId: string) {
+  return useQuery({
+    queryKey: ["podcast", podcastId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .select(`
+          *,
+          spaces(id, name, slug, icon),
+          profiles(full_name, avatar_url)
+        `)
+        .eq("id", podcastId)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!podcastId,
+  });
+}
+```
+
+---
+
+## Página Admin de Podcasts
+
+A página seguirá o mesmo padrão do `SpaceContent.tsx`:
+
+1. **Listagem** com DataTable
+2. **Modal de criação/edição** com campos:
+   - Seletor de Espaço
+   - Título
+   - Descrição (textarea)
+   - Upload de Áudio (com preview de duração)
+   - Upload de Capa (imagem)
+   - Campo de Tags (input que transforma em chips)
+   - Botões: Salvar Rascunho / Publicar
+
+### Upload de Áudio
+
+```tsx
+// Calcular duração do áudio
+const handleAudioUpload = async (file: File) => {
+  const audio = new Audio(URL.createObjectURL(file));
+  audio.addEventListener('loadedmetadata', () => {
+    setDuration(Math.round(audio.duration));
+  });
+  
+  // Upload para Supabase Storage
+  const uploaded = await uploadFile(file);
+  setAudioUrl(uploaded?.url);
+};
+```
+
+---
+
+## Fluxo de Implementação
+
+### Fase 1: Backend (Banco de Dados)
+
+1. Criar migração SQL para tabela `podcasts`
+2. Configurar RLS policies
+3. Criar bucket `podcast-media` no storage
+4. Configurar policies do bucket
+
+### Fase 2: Hooks e Utilitários
+
+1. Criar `src/hooks/usePodcasts.ts`
+2. Atualizar `src/hooks/useMediaUpload.ts` para suportar podcast
+
+### Fase 3: Páginas Públicas
+
+1. Criar `src/pages/Podcasts.tsx` (listagem)
+2. Criar `src/pages/PodcastDetail.tsx` (player)
+3. Criar componentes auxiliares
+
+### Fase 4: Painel Admin
+
+1. Criar `src/pages/admin/Podcasts.tsx`
+2. Atualizar `AdminSidebar.tsx`
+
+### Fase 5: Navegação
+
+1. Atualizar `BottomNav.tsx`
+2. Atualizar `App.tsx` com novas rotas
+
+---
+
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/migrations/xxx_create_podcasts.sql` | Tabela e RLS |
+| `src/hooks/usePodcasts.ts` | Hooks de dados |
+| `src/pages/Podcasts.tsx` | Listagem pública |
+| `src/pages/PodcastDetail.tsx` | Player e detalhes |
+| `src/pages/admin/Podcasts.tsx` | Gestão admin |
+| `src/components/podcast/PodcastCard.tsx` | Card de episódio |
+| `src/components/podcast/PodcastPlayer.tsx` | Player customizado |
+| `src/components/podcast/PodcastFilters.tsx` | Filtros por espaço |
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| Nova migração SQL | Adicionar política RLS para autores excluírem |
-| `src/hooks/usePosts.ts` | Adicionar `useDeleteChannelPost` e `useUpdateChannelPost` |
-| `src/pages/ChannelPostDetail.tsx` | Adicionar dropdown com opções de editar/excluir |
-| `src/pages/CreateChannelPost.tsx` | Adicionar suporte a modo de edição |
-| `src/App.tsx` | Adicionar rota `/channels/:channelId/edit/:postId` |
+| `src/components/BottomNav.tsx` | Adicionar ícone Podcast, remover Avisos |
+| `src/components/admin/AdminSidebar.tsx` | Adicionar link Podcasts |
+| `src/App.tsx` | Adicionar rotas de podcast |
+| `src/hooks/useMediaUpload.ts` | Adicionar funções para podcast |
 
 ---
 
-## Implementação Detalhada
+## Considerações de UX
 
-### 1. Migração SQL
+### Player de Áudio
+
+- Controles: Play/Pause, -15s, +15s, Volume
+- Barra de progresso clicável
+- Exibição de tempo atual e total
+- Background playback (continua tocando ao navegar)
+
+### Filtros
+
+- Chips horizontais scrolláveis
+- "Todos" como opção padrão
+- Destaque visual no filtro ativo
+
+### Cards
+
+- Exibir duração formatada (ex: "45 min")
+- Tags como badges clicáveis
+- Espaço associado visível
+
+---
+
+## Segurança e Validação
+
+1. **Uploads**: Validar tipo MIME e tamanho no client e server
+2. **Tags**: Sanitizar input, limitar quantidade (max 5)
+3. **RLS**: Apenas admins/moderadores podem criar/editar
+4. **Storage**: Políticas de acesso por autenticação
+
+---
+
+## Seção Técnica
+
+### SQL de Migração
 
 ```sql
--- Permitir que autores excluam suas próprias publicações
-CREATE POLICY "Authors can delete own posts" 
-ON public.channel_posts 
-FOR DELETE 
-TO authenticated 
-USING (auth.uid() = author_id);
+-- Criar tabela de podcasts
+CREATE TABLE public.podcasts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  space_id uuid REFERENCES public.spaces(id) ON DELETE SET NULL,
+  author_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  title text NOT NULL,
+  description text,
+  audio_url text NOT NULL,
+  cover_url text,
+  duration_seconds integer,
+  tags text[] DEFAULT '{}',
+  is_published boolean DEFAULT false,
+  published_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.podcasts ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Anyone can view published podcasts"
+ON public.podcasts FOR SELECT
+USING (is_published = true);
+
+CREATE POLICY "Admins can view all podcasts"
+ON public.podcasts FOR SELECT
+USING (is_admin_or_moderator(auth.uid()));
+
+CREATE POLICY "Admins can insert podcasts"
+ON public.podcasts FOR INSERT
+WITH CHECK (is_admin_or_moderator(auth.uid()));
+
+CREATE POLICY "Admins can update podcasts"
+ON public.podcasts FOR UPDATE
+USING (is_admin_or_moderator(auth.uid()));
+
+CREATE POLICY "Admins can delete podcasts"
+ON public.podcasts FOR DELETE
+USING (has_role(auth.uid(), 'admin'));
+
+-- Trigger para updated_at
+CREATE TRIGGER update_podcasts_updated_at
+  BEFORE UPDATE ON public.podcasts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Criar bucket de storage
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('podcast-media', 'podcast-media', true, 104857600);
+
+-- Policies do bucket
+CREATE POLICY "Anyone can view podcast media"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'podcast-media');
+
+CREATE POLICY "Admins can upload podcast media"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'podcast-media' 
+  AND is_admin_or_moderator(auth.uid())
+);
+
+CREATE POLICY "Admins can delete podcast media"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'podcast-media' 
+  AND is_admin_or_moderator(auth.uid())
+);
 ```
 
-### 2. Atualização do usePosts.ts
-
-Adicionar duas novas mutations:
+### Formato de Duração
 
 ```typescript
-// Hook para deletar publicação de canal
-export function useDeleteChannelPost() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (postId: string) => {
-      // Deletar registros relacionados primeiro
-      await supabase.from("channel_post_comment_likes").delete()
-        .in("comment_id", supabase.from("channel_post_comments").select("id").eq("post_id", postId));
-      await supabase.from("channel_post_comments").delete().eq("post_id", postId);
-      await supabase.from("channel_post_likes").delete().eq("post_id", postId);
-      await supabase.from("channel_post_media").delete().eq("post_id", postId);
-      
-      // Deletar o post
-      const { error } = await supabase
-        .from("channel_posts")
-        .delete()
-        .eq("id", postId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
-    },
-  });
-}
-
-// Hook para atualizar publicação de canal
-export function useUpdateChannelPost() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      postId,
-      title,
-      content,
-    }: {
-      postId: string;
-      title: string | null;
-      content: string;
-    }) => {
-      const { error } = await supabase
-        .from("channel_posts")
-        .update({
-          title,
-          content,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", postId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
-    },
-  });
-}
-```
-
-### 3. Atualização do ChannelPostDetail.tsx
-
-**Novos imports:**
-```typescript
-import { DotsThree, Pencil, Trash } from "@phosphor-icons/react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
-import { useDeleteChannelPost } from "@/hooks/usePosts";
-```
-
-**Novos estados e hooks:**
-```typescript
-const { isAdminOrModerator } = useAdminAuth();
-const deleteMutation = useDeleteChannelPost();
-const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-const canEdit = user?.id === post?.author_id;
-const canDelete = user?.id === post?.author_id || isAdminOrModerator;
-const showActions = canEdit || canDelete;
-```
-
-**Handler de exclusão:**
-```typescript
-const handleDelete = async () => {
-  try {
-    await deleteMutation.mutateAsync(postId!);
-    toast.success("Publicação excluída!");
-    navigate(`/channels/${channelId}`);
-  } catch (error) {
-    toast.error("Erro ao excluir publicação");
+const formatDuration = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}min`;
   }
+  return `${minutes} min`;
 };
-```
-
-**Menu dropdown (após o nome do autor, linha ~456):**
-```tsx
-{/* Author section */}
-<div className="flex items-center justify-between mb-4">
-  <div className="flex items-center gap-3">
-    <Avatar className="w-10 h-10">
-      <AvatarImage src={post.author_avatar || undefined} />
-      <AvatarFallback>{post.author_name?.charAt(0).toUpperCase()}</AvatarFallback>
-    </Avatar>
-    <div>
-      <p className="font-medium">{post.author_name}</p>
-      <p className="text-sm text-muted-foreground">{formatTime(post.created_at)}</p>
-    </div>
-  </div>
-
-  {showActions && (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <DotsThree className="w-5 h-5" weight="bold" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {canEdit && (
-          <DropdownMenuItem onClick={() => navigate(`/channels/${channelId}/edit/${postId}`)}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Editar
-          </DropdownMenuItem>
-        )}
-        {canDelete && (
-          <DropdownMenuItem 
-            onClick={() => setShowDeleteDialog(true)}
-            className="text-red-500 focus:text-red-500"
-          >
-            <Trash className="w-4 h-4 mr-2" />
-            Excluir
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )}
-</div>
-
-{/* Diálogo de confirmação de exclusão */}
-<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Excluir publicação?</AlertDialogTitle>
-      <AlertDialogDescription>
-        Esta ação não pode ser desfeita. A publicação será permanentemente excluída.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-      <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
-        Excluir
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
-```
-
-### 4. Modo de Edição no CreateChannelPost.tsx
-
-**Modificar para aceitar postId opcional:**
-```typescript
-const { channelId, postId } = useParams<{ channelId: string; postId?: string }>();
-const isEditMode = !!postId;
-```
-
-**Buscar dados do post para edição:**
-```typescript
-useEffect(() => {
-  if (postId) {
-    fetchPostForEdit();
-  }
-}, [postId]);
-
-const fetchPostForEdit = async () => {
-  const { data: post, error } = await supabase
-    .from("channel_posts")
-    .select("title, content, author_id")
-    .eq("id", postId)
-    .single();
-
-  if (error || !post) {
-    toast.error("Publicação não encontrada");
-    navigate(`/channels/${channelId}`);
-    return;
-  }
-
-  // Verificar se é o autor
-  if (post.author_id !== user?.id) {
-    toast.error("Você não pode editar esta publicação");
-    navigate(`/channels/${channelId}`);
-    return;
-  }
-
-  setTitle(post.title || "");
-  setContent(post.content);
-
-  // Buscar mídia existente
-  const { data: mediaData } = await supabase
-    .from("channel_post_media")
-    .select("*")
-    .eq("post_id", postId)
-    .order("sort_order");
-
-  if (mediaData) {
-    setMedia(mediaData.map(m => ({
-      url: m.file_url,
-      type: m.file_type as any,
-      name: m.file_name,
-      youtubeId: m.youtube_id,
-    })));
-  }
-};
-```
-
-**Modificar handleSubmit para update:**
-```typescript
-const handleSubmit = async () => {
-  // ... validações existentes ...
-
-  if (isEditMode) {
-    // Modo de edição
-    const { error } = await supabase
-      .from("channel_posts")
-      .update({
-        title: title.trim() || null,
-        content: content,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", postId);
-
-    if (error) {
-      toast.error("Erro ao atualizar publicação");
-      return;
-    }
-
-    toast.success("Publicação atualizada!");
-    navigate(`/channels/${channelId}/post/${postId}`);
-  } else {
-    // Modo de criação (código existente)
-    // ...
-  }
-};
-```
-
-### 5. Adicionar Rota no App.tsx
-
-```typescript
-// Adicionar rota de edição
-<Route 
-  path="/channels/:channelId/edit/:postId" 
-  element={
-    <SubscriptionGuard>
-      <CreateChannelPost />
-    </SubscriptionGuard>
-  } 
-/>
-```
-
----
-
-## Fluxo de Usuário
-
-```text
-AUTOR DA PUBLICAÇÃO:
-┌─────────────────────────────────────────────┐
-│  Abre publicação → Vê menu ⋮               │
-│                     │                       │
-│                     ├──► Editar             │
-│                     │    └──► Abre form     │
-│                     │         └──► Salva    │
-│                     │                       │
-│                     └──► Excluir            │
-│                          └──► Confirma      │
-│                               └──► Volta    │
-└─────────────────────────────────────────────┘
-
-ADMIN/MODERADOR:
-┌─────────────────────────────────────────────┐
-│  Abre publicação de qualquer usuário        │
-│  → Vê menu ⋮ apenas com "Excluir"           │
-│  → Pode remover conteúdo impróprio          │
-└─────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Resultado Esperado
 
-| Usuário | Ação | Antes | Depois |
-|---------|------|-------|--------|
-| Autor | Editar própria publicação | Impossível | Menu → Editar |
-| Autor | Excluir própria publicação | Impossível | Menu → Excluir |
-| Admin | Excluir qualquer publicação | Só via painel admin | Menu → Excluir |
-
----
-
-## Ordem de Implementação
-
-1. **Migração SQL** - Adicionar política RLS para autores excluírem
-2. **usePosts.ts** - Adicionar mutations `useDeleteChannelPost` e `useUpdateChannelPost`
-3. **App.tsx** - Adicionar rota de edição
-4. **CreateChannelPost.tsx** - Adicionar modo de edição
-5. **ChannelPostDetail.tsx** - Adicionar dropdown menu com ações
+| Funcionalidade | Status Atual | Após Implementação |
+|----------------|--------------|-------------------|
+| Acesso a Podcasts | Inexistente | Via BottomNav |
+| Upload de áudio (admin) | Inexistente | Modal com preview |
+| Filtro por espaço | Inexistente | Chips horizontais |
+| Player customizado | Inexistente | Controles completos |
+| Tags/Hashtags | Inexistente | Input + chips |
+| Gestão no admin | Inexistente | DataTable + CRUD |
