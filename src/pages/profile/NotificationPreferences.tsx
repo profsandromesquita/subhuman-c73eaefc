@@ -16,7 +16,7 @@ interface NotificationSettings {
   notify_comments: boolean;
   notify_mentions: boolean;
   notify_announcements: boolean;
-  notify_weekly_email: boolean;
+  notify_daily_email: boolean;
 }
 
 export default function NotificationPreferences() {
@@ -30,7 +30,7 @@ export default function NotificationPreferences() {
     notify_comments: true,
     notify_mentions: true,
     notify_announcements: true,
-    notify_weekly_email: false,
+    notify_daily_email: false,
   });
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function NotificationPreferences() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('notify_space_updates, notify_comments, notify_mentions, notify_announcements, notify_weekly_email')
+        .select('notify_space_updates, notify_comments, notify_mentions, notify_announcements, notify_daily_email')
         .eq('id', user.id)
         .single();
 
@@ -61,7 +61,7 @@ export default function NotificationPreferences() {
           notify_comments: data.notify_comments ?? true,
           notify_mentions: data.notify_mentions ?? true,
           notify_announcements: data.notify_announcements ?? true,
-          notify_weekly_email: data.notify_weekly_email ?? false,
+          notify_daily_email: data.notify_daily_email ?? false,
         });
       }
     } catch (error) {
@@ -212,12 +212,12 @@ export default function NotificationPreferences() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium">Resumo semanal</p>
-                  <p className="text-xs text-muted-foreground">Resumo das principais atualizações da semana</p>
+                  <p className="text-sm font-medium">Resumo diário às 18h</p>
+                  <p className="text-xs text-muted-foreground">Resumo das atualizações do dia nos espaços que você segue</p>
                 </div>
                 <Switch
-                  checked={settings.notify_weekly_email}
-                  onCheckedChange={() => handleToggle("notify_weekly_email")}
+                  checked={settings.notify_daily_email}
+                  onCheckedChange={() => handleToggle("notify_daily_email")}
                   disabled={saving}
                 />
               </div>
