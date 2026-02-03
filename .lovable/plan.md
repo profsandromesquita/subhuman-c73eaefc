@@ -1,204 +1,293 @@
 
-# Plano: Sistema de Engajamento para Podcasts
+# Plano: URLs Amigáveis para SEO
 
 ## Objetivo
-Implementar funcionalidades completas de **comentários**, **curtidas**, **salvar** e **compartilhar** nos episódios de podcast, replicando a mesma estrutura existente em artigos (space_updates) e canais (channel_posts).
+Transformar URLs com UUIDs em URLs legíveis e SEO-friendly:
+
+**Antes:**
+- `/spaces/produtividade/post/b4e54116-49d2-4f10-8090-ce09b00e3038`
+- `/podcasts/992bfff5-79d3-4f9e-bdf1-ffe494c8ee6d`
+
+**Depois:**
+- `/spaces/produtividade/post/copilot-secretario-chegou-agora-voce-agenda-reunioes`
+- `/podcasts/o-evernote-finalmente-acordou-ou-so-colocou-ia`
 
 ---
 
-## Visão Geral da Arquitetura
+## Visao Geral das Mudancas
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PÁGINA PodcastDetail.tsx                     │
+│                    ESTRUTURA DE URLs                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  PodcastHeader (Voltar, Salvar, Compartilhar)           │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  PodcastPlayer (Player de áudio existente)              │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  Info (Título, Espaço, Tags, Descrição)                 │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  PostEngagement (Curtidas, Comentários - REUTILIZADO)   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  CommentSection (Lista de comentários - REUTILIZADO)    │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  CommentInput (Input fixo no rodapé - REUTILIZADO)      │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ARTIGOS                                                        │
+│  /spaces/:spaceSlug/post/:postSlug                             │
+│  Exemplo: /spaces/marketing/post/claude-e-salesforce-casamento │
+│                                                                 │
+│  PODCASTS                                                       │
+│  /podcasts/:podcastSlug                                        │
+│  Exemplo: /podcasts/batalha-dos-editores-de-ia-2026           │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fase 1: Criação das Tabelas no Banco de Dados
+## Fase 1: Migracao de Banco de Dados
 
-Criar 4 novas tabelas seguindo o padrão existente:
+### 1.1 Adicionar Campo `slug` nas Tabelas
 
-### 1.1 Tabela `podcast_likes`
 ```sql
-CREATE TABLE public.podcast_likes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  podcast_id UUID NOT NULL REFERENCES public.podcasts(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(podcast_id, user_id)
-);
+-- Adicionar coluna slug em space_updates
+ALTER TABLE public.space_updates 
+  ADD COLUMN slug TEXT;
+
+-- Adicionar coluna slug em podcasts
+ALTER TABLE public.podcasts 
+  ADD COLUMN slug TEXT;
+
+-- Criar indices unicos para garantir slugs unicos por espaço/global
+CREATE UNIQUE INDEX idx_space_updates_slug ON public.space_updates(space_id, slug);
+CREATE UNIQUE INDEX idx_podcasts_slug ON public.podcasts(slug);
 ```
 
-### 1.2 Tabela `podcast_comments`
+### 1.2 Funcao de Geracao de Slugs
+
 ```sql
-CREATE TABLE public.podcast_comments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  podcast_id UUID NOT NULL REFERENCES public.podcasts(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  parent_id UUID REFERENCES public.podcast_comments(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+-- Funcao para converter titulo em slug
+CREATE OR REPLACE FUNCTION public.generate_slug(title TEXT)
+RETURNS TEXT AS $$
+DECLARE
+  result TEXT;
+BEGIN
+  result := lower(title);
+  -- Remove acentos
+  result := translate(result, 
+    'àáâãäåèéêëìíîïòóôõöùúûüýÿñç',
+    'aaaaaaeeeeiiiiooooouuuuyync');
+  -- Remove caracteres especiais, mantém apenas letras, números e espaços
+  result := regexp_replace(result, '[^a-z0-9\s-]', '', 'g');
+  -- Substitui espaços por hifens
+  result := regexp_replace(result, '\s+', '-', 'g');
+  -- Remove hifens duplicados
+  result := regexp_replace(result, '-+', '-', 'g');
+  -- Remove hifens no inicio e fim
+  result := trim(both '-' from result);
+  -- Limita a 80 caracteres para URLs limpas
+  result := left(result, 80);
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
 ```
 
-### 1.3 Tabela `podcast_comment_likes`
+### 1.3 Trigger para Geracao Automatica
+
 ```sql
-CREATE TABLE public.podcast_comment_likes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  comment_id UUID NOT NULL REFERENCES public.podcast_comments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(comment_id, user_id)
-);
+-- Trigger para gerar slug automaticamente no INSERT/UPDATE
+CREATE OR REPLACE FUNCTION public.set_slug_on_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.slug IS NULL OR NEW.slug = '' THEN
+    NEW.slug := public.generate_slug(NEW.title);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_space_updates_slug
+  BEFORE INSERT OR UPDATE ON public.space_updates
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_slug_on_insert();
+
+CREATE TRIGGER trigger_podcasts_slug
+  BEFORE INSERT OR UPDATE ON public.podcasts
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_slug_on_insert();
 ```
 
-### 1.4 Tabela `saved_podcasts`
-```sql
-CREATE TABLE public.saved_podcasts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  podcast_id UUID NOT NULL REFERENCES public.podcasts(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(podcast_id, user_id)
-);
-```
+### 1.4 Migrar Dados Existentes
 
-### 1.5 Políticas RLS
-Aplicar políticas seguindo o padrão existente:
-- **SELECT**: Público para visualização
-- **INSERT**: Autenticado pode inserir próprios registros
-- **UPDATE**: Usuário pode editar próprios comentários
-- **DELETE**: Usuário pode remover próprios registros
+```sql
+-- Gerar slugs para artigos existentes
+UPDATE public.space_updates 
+SET slug = public.generate_slug(title)
+WHERE slug IS NULL;
+
+-- Gerar slugs para podcasts existentes
+UPDATE public.podcasts 
+SET slug = public.generate_slug(title)
+WHERE slug IS NULL;
+
+-- Após migração, tornar NOT NULL
+ALTER TABLE public.space_updates 
+  ALTER COLUMN slug SET NOT NULL;
+
+ALTER TABLE public.podcasts 
+  ALTER COLUMN slug SET NOT NULL;
+```
 
 ---
 
-## Fase 2: Atualização do Hook `usePodcasts.ts`
+## Fase 2: Atualizacao dos Hooks
 
-### Novas Mutations a Adicionar
+### 2.1 Hook `usePosts.ts`
 
-```typescript
-// Curtir/Descurtir podcast
-export function useLikePodcast()
-
-// Adicionar comentário
-export function useAddPodcastComment()
-
-// Curtir comentário
-export function useLikePodcastComment()
-
-// Salvar/Remover dos salvos
-export function useSavePodcast()
-```
-
-### Query Atualizada
-Atualizar `usePodcast()` para incluir contagem de engajamento e status do usuário:
-- likes_count
-- comments_count
-- is_liked
-- is_saved
-
----
-
-## Fase 3: Criação do Componente `PodcastHeader`
-
-Novo componente em `src/components/podcast/PodcastHeader.tsx`:
+Adicionar nova função para buscar artigo por slug:
 
 ```typescript
-interface PodcastHeaderProps {
-  isSaved: boolean;
-  onSaveToggle: () => void;
-  title: string;
-  backPath?: string;
+// Buscar artigo por slug do espaço e slug do post
+export function useSpaceUpdateBySlug(spaceSlug: string | undefined, postSlug: string | undefined) {
+  return useQuery({
+    queryKey: ["space-update", spaceSlug, postSlug],
+    queryFn: async () => {
+      // Primeiro busca o espaço pelo slug
+      const { data: space } = await supabase
+        .from("spaces")
+        .select("id")
+        .eq("slug", spaceSlug)
+        .single();
+      
+      if (!space) return null;
+
+      // Depois busca o post pelo slug dentro do espaço
+      const { data, error } = await supabase
+        .from("space_updates")
+        .select("*, spaces(name, slug)")
+        .eq("space_id", space.id)
+        .eq("slug", postSlug)
+        .eq("is_published", true)
+        .single();
+
+      if (error) return null;
+      return data;
+    },
+    enabled: !!spaceSlug && !!postSlug,
+  });
 }
 ```
 
-Funcionalidades:
-- Botão Voltar (navegação para /podcasts)
-- Botão Salvar (bookmark com estado visual)
-- Botão Compartilhar (Web Share API / copiar link)
-- Header flutuante com blur no scroll (igual PostHeader)
+### 2.2 Hook `usePodcasts.ts`
 
----
+Adicionar nova função para buscar podcast por slug:
 
-## Fase 4: Refatoração da Página `PodcastDetail.tsx`
-
-### Estado a Gerenciar
 ```typescript
-const [isLiked, setIsLiked] = useState(false);
-const [isSaved, setIsSaved] = useState(false);
-const [likesCount, setLikesCount] = useState(0);
-const [comments, setComments] = useState<Comment[]>([]);
-const [replyTo, setReplyTo] = useState<ReplyTo | null>(null);
-```
+// Buscar podcast por slug
+export function usePodcastBySlug(podcastSlug: string | undefined) {
+  return useQuery({
+    queryKey: ["podcast-by-slug", podcastSlug],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .select(`*, spaces(id, name, slug, icon)`)
+        .eq("slug", podcastSlug)
+        .eq("is_published", true)
+        .single();
 
-### Funções de Engajamento
-- `handleLikeToggle()` - Curtir/descurtir podcast
-- `handleSaveToggle()` - Salvar/remover dos salvos
-- `handleCommentClick()` - Scroll até seção de comentários
-- `handleLikeComment()` - Curtir comentário
-- `handleReplyComment()` - Responder comentário
-- `handleSubmitComment()` - Enviar novo comentário
-- `handleEditComment()` - Editar comentário próprio
-- `handleDeleteComment()` - Excluir comentário próprio
-
-### Reutilização de Componentes
-Os seguintes componentes serão **reutilizados sem modificação**:
-- `PostEngagement` - Barra de curtidas e botão comentar
-- `CommentSection` - Lista de comentários com replies
-- `CommentInput` - Input fixo no rodapé
-- `CommentItem` - Card individual de comentário
-
----
-
-## Fase 5: Invalidação de Cache
-
-Após interações, invalidar queries relevantes:
-```typescript
-queryClient.invalidateQueries({ queryKey: ["podcasts"] });
-queryClient.invalidateQueries({ queryKey: ["podcast", podcastId] });
+      if (error) return null;
+      return data as Podcast;
+    },
+    enabled: !!podcastSlug,
+  });
+}
 ```
 
 ---
 
-## Resumo de Arquivos
+## Fase 3: Atualizacao de Rotas
 
-| Operação | Arquivo |
+### 3.1 App.tsx
+
+Alterar parâmetros de rota:
+
+```typescript
+// Antes
+<Route path="/spaces/:spaceId/post/:postId" element={...} />
+<Route path="/podcasts/:podcastId" element={...} />
+
+// Depois
+<Route path="/spaces/:spaceSlug/post/:postSlug" element={...} />
+<Route path="/podcasts/:podcastSlug" element={...} />
+```
+
+---
+
+## Fase 4: Atualizacao de Paginas
+
+### 4.1 PostDetail.tsx
+
+- Mudar `useParams` para pegar `spaceSlug` e `postSlug`
+- Usar novo hook `useSpaceUpdateBySlug` ao invés de buscar por ID
+
+### 4.2 PodcastDetail.tsx
+
+- Mudar `useParams` para pegar `podcastSlug`
+- Usar novo hook `usePodcastBySlug` ao invés de buscar por ID
+
+### 4.3 SpaceDetail.tsx
+
+- Atualizar navegação para usar slug do post:
+
+```typescript
+// Antes
+navigate(`/spaces/${spaceId}/post/${update.id}`);
+
+// Depois
+navigate(`/spaces/${spaceId}/post/${update.slug}`);
+```
+
+---
+
+## Fase 5: Atualizacao de Componentes de Navegacao
+
+### 5.1 PodcastCard.tsx
+
+```typescript
+// Antes
+<Link to={`/podcasts/${podcast.id}`}>
+
+// Depois
+<Link to={`/podcasts/${podcast.slug}`}>
+```
+
+### 5.2 Home.tsx e Highlights.tsx
+
+Atualizar links para usar slugs nos cards de artigos e podcasts.
+
+---
+
+## Fase 6: Atualizacao dos Headers (Compartilhamento)
+
+### 6.1 PodcastHeader.tsx e PostHeader.tsx
+
+As URLs de compartilhamento já usam `window.location.href`, então funcionarão automaticamente com a nova estrutura.
+
+---
+
+## Resumo de Arquivos a Modificar
+
+| Operacao | Arquivo |
 |----------|---------|
-| **Migration SQL** | Criar tabelas podcast_likes, podcast_comments, podcast_comment_likes, saved_podcasts + RLS |
-| **Editar** | `src/hooks/usePodcasts.ts` - Adicionar mutations de engajamento |
-| **Criar** | `src/components/podcast/PodcastHeader.tsx` - Header com salvar/compartilhar |
-| **Editar** | `src/pages/PodcastDetail.tsx` - Integrar sistema de engajamento completo |
+| **Migration SQL** | Adicionar campo slug, funcao, triggers e migrar dados |
+| **Editar** | `src/hooks/usePosts.ts` - Adicionar `useSpaceUpdateBySlug` |
+| **Editar** | `src/hooks/usePodcasts.ts` - Adicionar `usePodcastBySlug` |
+| **Editar** | `src/App.tsx` - Atualizar parâmetros de rota |
+| **Editar** | `src/pages/PostDetail.tsx` - Usar novo hook e parâmetros |
+| **Editar** | `src/pages/PodcastDetail.tsx` - Usar novo hook e parâmetros |
+| **Editar** | `src/pages/SpaceDetail.tsx` - Navegar com slug |
+| **Editar** | `src/components/podcast/PodcastCard.tsx` - Link com slug |
+| **Editar** | `src/pages/Home.tsx` - Links com slugs |
+| **Editar** | `src/pages/Highlights.tsx` - Links com slugs |
 
 ---
 
 ## Resultado Esperado
 
-Após implementação:
-1. Usuários poderão **curtir** episódios de podcast
-2. Usuários poderão **comentar** e **responder** comentários
-3. Usuários poderão **salvar** podcasts favoritos
-4. Usuários poderão **compartilhar** via Web Share API ou copiar link
-5. Contadores de engajamento serão exibidos em tempo real
-6. Interface consistente com artigos e canais
+Apos implementacao:
+
+1. URLs legiveis e memoraveis para compartilhamento
+2. Melhor indexacao pelo Google (SEO)
+3. Experiencia profissional ao compartilhar links
+4. Slugs gerados automaticamente a partir dos titulos
+5. Compatibilidade retroativa (dados existentes migrados)
