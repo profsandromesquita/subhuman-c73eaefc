@@ -20,11 +20,13 @@ interface Channel {
 }
 
 export default function CreateChannelPost() {
-  const { channelId } = useParams<{ channelId: string }>();
+  const { channelId, postId } = useParams<{ channelId: string; postId?: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { hasAccess, loading: accessLoading } = useChannelAccess(channelId);
   const { saveMediaToPost } = useMediaUpload();
+
+  const isEditMode = !!postId;
 
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,12 +34,16 @@ export default function CreateChannelPost() {
   const [content, setContent] = useState("");
   const [media, setMedia] = useState<MediaFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [originalAuthorId, setOriginalAuthorId] = useState<string | null>(null);
 
   useEffect(() => {
     if (channelId) {
       fetchChannel();
     }
-  }, [channelId]);
+    if (postId && user) {
+      fetchPostForEdit();
+    }
+  }, [channelId, postId, user]);
 
   useEffect(() => {
     // Redirect if not authenticated
@@ -68,6 +74,49 @@ export default function CreateChannelPost() {
     setLoading(false);
   };
 
+  const fetchPostForEdit = async () => {
+    if (!postId) return;
+
+    const { data: postData, error } = await supabase
+      .from("channel_posts")
+      .select("title, content, author_id")
+      .eq("id", postId)
+      .single();
+
+    if (error || !postData) {
+      toast.error("Publicação não encontrada");
+      navigate(`/channels/${channelId}`);
+      return;
+    }
+
+    // Verificar se é o autor
+    if (postData.author_id !== user?.id) {
+      toast.error("Você não pode editar esta publicação");
+      navigate(`/channels/${channelId}`);
+      return;
+    }
+
+    setOriginalAuthorId(postData.author_id);
+    setTitle(postData.title || "");
+    setContent(postData.content);
+
+    // Buscar mídia existente
+    const { data: mediaData } = await supabase
+      .from("channel_post_media")
+      .select("*")
+      .eq("post_id", postId)
+      .order("sort_order");
+
+    if (mediaData) {
+      setMedia(mediaData.map(m => ({
+        url: m.file_url,
+        type: m.file_type as "image" | "video" | "audio" | "document" | "youtube",
+        name: m.file_name || undefined,
+        youtubeId: m.youtube_id || undefined,
+      })));
+    }
+  };
+
   const handleMediaAdd = (mediaFile: MediaFile) => {
     setMedia((prev) => [...prev, mediaFile]);
   };
@@ -94,34 +143,55 @@ export default function CreateChannelPost() {
     setSubmitting(true);
 
     try {
-      // Create the post
-      const { data: post, error: postError } = await supabase
-        .from("channel_posts")
-        .insert({
-          channel_id: channelId,
-          author_id: user.id,
-          title: title.trim() || null,
-          content: content,
-        } as any)
-        .select("id")
-        .single();
+      if (isEditMode) {
+        // Modo de edição - atualizar publicação existente
+        const { error: updateError } = await supabase
+          .from("channel_posts")
+          .update({
+            title: title.trim() || null,
+            content: content,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", postId);
 
-      if (postError) {
-        console.error("Error creating post:", postError);
-        toast.error("Erro ao criar publicação");
-        return;
+        if (updateError) {
+          console.error("Error updating post:", updateError);
+          toast.error("Erro ao atualizar publicação");
+          return;
+        }
+
+        toast.success("Publicação atualizada!");
+        navigate(`/channels/${channelId}/post/${postId}`);
+      } else {
+        // Modo de criação - criar nova publicação
+        const { data: post, error: postError } = await supabase
+          .from("channel_posts")
+          .insert({
+            channel_id: channelId,
+            author_id: user.id,
+            title: title.trim() || null,
+            content: content,
+          } as any)
+          .select("id")
+          .single();
+
+        if (postError) {
+          console.error("Error creating post:", postError);
+          toast.error("Erro ao criar publicação");
+          return;
+        }
+
+        // Save media if any
+        if (media.length > 0 && post) {
+          await saveMediaToPost(post.id, media);
+        }
+
+        toast.success("Publicação criada!");
+        navigate(`/channels/${channelId}/post/${post.id}`);
       }
-
-      // Save media if any
-      if (media.length > 0 && post) {
-        await saveMediaToPost(post.id, media);
-      }
-
-      toast.success("Publicação criada!");
-      navigate(`/channels/${channelId}/post/${post.id}`);
     } catch (error) {
       console.error("Error:", error);
-      toast.error("Erro ao criar publicação");
+      toast.error(isEditMode ? "Erro ao atualizar publicação" : "Erro ao criar publicação");
     } finally {
       setSubmitting(false);
     }
@@ -152,12 +222,12 @@ export default function CreateChannelPost() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/channels/${channelId}`)}
+              onClick={() => navigate(isEditMode ? `/channels/${channelId}/post/${postId}` : `/channels/${channelId}`)}
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="font-semibold">Nova Publicação</h1>
+              <h1 className="font-semibold">{isEditMode ? "Editar Publicação" : "Nova Publicação"}</h1>
               <p className="text-sm text-muted-foreground">{channel?.name}</p>
             </div>
           </div>
@@ -167,7 +237,7 @@ export default function CreateChannelPost() {
             className="gap-2"
           >
             <PaperPlaneTilt className="w-4 h-4" weight="bold" />
-            {submitting ? "Publicando..." : "Publicar"}
+            {submitting ? (isEditMode ? "Salvando..." : "Publicando...") : (isEditMode ? "Salvar" : "Publicar")}
           </Button>
         </div>
       </motion.header>
