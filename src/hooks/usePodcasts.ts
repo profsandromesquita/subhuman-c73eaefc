@@ -1,0 +1,195 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+
+export interface Podcast {
+  id: string;
+  space_id: string | null;
+  author_id: string | null;
+  title: string;
+  description: string | null;
+  audio_url: string;
+  cover_url: string | null;
+  duration_seconds: number | null;
+  tags: string[];
+  is_published: boolean;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  spaces?: {
+    id: string;
+    name: string;
+    slug: string;
+    icon: string | null;
+  } | null;
+}
+
+export function usePodcasts(spaceId?: string | null) {
+  return useQuery({
+    queryKey: ["podcasts", spaceId],
+    queryFn: async () => {
+      let query = supabase
+        .from("podcasts")
+        .select(`
+          *,
+          spaces(id, name, slug, icon)
+        `)
+        .eq("is_published", true)
+        .order("published_at", { ascending: false });
+
+      if (spaceId) {
+        query = query.eq("space_id", spaceId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Podcast[];
+    },
+  });
+}
+
+export function useAdminPodcasts() {
+  return useQuery({
+    queryKey: ["admin-podcasts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .select(`
+          *,
+          spaces(id, name, slug, icon)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data as Podcast[];
+    },
+  });
+}
+
+export function usePodcast(podcastId: string) {
+  return useQuery({
+    queryKey: ["podcast", podcastId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .select(`
+          *,
+          spaces(id, name, slug, icon)
+        `)
+        .eq("id", podcastId)
+        .single();
+
+      if (error) throw error;
+      return data as Podcast;
+    },
+    enabled: !!podcastId,
+  });
+}
+
+export interface CreatePodcastInput {
+  space_id?: string | null;
+  title: string;
+  description?: string | null;
+  audio_url: string;
+  cover_url?: string | null;
+  duration_seconds?: number | null;
+  tags?: string[];
+  is_published?: boolean;
+  published_at?: string | null;
+}
+
+export function useCreatePodcast() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (input: CreatePodcastInput) => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .insert({
+          ...input,
+          author_id: user?.id,
+          tags: input.tags || [],
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-podcasts"] });
+      toast.success("Podcast criado com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error creating podcast:", error);
+      toast.error("Erro ao criar podcast");
+    },
+  });
+}
+
+export function useUpdatePodcast() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: CreatePodcastInput & { id: string }) => {
+      const { data, error } = await supabase
+        .from("podcasts")
+        .update(input)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["podcast", variables.id] });
+      toast.success("Podcast atualizado com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error updating podcast:", error);
+      toast.error("Erro ao atualizar podcast");
+    },
+  });
+}
+
+export function useDeletePodcast() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (podcastId: string) => {
+      const { error } = await supabase
+        .from("podcasts")
+        .delete()
+        .eq("id", podcastId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-podcasts"] });
+      toast.success("Podcast excluído com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error deleting podcast:", error);
+      toast.error("Erro ao excluir podcast");
+    },
+  });
+}
+
+export function formatDuration(seconds: number | null): string {
+  if (!seconds) return "0 min";
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}min`;
+  }
+  return `${minutes} min`;
+}

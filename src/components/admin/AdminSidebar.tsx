@@ -11,7 +11,8 @@ import {
   Bell,
   Wallet,
   SignOut,
-  House
+  House,
+  Microphone
 } from '@phosphor-icons/react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -38,6 +39,7 @@ const mainNavItems = [
 const contentNavItems = [
   { title: 'Espaços', url: '/admin/spaces', icon: Folders },
   { title: 'Conteúdos', url: '/admin/content', icon: Article },
+  { title: 'Podcasts', url: '/admin/podcasts', icon: Microphone },
   { title: 'Canais', url: '/admin/channels', icon: ChatCircle },
   { title: 'Moderação', url: '/admin/moderation', icon: Shield },
 ];
