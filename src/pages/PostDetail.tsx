@@ -12,6 +12,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+interface Author {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
+}
+
 interface Post {
   id: string;
   title: string;
@@ -20,6 +30,8 @@ interface Post {
   media_type: string | null;
   published_at: string | null;
   created_at: string;
+  author_id: string | null;
+  author: Author | null;
   space: {
     name: string;
     slug: string;
@@ -80,6 +92,7 @@ export default function PostDetail() {
         media_type,
         published_at,
         created_at,
+        author_id,
         spaces (
           name,
           slug
@@ -94,8 +107,22 @@ export default function PostDetail() {
       return;
     }
 
+    // Fetch author profile if author_id exists
+    let authorProfile: Author | null = null;
+    if (postData.author_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url")
+        .eq("id", postData.author_id)
+        .maybeSingle();
+      
+      authorProfile = profile as Author | null;
+    }
+
     setPost({
       ...postData,
+      author_id: postData.author_id,
+      author: authorProfile,
       space: postData.spaces as { name: string; slug: string },
     });
 
@@ -542,10 +569,11 @@ export default function PostDetail() {
         mediaType={post.media_type}
         spaceName={post.space.name}
         spaceSlug={post.space.slug}
-        authorName="Admin"
+        authorName={post.author?.full_name || "Autor"}
         publishedAt={formatTime(post.published_at || post.created_at)}
         readTime={estimateReadTime(post.content)}
         media={media}
+        author={post.author}
       />
 
       <PostEngagement
