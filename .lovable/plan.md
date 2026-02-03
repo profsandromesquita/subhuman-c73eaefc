@@ -1,300 +1,196 @@
 
-# Plano de Otimização de Performance
+# Plano de Correção: Sistema de Notificações
 
-## Diagnóstico Completo
+## Problemas Identificados
 
-Após análise detalhada do código, identifiquei **5 causas principais** da lentidão nas páginas `/home`, `/spaces/*`, `/podcasts` e `/channels`:
+Após investigação completa, encontrei **2 problemas críticos**:
+
+### Problema 1: Notificações In-App Não Estão Sendo Criadas
+
+**Evidência:**
+- 19 atualizações publicadas nas últimas 24 horas
+- ZERO notificações criadas (apenas 1 notificação de teste manual)
+
+**Causa Raiz:**
+O trigger `notify_space_update_published` não está inserindo as notificações. Ao analisar a função, identifiquei que ela depende de um JOIN complexo com `profiles` e `user_space_subscriptions`, e o trigger pode estar falhando silenciosamente (sem log de erro visível).
+
+### Problema 2: Push Notifications Falhando com Erro de Chave
+
+**Evidência dos logs:**
+```
+DOMExceptionDataError: expected valid PKCS#8 data
+```
+
+**Causa Raiz:**
+A edge function `send-push-notification` implementa a criptografia VAPID manualmente, esperando que `VAPID_PRIVATE_KEY` esteja em formato PKCS#8. No entanto, chaves VAPID geradas por ferramentas padrão (como `web-push generate-vapid-keys`) estão em formato raw EC (65 bytes base64 URL-safe), não PKCS#8.
 
 ---
 
-## Problema 1: Requisições em Cascata (Waterfall Requests)
+## Plano de Correção
 
-### Descrição
-As páginas executam múltiplas requisições sequenciais que dependem umas das outras, criando um efeito cascata:
+### Fase 1: Corrigir Notificações In-App
 
-**Home.tsx (linha 30-33):**
-```typescript
-const { data: highlights } = useHighlights();      // Espera auth
-const { data: discussions } = useRecentDiscussions(); // Espera auth
-const { data: subscribedSpaces } = useSubscribedSpaces(); // Espera auth
-const { data: unreadCount } = useUnreadNotificationsCount(); // Espera auth
-```
+#### 1.1 Reescrever o Trigger com Tratamento de Erros
 
-**useHighlights (usePosts.ts linha 100-188):**
-1. Busca inscrições do usuário
-2. Depois busca updates dos espaços
-3. Depois busca likes/comments (2 queries paralelas)
-4. **Total: 4 requisições em cascata**
+O trigger atual pode estar falhando silenciosamente. Vou reescrevê-lo com:
+- Logs detalhados usando `RAISE NOTICE`
+- Tratamento de exceções com `EXCEPTION WHEN OTHERS`
+- Separação do INSERT de notificações do HTTP call
 
-**useChannels (useChannels.ts linha 19-89):**
-1. Busca plano do usuário
-2. Depois busca canais
-3. Depois busca todos os posts para calcular estatísticas
-4. **Total: 3 requisições em cascata**
-
-### Impacto
-Cada requisição adiciona ~100-300ms de latência. Cascatas de 3-4 níveis resultam em 500ms-1.2s apenas para dados.
-
----
-
-## Problema 2: Cálculo de Estatísticas Ineficiente no Cliente
-
-### Descrição
-O hook `useChannels` busca **até 1000 posts** apenas para contar membros e posts por canal:
-
-**useChannels.ts (linha 48-61):**
-```typescript
-const { data: allPosts } = await supabase
-  .from("channel_posts")
-  .select("id, channel_id, author_id, created_at")
-  .in("channel_id", channelIds)
-  .limit(1000);  // Baixa 1000 registros para contar no JS
-```
-
-### Impacto
-- Transferência desnecessária de dados (pode ser >100KB)
-- Processamento pesado no cliente para contagens
-
----
-
-## Problema 3: Animações Staggered Excessivas
-
-### Descrição
-Cada card tem animação individual com delay incremental:
-
-**Home.tsx (linha 177-178):**
-```typescript
-<motion.div
-  transition={{ delay: 0.1 + index * 0.05 }}
-```
-
-**Channels.tsx (linha 106):**
-```typescript
-transition={{ delay: index * 0.05 }}
-```
-
-### Impacto
-Com 10 itens: último card só aparece após 500ms+ de delays acumulados. Manipulação frequente do DOM (visível no session_replay).
-
----
-
-## Problema 4: Página Spaces.tsx Não Usa React Query
-
-### Descrição
-A página Spaces usa `useEffect` + `useState` ao invés de React Query:
-
-**Spaces.tsx (linha 33-58):**
-```typescript
-useEffect(() => {
-  fetchSpaces();
-}, []);
-// ...
-const fetchSpaces = async () => { ... setSpaces(data) }
-```
-
-### Impacto
-- Sem cache entre navegações
-- Recarrega dados toda vez que a página é acessada
-- Não se beneficia do staleTime de 5 minutos configurado
-
----
-
-## Problema 5: useSubscription Não Usa React Query
-
-### Descrição
-O hook `useSubscription` usa `useState` + `useEffect` manual:
-
-**useSubscription.ts (linha 19-127):**
-```typescript
-const [status, setStatus] = useState(...);
-const [hasChecked, setHasChecked] = useState(false);
-// ...
-useEffect(() => {
-  checkSubscription();
-}, [...]);
-```
-
-### Impacto
-- AppLayout carrega esse hook em TODA página
-- Sem cache = requisição repetida em cada navegação
-- Bloqueia renderização até `hasChecked = true`
-
----
-
-## Plano de Otimização
-
-### Fase 1: Migrar para React Query (Alto Impacto)
-
-#### 1.1 Refatorar `useSubscription`
-**Arquivo:** `src/hooks/useSubscription.ts`
-
-Substituir implementação manual por React Query:
-```typescript
-export function useSubscription() {
-  const { user } = useAuth();
+**SQL Migration:**
+```sql
+CREATE OR REPLACE FUNCTION public.notify_space_update_published()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  space_name TEXT;
+  space_slug TEXT;
+  notification_count INTEGER;
+BEGIN
+  -- Somente quando muda para publicado
+  IF NEW.is_published = true AND (TG_OP = 'INSERT' OR OLD.is_published IS DISTINCT FROM true) THEN
+    
+    -- Buscar nome e slug do espaço
+    SELECT name, slug INTO space_name, space_slug 
+    FROM public.spaces 
+    WHERE id = NEW.space_id;
+    
+    -- Criar notificação in-app para cada usuário inscrito (sem join complexo que pode falhar)
+    INSERT INTO public.notifications (user_id, title, message, type, space_id)
+    SELECT 
+      uss.user_id,
+      'Novo em ' || COALESCE(space_name, 'Espaço'),
+      NEW.title,
+      'update',
+      NEW.space_id
+    FROM public.user_space_subscriptions uss
+    WHERE uss.space_id = NEW.space_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles p 
+      WHERE p.id = uss.user_id 
+      AND p.notify_space_updates = true
+    );
+    
+    GET DIAGNOSTICS notification_count = ROW_COUNT;
+    RAISE NOTICE 'Notificações criadas: % para space_id: %', notification_count, NEW.space_id;
+    
+    -- Chamar edge function para push (em bloco separado para não falhar o trigger)
+    BEGIN
+      PERFORM net.http_post(
+        url := 'https://akkbfzfjappludgsrwsw.supabase.co/functions/v1/send-push-notification',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        ),
+        body := jsonb_build_object(
+          'title', 'Novo em ' || COALESCE(space_name, 'Espaço'),
+          'body', NEW.title,
+          'url', '/spaces/' || COALESCE(space_slug, 'home') || '/post/' || NEW.id,
+          'spaceId', NEW.space_id
+        )
+      );
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Erro ao chamar edge function: %', SQLERRM;
+    END;
+    
+  END IF;
   
-  const { data, isLoading } = useQuery({
-    queryKey: ["subscription", user?.id],
-    queryFn: async () => {
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('plan_type, status, expires_at')
-        .eq('user_id', user!.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return sub;
-    },
-    enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-  // Calcular status derivado...
-}
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Erro no trigger notify_space_update_published: %', SQLERRM;
+  RETURN NEW; -- Não falha a transação principal
+END;
+$function$
 ```
 
-#### 1.2 Refatorar página `Spaces.tsx`
-**Arquivo:** `src/pages/Spaces.tsx`
+### Fase 2: Corrigir Push Notifications (Chave VAPID)
 
-Substituir `useEffect` + `useState` por:
+#### 2.1 Substituir Implementação Manual por Biblioteca `web-push`
+
+A implementação manual de criptografia Web Push é complexa e propensa a erros. Vou substituir por uma abordagem que use `web-push` como biblioteca ou que converta a chave corretamente.
+
+**Nova Edge Function `send-push-notification`:**
+- Usar a biblioteca `web-push` via npm/esm
+- Ou converter a chave raw EC para formato JWK antes de assinar
+
 ```typescript
-const { data: spaces, isLoading } = useSpaces();
-const { data: subscriptions } = useUserSpaceSubscriptions();
+// Usar biblioteca web-push para Deno
+import webpush from "npm:web-push@3.6.7";
+
+// Configurar VAPID
+webpush.setVapidDetails(
+  'mailto:contato@subhumano.ia.br',
+  Deno.env.get('VAPID_PUBLIC_KEY')!,
+  Deno.env.get('VAPID_PRIVATE_KEY')!
+);
+
+// Enviar notificação
+await webpush.sendNotification(
+  { endpoint, keys: { p256dh, auth } },
+  JSON.stringify(payload)
+);
 ```
 
-Criar novo hook `useUserSpaceSubscriptions` em `useSpaces.ts`.
+### Fase 3: Adicionar Realtime para Atualização Imediata
 
-### Fase 2: Mover Cálculos para o Banco (Alto Impacto)
+#### 3.1 Configurar Realtime na Tabela de Notificações
 
-#### 2.1 Criar View para Estatísticas de Canais
-**Tipo:** Migration SQL
+Para que as notificações apareçam instantaneamente na página `/notifications` sem refresh:
 
 ```sql
-CREATE VIEW channel_stats AS
-SELECT 
-  channel_id,
-  COUNT(DISTINCT id) as posts_count,
-  COUNT(DISTINCT author_id) as members_count,
-  MAX(created_at) as last_activity
-FROM channel_posts
-WHERE is_moderated = false
-GROUP BY channel_id;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 ```
 
-#### 2.2 Otimizar `useChannels`
-**Arquivo:** `src/hooks/useChannels.ts`
+#### 3.2 Adicionar Subscription Realtime no Hook
 
-Usar JOIN com a view ao invés de buscar 1000 posts:
-```typescript
-const { data } = await supabase
-  .from("channels")
-  .select(`
-    *,
-    stats:channel_stats(posts_count, members_count, last_activity)
-  `)
-  .eq("is_active", true);
-```
+**Arquivo: `src/hooks/useNotifications.ts`**
 
-### Fase 3: Reduzir Cascatas (Médio Impacto)
-
-#### 3.1 Otimizar `useHighlights`
-**Arquivo:** `src/hooks/usePosts.ts`
-
-Combinar queries usando JOINs:
-```typescript
-const { data } = await supabase
-  .from("space_updates")
-  .select(`
-    id, title, thumbnail_url, published_at, space_id,
-    spaces!inner(name, slug),
-    likes:update_likes(count),
-    comments:update_comments(count)
-  `)
-  .in("space_id", spaceIds)
-  .eq("is_published", true);
-```
-
-**Nota:** Requer verificar se o Supabase suporta agregação inline; caso contrário, manter batch mas em paralelo.
-
-#### 3.2 Paralelizar Requisições na Home
-**Arquivo:** `src/pages/Home.tsx`
-
-As queries já são paralelas pelo React Query, mas podemos usar `useQueries` para agrupamento:
-```typescript
-const results = useQueries({
-  queries: [
-    { queryKey: ["highlights"], queryFn: ... },
-    { queryKey: ["discussions"], queryFn: ... },
-    { queryKey: ["subscribed-spaces"], queryFn: ... },
-  ]
-});
-```
-
-### Fase 4: Otimizar Animações (Médio Impacto)
-
-#### 4.1 Limitar Animações Staggered
-**Arquivos:** `Home.tsx`, `Channels.tsx`, `SpaceDetail.tsx`, `Spaces.tsx`
-
-Alterar de:
-```typescript
-transition={{ delay: index * 0.05 }}
-```
-
-Para (máximo de 3-5 itens animados):
-```typescript
-transition={{ delay: Math.min(index, 4) * 0.03 }}
-```
-
-Ou usar `AnimatePresence` com `mode="popLayout"` para animações mais suaves.
-
-#### 4.2 Usar `will-change` para Performance de GPU
-**Arquivo:** `src/index.css`
-
-Adicionar para elementos que animam frequentemente:
-```css
-.animate-card {
-  will-change: transform, opacity;
-}
-```
-
-### Fase 5: Prefetch e Preload (Baixo Impacto, Boa UX)
-
-#### 5.1 Prefetch em Hover
-**Arquivo:** `src/components/BottomNav.tsx`
+Adicionar listener de realtime para invalidar cache quando novas notificações chegarem:
 
 ```typescript
-const prefetchSpaces = () => {
-  queryClient.prefetchQuery({
-    queryKey: ["spaces"],
-    queryFn: fetchSpaces,
-  });
-};
-
-<NavLink onMouseEnter={prefetchSpaces} to="/spaces">
+useEffect(() => {
+  if (!user) return;
+  
+  const channel = supabase
+    .channel('notifications-realtime')
+    .on('postgres_changes', 
+      { event: 'INSERT', schema: 'public', table: 'notifications' },
+      () => {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+      }
+    )
+    .subscribe();
+  
+  return () => { supabase.removeChannel(channel); };
+}, [user, queryClient]);
 ```
 
 ---
 
 ## Resumo das Alterações
 
-| Arquivo | Tipo de Alteração |
-|---------|-------------------|
-| `src/hooks/useSubscription.ts` | Refatorar para React Query |
-| `src/pages/Spaces.tsx` | Refatorar para usar hooks existentes |
-| `src/hooks/useSpaces.ts` | Adicionar hook `useUserSpaceSubscriptions` |
-| `src/hooks/useChannels.ts` | Otimizar query com view/agregação |
-| `src/hooks/usePosts.ts` | Combinar queries em `useHighlights` |
-| `src/pages/Home.tsx` | Reduzir delays de animação |
-| `src/pages/Channels.tsx` | Reduzir delays de animação |
-| `src/pages/SpaceDetail.tsx` | Reduzir delays de animação |
-| Migration SQL | Criar view `channel_stats` |
+| Arquivo/Recurso | Alteração |
+|-----------------|-----------|
+| **Migration SQL** | Reescrever função `notify_space_update_published` com tratamento de erros |
+| **Migration SQL** | Habilitar realtime na tabela `notifications` |
+| `supabase/functions/send-push-notification/index.ts` | Substituir implementação manual de VAPID por biblioteca `web-push` |
+| `src/hooks/useNotifications.ts` | Adicionar subscription realtime para atualização instantânea |
 
-## Impacto Esperado
+## Ordem de Execução
 
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Tempo de carregamento inicial | ~2-3s | ~800ms-1.2s |
-| Requisições em cascata | 4-5 níveis | 1-2 níveis |
-| Dados transferidos (Channels) | ~100KB+ | ~10KB |
-| Re-fetch em navegação | Sempre | Apenas se stale |
-| Tempo para interatividade | ~2s | ~600ms |
+1. **Primeiro**: Corrigir a edge function (push notifications)
+2. **Segundo**: Atualizar o trigger do banco
+3. **Terceiro**: Habilitar realtime
+4. **Quarto**: Atualizar o hook com realtime
+5. **Testar**: Publicar uma atualização e verificar se notificações aparecem
+
+## Resultado Esperado
+
+Após implementação:
+- Notificações in-app serão criadas automaticamente quando conteúdo for publicado
+- Notificações push serão enviadas corretamente para celulares/desktop
+- A página `/notifications` atualizará em tempo real sem refresh
