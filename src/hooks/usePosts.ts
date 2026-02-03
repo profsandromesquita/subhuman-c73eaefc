@@ -183,6 +183,8 @@ export function useHighlights() {
         .slice(0, 5);
     },
     enabled: !!user,
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 2,
   });
 }
 
@@ -368,6 +370,67 @@ export function useRecentDiscussions() {
         .slice(0, 5);
     },
     enabled: !!user,
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+// Like/unlike a space update (article)
+export function useLikeSpaceUpdate() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ updateId, isLiked }: { updateId: string; isLiked: boolean }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      if (isLiked) {
+        await supabase
+          .from("update_likes")
+          .delete()
+          .eq("update_id", updateId)
+          .eq("user_id", user.id);
+      } else {
+        await supabase.from("update_likes").insert({ update_id: updateId, user_id: user.id });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["highlights"] });
+      queryClient.invalidateQueries({ queryKey: ["space-updates"] });
+    },
+  });
+}
+
+// Add comment to a space update
+export function useAddSpaceUpdateComment() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      updateId,
+      content,
+      parentId,
+    }: {
+      updateId: string;
+      content: string;
+      parentId?: string;
+    }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { error } = await supabase.from("update_comments").insert({
+        update_id: updateId,
+        user_id: user.id,
+        content,
+        parent_id: parentId || null,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["highlights"] });
+      queryClient.invalidateQueries({ queryKey: ["space-updates"] });
+    },
   });
 }
 

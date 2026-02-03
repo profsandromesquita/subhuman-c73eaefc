@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useDeleteChannelPost } from "@/hooks/usePosts";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -63,6 +64,7 @@ export default function ChannelPostDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdminOrModerator } = useAdminAuth();
+  const queryClient = useQueryClient();
   const deleteMutation = useDeleteChannelPost();
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   
@@ -278,6 +280,10 @@ export default function ChannelPostDetail() {
       setIsLiked(true);
       setLikesCount(prev => prev + 1);
     }
+    
+    // Invalidate cache to update Home cards
+    queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
+    queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
   };
 
   const handleLikeComment = async (commentId: string, currentlyLiked: boolean) => {
@@ -345,6 +351,9 @@ export default function ChannelPostDetail() {
       setCommentContent("");
       setReplyTo(null);
       fetchComments();
+      
+      // Invalidate cache to update Home cards
+      queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
     }
 
     setSubmittingComment(false);

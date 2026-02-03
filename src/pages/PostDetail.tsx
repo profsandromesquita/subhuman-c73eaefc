@@ -6,6 +6,7 @@ import { PostEngagement } from "@/components/post/PostEngagement";
 import { CommentSection } from "@/components/post/CommentSection";
 import { CommentInput } from "@/components/post/CommentInput";
 import { useAuth } from "@/hooks/useAuth";
+import { useLikeSpaceUpdate, useAddSpaceUpdateComment } from "@/hooks/usePosts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +55,10 @@ export default function PostDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const commentSectionRef = useRef<HTMLDivElement>(null);
+  
+  // Mutation hooks for cache invalidation
+  const likeMutation = useLikeSpaceUpdate();
+  const commentMutation = useAddSpaceUpdateComment();
   
   const [isLoading, setIsLoading] = useState(true);
   const [post, setPost] = useState<Post | null>(null);
@@ -264,26 +269,18 @@ export default function PostDetail() {
       return;
     }
 
+    const wasLiked = isLiked;
+    
     // Optimistic update
     setIsLiked(!isLiked);
     setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
 
     try {
-      if (isLiked) {
-        await supabase
-          .from("update_likes")
-          .delete()
-          .eq("update_id", postId)
-          .eq("user_id", user.id);
-      } else {
-        await supabase
-          .from("update_likes")
-          .insert({ update_id: postId, user_id: user.id });
-      }
+      await likeMutation.mutateAsync({ updateId: postId!, isLiked: wasLiked });
     } catch (error) {
       // Rollback on error
-      setIsLiked(isLiked);
-      setLikesCount(prev => isLiked ? prev + 1 : prev - 1);
+      setIsLiked(wasLiked);
+      setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
     }
   };
 
@@ -417,16 +414,11 @@ export default function PostDetail() {
     }
 
     try {
-      const { error } = await supabase
-        .from("update_comments")
-        .insert({
-          update_id: postId,
-          user_id: user.id,
-          content,
-          parent_id: parentId || null,
-        });
-
-      if (error) throw error;
+      await commentMutation.mutateAsync({
+        updateId: postId!,
+        content,
+        parentId,
+      });
 
       // Refresh comments
       await fetchComments();
