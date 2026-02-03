@@ -1,44 +1,105 @@
 
-# Plano: Criar Subscription Ativa Manualmente
+# Plano: Adicionar Link de Checkout do Plano Anual
 
-## Situação Atual
+## Problema Atual
 
-| Campo | Valor |
-|-------|-------|
-| Usuário | `dd98c4c8-b923-44f9-9921-a9e8cd7b50ca` |
-| Subscription Existente | Trial (expira 07/02/2026) |
-| Pagamento | Confirmado via Ticto (R$ 29,90) |
+O botao "Assinar agora" sempre redireciona para o link do plano mensal, independentemente de qual plano esta selecionado.
 
-## Ação a Executar
+## Alteracao Proposta
 
-Inserir nova subscription com os seguintes dados:
+Modificar a logica de `handleSubscribe` para redirecionar para o checkout correto baseado no plano selecionado:
 
-| Campo | Valor |
-|-------|-------|
-| user_id | `dd98c4c8-b923-44f9-9921-a9e8cd7b50ca` |
-| plan_type | `monthly` |
-| status | `active` |
-| provider | `ticto` |
-| starts_at | Agora |
-| expires_at | 1 mês a partir de hoje |
+| Plano | Link de Checkout |
+|-------|------------------|
+| Mensal | `https://checkout.ticto.app/O1F2F1BB4` |
+| Anual | `https://payment.ticto.app/O40A9D8E6` |
 
-## SQL a Executar
+## Arquivo a Modificar
 
-```sql
-INSERT INTO subscriptions (user_id, plan_type, status, provider, starts_at, expires_at)
-VALUES (
-  'dd98c4c8-b923-44f9-9921-a9e8cd7b50ca',
-  'monthly',
-  'active',
-  'ticto',
-  NOW(),
-  NOW() + INTERVAL '1 month'
-);
+`src/pages/Plans.tsx`
+
+## Mudancas Tecnicas
+
+### 1. Adicionar URLs de checkout aos planos
+
+Atualizar o array `plans` para incluir a URL de checkout de cada plano:
+
+```typescript
+const plans = [
+  {
+    id: "monthly",
+    name: "Mensal",
+    price: "R$ 29,90",
+    period: "/mes",
+    description: "Ideal para experimentar",
+    checkoutUrl: "https://checkout.ticto.app/O1F2F1BB4", // URL mensal
+    features: [...],
+  },
+  {
+    id: "yearly",
+    name: "Anual",
+    price: "R$ 239,90",
+    period: "/ano",
+    description: "Economize 33%",
+    badge: "Mais popular",
+    checkoutUrl: "https://payment.ticto.app/O40A9D8E6", // URL anual
+    features: [...],
+  },
+];
+```
+
+### 2. Atualizar funcao handleSubscribe
+
+Modificar para usar a URL do plano selecionado:
+
+```typescript
+const handleSubscribe = () => {
+  // Encontrar o plano selecionado
+  const plan = plans.find(p => p.id === selectedPlan);
+  if (!plan) return;
+
+  // Usar a URL de checkout do plano selecionado
+  const checkoutUrl = new URL(plan.checkoutUrl);
+
+  // Passar dados do usuario para identificacao
+  if (user?.email) {
+    checkoutUrl.searchParams.set('email', user.email);
+  }
+  if (user?.id) {
+    checkoutUrl.searchParams.set('src', user.id);
+  }
+
+  // URL de retorno apos pagamento
+  checkoutUrl.searchParams.set('redirect_url', 
+    `${window.location.origin}/payment-success`);
+
+  // Redirecionar para checkout
+  window.location.href = checkoutUrl.toString();
+};
+```
+
+## Fluxo Resultante
+
+```text
+Usuario seleciona plano
+         |
+         v
+   +-----------+
+   | selectedPlan |
+   +-----------+
+         |
+    _____|_____
+   |           |
+   v           v
+monthly     yearly
+   |           |
+   v           v
+O1F2F1BB4   O40A9D8E6
+(checkout)  (payment)
 ```
 
 ## Resultado Esperado
 
-1. Nova subscription `monthly` será criada com status `active`
-2. O `useSubscription` hook retornará `status: 'active'` (prioriza subscription paga sobre trial)
-3. A interface mostrará **"Plano: Mensal"** em vez de "Período de Teste"
-4. O `TrialBanner` não será mais exibido
+1. Ao selecionar "Mensal" e clicar "Assinar agora" -> Redireciona para `checkout.ticto.app/O1F2F1BB4`
+2. Ao selecionar "Anual" e clicar "Assinar agora" -> Redireciona para `payment.ticto.app/O40A9D8E6`
+3. Ambos os links passam `email`, `src` (user_id) e `redirect_url` como parametros
