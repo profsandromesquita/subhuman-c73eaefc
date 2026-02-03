@@ -17,6 +17,10 @@ import { ptBR } from "date-fns/locale";
 import { useSpace } from "@/hooks/useSpaces";
 import { useSpaceUpdates } from "@/hooks/usePosts";
 
+// Max animation delay (prevents long waits for lists)
+const MAX_STAGGER_ITEMS = 4;
+const STAGGER_DELAY = 0.03;
+
 const SPACE_TAGLINES: Record<string, string> = {
   'produtividade': 'Produtividade não é trabalhar mais, é renderizar o resultado mais rápido.',
   'marketing': 'Marketing sem dados é arte; com IA, é ciência de conversão.',
@@ -135,7 +139,7 @@ export default function SpaceDetail() {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.05 }}
             className="text-sm text-muted-foreground italic mb-6 leading-relaxed"
           >
             "{SPACE_TAGLINES[spaceId]}"
@@ -154,7 +158,7 @@ export default function SpaceDetail() {
                 key={update.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
               >
                 <Card 
                   className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer active:scale-[0.98]"

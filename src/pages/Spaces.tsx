@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
@@ -6,135 +5,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Check, Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useSpaces, useUserSpaceSubscriptions, useToggleSpaceSubscription } from "@/hooks/useSpaces";
 import { toast } from "sonner";
-
-interface Space {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-  is_active: boolean;
-}
 
 export default function Spaces() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [subscriptions, setSubscriptions] = useState<Record<string, boolean>>({});
-  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const { data: spaces = [], isLoading: loadingSpaces } = useSpaces();
+  const { data: subscriptions = {} } = useUserSpaceSubscriptions();
+  const toggleMutation = useToggleSpaceSubscription();
 
-  useEffect(() => {
-    fetchSpaces();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchUserSubscriptions();
-    }
-  }, [user]);
-
-  const fetchSpaces = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('spaces')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-      setSpaces(data || []);
-    } catch (error) {
-      console.error('Error fetching spaces:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUserSubscriptions = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_space_subscriptions')
-        .select('space_id')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      const subsMap: Record<string, boolean> = {};
-      data?.forEach(sub => {
-        subsMap[sub.space_id] = true;
-      });
-      setSubscriptions(subsMap);
-    } catch (error) {
-      console.error('Error fetching subscriptions:', error);
-    }
-  };
-
-  const toggleSubscription = async (spaceId: string) => {
+  const handleToggleSubscription = (spaceId: string) => {
     if (!user) {
       toast.error("Faça login para se inscrever nos espaços");
       return;
     }
 
-    // Prevent multiple clicks
-    if (processingIds.has(spaceId)) return;
-    setProcessingIds(prev => new Set(prev).add(spaceId));
-
-    const isCurrentlySubscribed = subscriptions[spaceId] || false;
-
-    // Optimistic update
-    setSubscriptions(prev => ({ ...prev, [spaceId]: !isCurrentlySubscribed }));
-
-    try {
-      if (isCurrentlySubscribed) {
-        // Unsubscribe
-        const { error } = await supabase
-          .from('user_space_subscriptions')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('space_id', spaceId);
-
-        if (error) throw error;
-        toast.success("Inscrição removida");
-      } else {
-        // Subscribe
-        const { error } = await supabase
-          .from('user_space_subscriptions')
-          .insert({
-            user_id: user.id,
-            space_id: spaceId
-          });
-
-        if (error) throw error;
-        toast.success("Inscrito com sucesso!");
-      }
-      
-      // Invalidar cache para sincronizar com Home
-      queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
-      queryClient.invalidateQueries({ queryKey: ["highlights"] });
-    } catch (error) {
-      console.error('Error toggling subscription:', error);
-      // Rollback on error
-      setSubscriptions(prev => ({ ...prev, [spaceId]: isCurrentlySubscribed }));
-      toast.error("Erro ao atualizar inscrição");
-    } finally {
-      setProcessingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(spaceId);
-        return newSet;
-      });
-    }
+    const isSubscribed = subscriptions[spaceId] || false;
+    toggleMutation.mutate({ spaceId, isSubscribed });
   };
 
-  if (loading) {
+  if (loadingSpaces) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 pt-8">
@@ -173,6 +66,7 @@ export default function Spaces() {
         <div className="space-y-3">
           {spaces.map((space, index) => {
             const isSubscribed = subscriptions[space.id] || false;
+            const isProcessing = toggleMutation.isPending && toggleMutation.variables?.spaceId === space.id;
             const IconComponent = getIconComponent(space.icon);
             
             return (
@@ -180,7 +74,7 @@ export default function Spaces() {
                 key={space.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: Math.min(index, 4) * 0.03 }}
               >
                 <Card className={`transition-all duration-200 ${isSubscribed ? 'border-muted-foreground/30' : ''}`}>
                   <CardContent className="p-4">
@@ -196,7 +90,8 @@ export default function Spaces() {
                             <Button
                               size="icon"
                               variant="outline"
-                              onClick={() => toggleSubscription(space.id)}
+                              onClick={() => handleToggleSubscription(space.id)}
+                              disabled={isProcessing}
                               className="h-8 w-8 bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 hover:text-green-700"
                             >
                               <Check className="w-4 h-4" weight="bold" />
@@ -204,7 +99,8 @@ export default function Spaces() {
                           ) : (
                             <Button
                               size="icon"
-                              onClick={() => toggleSubscription(space.id)}
+                              onClick={() => handleToggleSubscription(space.id)}
+                              disabled={isProcessing}
                               className="h-8 w-8"
                             >
                               <Plus className="w-4 h-4" weight="bold" />

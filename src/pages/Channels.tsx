@@ -29,6 +29,10 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Handshake: Handshake,
 };
 
+// Max animation delay (prevents long waits for lists)
+const MAX_STAGGER_ITEMS = 4;
+const STAGGER_DELAY = 0.03;
+
 export default function Channels() {
   const { data: channels = [], isLoading: loading } = useChannels();
 
@@ -103,7 +107,7 @@ export default function Channels() {
                   key={channel.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                 >
                   <Link to={`/channels/${channel.id}`}>
                     <Card className={`hover:border-muted-foreground/30 transition-all duration-200 ${!channel.has_access ? 'opacity-75' : ''}`}>
