@@ -1,88 +1,62 @@
 
-# Plano: Corrigir Edge Function do Ticto Webhook
+# Plano: Adicionar Status "authorized" ao Webhook Ticto
 
 ## Problema Identificado
 
-Os logs mostram que a estrutura do payload da Ticto é diferente do que foi implementado:
+O webhook da Ticto recebeu o pagamento corretamente, porém o status enviado foi **`authorized`** (autorização de cartão de crédito), que não estava mapeado no código.
 
-| Campo | Esperado | Recebido (Ticto real) |
-|-------|----------|----------------------|
-| Email | `email` ou `buyer.email` | `customer.email` |
-| Evento | `event_type` | `status` |
-| ID Transação | `transaction_id` | `order.hash` |
+| O que aconteceu | Evidência |
+|-----------------|-----------|
+| Pagamento processado | Log: `Received Ticto webhook` com `paid_amount: 2990` |
+| Usuário identificado | Log: `Found user: dd98c4c8-b923-44f9-9921-a9e8cd7b50ca` |
+| Status não processado | Log: `Unhandled status type: authorized - acknowledging webhook` |
+| Subscription não criada | Banco: Apenas existe subscription `trial` |
 
-## Estrutura Real do Payload Ticto
+## Mapeamento de Status da Ticto
 
-```json
-{
-  "status": "waiting_payment",
-  "customer": {
-    "email": "cliente@email.com",
-    "name": "Nome Cliente"
-  },
-  "order": {
-    "hash": "TOB12609GU88Q5",
-    "paid_amount": 50000
-  },
-  "item": {
-    "offer_id": 16,
-    "days_of_access": null
-  }
-}
-```
+A Ticto envia diferentes status dependendo do método de pagamento:
 
-## Eventos da Ticto a Processar
+| Status | Significado | Ação Necessária |
+|--------|-------------|-----------------|
+| `authorized` | Cartão aprovado (novo!) | Criar subscription ativa |
+| `approved` | Pagamento confirmado | Criar subscription ativa |
+| `paid` | Pagamento confirmado | Criar subscription ativa |
+| `waiting_payment` | Boleto aguardando | Ignorar |
+| `refused` | Cartão recusado | Ignorar |
+| `canceled` / `cancelled` | Assinatura cancelada | Marcar como canceled |
+| `expired` | Expirado | Marcar como canceled |
+| `refunded` | Reembolsado | Marcar como refunded |
 
-| Status | Ação |
-|--------|------|
-| `approved` | Criar subscription ativa |
-| `waiting_payment` | Ignorar (boleto aguardando) |
-| `refunded` | Marcar subscription como refunded |
-| `canceled` / `cancelled` | Marcar subscription como canceled |
-| `expired` | Marcar subscription como expired |
+## Correção Técnica
 
-## Arquivos a Modificar
+### Arquivo: `supabase/functions/ticto-webhook/index.ts`
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/ticto-webhook/index.ts` | Corrigir extração de dados do payload |
+Adicionar `authorized` à lista de status que ativam a subscription:
 
-## Correções Técnicas
-
-### 1. Extrair email corretamente
 ```typescript
-// Antes (incorreto)
-const customerEmail = payload.email || payload.buyer?.email;
+// Antes
+const isApproved = status === 'approved' || status === 'paid'
 
-// Depois (correto)
-const customerEmail = payload.customer?.email;
+// Depois  
+const isApproved = status === 'approved' || status === 'paid' || status === 'authorized'
 ```
-
-### 2. Identificar evento corretamente
-```typescript
-// Antes (incorreto)
-const eventType = payload.event_type || payload.event;
-
-// Depois (correto)
-const status = payload.status;
-```
-
-### 3. Extrair ID da transação
-```typescript
-// Antes (incorreto)
-const transactionId = payload.transaction_id || payload.order_id;
-
-// Depois (correto)
-const transactionId = payload.order?.hash;
-```
-
-### 4. Retornar sucesso para eventos não processados
-Em vez de retornar erro para eventos como `waiting_payment`, retornar sucesso com mensagem indicando que o evento foi ignorado.
 
 ## Resultado Esperado
 
 Após a correção:
-- Webhook retorna "success" para todos os eventos válidos
-- Eventos de pagamento aprovado criam/atualizam subscription
-- Eventos ignorados (waiting_payment) retornam OK sem processar
-- Ticto salva o webhook sem mostrar "failed"
+1. Webhook processará status `authorized` como pagamento aprovado
+2. Subscription será criada/atualizada com `status: 'active'` e `plan_type: 'monthly'`
+3. O trial existente será mantido (o código já verifica se existe subscription ativa antes de criar nova)
+4. Interface mostrará "Plano: Mensal" em vez de "Período de Teste"
+
+## Ação Manual Temporária
+
+Como o webhook já foi recebido e não processou, você pode:
+1. Aguardar eu fazer a correção e depois simular um novo evento na Ticto
+2. **OU** eu posso criar a subscription manualmente no banco de dados agora
+
+## Próximos Passos
+
+1. Corrigir o código da Edge Function
+2. Reprocessar o pagamento (Ticto geralmente tem opção de reenviar webhook)
+3. **OU** inserir subscription manualmente para liberar acesso imediato
