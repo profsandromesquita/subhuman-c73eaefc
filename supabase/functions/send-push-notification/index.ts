@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import webpush from "npm:web-push@3.6.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,108 +23,35 @@ interface PushSubscription {
   auth: string;
 }
 
-// Função para criar JWT para Web Push (RFC 8292)
-async function createVapidJwt(endpoint: string, subject: string, publicKey: string, privateKey: string): Promise<string> {
-  const audience = new URL(endpoint).origin;
-  const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60; // 12 horas
-
-  const header = {
-    typ: 'JWT',
-    alg: 'ES256'
-  };
-
-  const payload = {
-    aud: audience,
-    exp: expiration,
-    sub: subject
-  };
-
-  const encoder = new TextEncoder();
-  
-  // Encode header and payload
-  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  
-  const unsignedToken = `${headerB64}.${payloadB64}`;
-
-  // Import private key
-  const privateKeyBuffer = Uint8Array.from(atob(privateKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    privateKeyBuffer,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-
-  // Sign the token
-  const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    cryptoKey,
-    encoder.encode(unsignedToken)
-  );
-
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-
-  return `${unsignedToken}.${signatureB64}`;
-}
-
-// Envia push para uma subscription específica
+// Envia push para uma subscription específica usando web-push
 async function sendPush(
   subscription: PushSubscription,
-  payload: { title: string; body?: string; url?: string; tag?: string },
-  vapidPublicKey: string,
-  vapidPrivateKey: string,
-  vapidSubject: string
-): Promise<{ success: boolean; endpoint: string; error?: string }> {
+  payload: { title: string; body?: string; url?: string; tag?: string }
+): Promise<{ success: boolean; endpoint: string; statusCode?: number; error?: string }> {
   try {
-    const payloadString = JSON.stringify(payload);
-    const encoder = new TextEncoder();
-    const payloadBytes = encoder.encode(payloadString);
-
-    // Criar JWT VAPID
-    const jwt = await createVapidJwt(
-      subscription.endpoint,
-      vapidSubject,
-      vapidPublicKey,
-      vapidPrivateKey
-    );
-
-    // Headers para Web Push
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'Authorization': `vapid t=${jwt}, k=${vapidPublicKey}`,
-      'TTL': '86400', // 24 horas
-      'Urgency': 'normal'
+    const pushSubscription = {
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.p256dh,
+        auth: subscription.auth
+      }
     };
 
-    // Para simplificar, enviamos sem criptografia completa
-    // Em produção, seria necessário implementar RFC 8291 (Message Encryption)
-    const response = await fetch(subscription.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `vapid t=${jwt}, k=${vapidPublicKey}`,
-        'TTL': '86400'
-      },
-      body: payloadString
-    });
+    await webpush.sendNotification(
+      pushSubscription,
+      JSON.stringify(payload)
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Push failed for ${subscription.endpoint}:`, response.status, errorText);
-      return { success: false, endpoint: subscription.endpoint, error: errorText };
-    }
-
+    console.log(`Push sent successfully to ${subscription.endpoint.substring(0, 50)}...`);
     return { success: true, endpoint: subscription.endpoint };
   } catch (error: any) {
-    console.error(`Push error for ${subscription.endpoint}:`, error);
-    return { success: false, endpoint: subscription.endpoint, error: error.message };
+    console.error(`Push error for ${subscription.endpoint.substring(0, 50)}...:`, error.statusCode, error.message);
+    return { 
+      success: false, 
+      endpoint: subscription.endpoint, 
+      statusCode: error.statusCode,
+      error: error.message 
+    };
   }
 }
 
@@ -147,7 +75,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const vapidSubject = 'mailto:contato@subhumano.ia.br';
+    // Configurar web-push com chaves VAPID
+    webpush.setVapidDetails(
+      'mailto:contato@subhumano.ia.br',
+      vapidPublicKey,
+      vapidPrivateKey
+    );
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -239,9 +172,7 @@ Deno.serve(async (req) => {
     };
 
     const results = await Promise.allSettled(
-      subscriptions.map(sub => 
-        sendPush(sub, pushPayload, vapidPublicKey, vapidPrivateKey, vapidSubject)
-      )
+      subscriptions.map(sub => sendPush(sub, pushPayload))
     );
 
     // Contar sucessos e falhas
@@ -250,7 +181,11 @@ Deno.serve(async (req) => {
 
     // Remover subscriptions que falharam com 404/410 (token expirado)
     const expiredEndpoints = results
-      .filter(r => r.status === 'fulfilled' && !r.value.success && r.value.error?.includes('410'))
+      .filter(r => {
+        if (r.status !== 'fulfilled') return false;
+        const result = r.value;
+        return !result.success && (result.statusCode === 404 || result.statusCode === 410);
+      })
       .map(r => (r as PromiseFulfilledResult<any>).value.endpoint);
 
     if (expiredEndpoints.length > 0) {
@@ -261,7 +196,7 @@ Deno.serve(async (req) => {
         .in('endpoint', expiredEndpoints);
     }
 
-    console.log(`Push results: ${successful} sent, ${failed} failed`);
+    console.log(`Push results: ${successful} sent, ${failed} failed, ${expiredEndpoints.length} expired`);
 
     return new Response(
       JSON.stringify({ 
