@@ -81,8 +81,8 @@ export default function Home() {
       .replace(" mês", "m");
   };
 
-  const handleHighlightClick = (highlight: { space_slug?: string; id: string }) => {
-    navigate(`/spaces/${highlight.space_slug}/post/${highlight.id}`);
+  const handleHighlightClick = (highlight: { space_slug?: string; slug?: string; id: string }) => {
+    navigate(`/spaces/${highlight.space_slug}/post/${highlight.slug || highlight.id}`);
   };
 
   return (

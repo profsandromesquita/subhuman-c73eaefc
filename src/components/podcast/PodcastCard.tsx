@@ -19,7 +19,7 @@ export function PodcastCard({ podcast }: PodcastCardProps) {
 
   return (
     <Link
-      to={`/podcasts/${podcast.id}`}
+      to={`/podcasts/${podcast.slug}`}
       className="flex gap-4 p-4 bg-card rounded-xl hover:bg-elevated transition-colors"
     >
       {/* Cover Image */}

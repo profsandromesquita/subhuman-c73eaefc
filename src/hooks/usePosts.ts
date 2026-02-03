@@ -5,6 +5,7 @@ import { useAuth } from "./useAuth";
 interface SpaceUpdate {
   id: string;
   title: string;
+  slug?: string;
   content: string | null;
   thumbnail_url: string | null;
   media_type: string | null;
@@ -45,7 +46,7 @@ export function useSpaceUpdates(spaceId: string | undefined) {
       // Fetch updates
       const { data: updates, error } = await supabase
         .from("space_updates")
-        .select("id, title, content, thumbnail_url, media_type, published_at, created_at, space_id")
+        .select("id, title, slug, content, thumbnail_url, media_type, published_at, created_at, space_id")
         .eq("space_id", spaceId)
         .eq("is_published", true)
         .order("published_at", { ascending: false });
@@ -121,7 +122,7 @@ export function useHighlights() {
       const { data: updates, error } = await supabase
         .from("space_updates")
         .select(`
-          id, title, content, thumbnail_url, media_type, published_at, space_id,
+          id, title, slug, content, thumbnail_url, media_type, published_at, space_id,
           spaces!inner(name, slug)
         `)
         .in("space_id", spaceIds)
@@ -155,6 +156,7 @@ export function useHighlights() {
       const highlightsData = updates.map((update) => ({
         id: update.id,
         title: update.title,
+        slug: (update as any).slug || "",
         content: update.content,
         thumbnail_url: update.thumbnail_url,
         media_type: update.media_type,

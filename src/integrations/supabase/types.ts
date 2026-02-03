@@ -488,6 +488,7 @@ export type Database = {
           id: string
           is_published: boolean | null
           published_at: string | null
+          slug: string
           space_id: string | null
           tags: string[] | null
           title: string
@@ -503,6 +504,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           published_at?: string | null
+          slug: string
           space_id?: string | null
           tags?: string[] | null
           title: string
@@ -518,6 +520,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           published_at?: string | null
+          slug?: string
           space_id?: string | null
           tags?: string[] | null
           title?: string
@@ -762,6 +765,7 @@ export type Database = {
           media_type: string | null
           published_at: string | null
           scheduled_at: string | null
+          slug: string
           space_id: string
           thumbnail_url: string | null
           title: string
@@ -776,6 +780,7 @@ export type Database = {
           media_type?: string | null
           published_at?: string | null
           scheduled_at?: string | null
+          slug: string
           space_id: string
           thumbnail_url?: string | null
           title: string
@@ -790,6 +795,7 @@ export type Database = {
           media_type?: string | null
           published_at?: string | null
           scheduled_at?: string | null
+          slug?: string
           space_id?: string
           thumbnail_url?: string | null
           title?: string
@@ -1029,6 +1035,7 @@ export type Database = {
         Args: { _channel_id: string; _user_id: string }
         Returns: boolean
       }
+      generate_slug: { Args: { title: string }; Returns: string }
       has_any_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {

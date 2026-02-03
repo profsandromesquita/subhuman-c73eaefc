@@ -6,7 +6,7 @@ import { PodcastHeader } from "@/components/podcast/PodcastHeader";
 import { PostEngagement } from "@/components/post/PostEngagement";
 import { CommentSection } from "@/components/post/CommentSection";
 import { CommentInput } from "@/components/post/CommentInput";
-import { usePodcast, useLikePodcast, useSavePodcast, useAddPodcastComment, useLikePodcastComment } from "@/hooks/usePodcasts";
+import { usePodcastBySlug, useLikePodcast, useSavePodcast, useAddPodcastComment, useLikePodcastComment } from "@/hooks/usePodcasts";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,12 +26,12 @@ interface Comment {
 }
 
 export default function PodcastDetail() {
-  const { podcastId } = useParams<{ podcastId: string }>();
+  const { podcastSlug } = useParams<{ podcastSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const commentSectionRef = useRef<HTMLDivElement>(null);
   
-  const { data: podcast, isLoading } = usePodcast(podcastId || "");
+  const { data: podcast, isLoading } = usePodcastBySlug(podcastSlug);
   const likeMutation = useLikePodcast();
   const saveMutation = useSavePodcast();
   const commentMutation = useAddPodcastComment();
@@ -44,20 +44,20 @@ export default function PodcastDetail() {
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
 
   useEffect(() => {
-    if (podcastId) {
+    if (podcast?.id) {
       fetchEngagementData();
       fetchComments();
     }
-  }, [podcastId, user]);
+  }, [podcast?.id, user]);
 
   const fetchEngagementData = async () => {
-    if (!podcastId) return;
+    if (!podcast?.id) return;
 
     // Fetch likes count
     const { count } = await supabase
       .from("podcast_likes")
       .select("id", { count: "exact", head: true })
-      .eq("podcast_id", podcastId);
+      .eq("podcast_id", podcast.id);
     
     setLikesCount(count || 0);
 
@@ -67,13 +67,13 @@ export default function PodcastDetail() {
         supabase
           .from("podcast_likes")
           .select("id")
-          .eq("podcast_id", podcastId)
+          .eq("podcast_id", podcast.id)
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase
           .from("saved_podcasts")
           .select("id")
-          .eq("podcast_id", podcastId)
+          .eq("podcast_id", podcast.id)
           .eq("user_id", user.id)
           .maybeSingle(),
       ]);
@@ -84,7 +84,7 @@ export default function PodcastDetail() {
   };
 
   const fetchComments = async () => {
-    if (!podcastId) return;
+    if (!podcast?.id) return;
 
     const { data: commentsData, error } = await supabase
       .from("podcast_comments")
@@ -95,7 +95,7 @@ export default function PodcastDetail() {
         parent_id,
         created_at
       `)
-      .eq("podcast_id", podcastId)
+      .eq("podcast_id", podcast.id)
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -173,7 +173,7 @@ export default function PodcastDetail() {
     setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
 
     try {
-      await likeMutation.mutateAsync({ podcastId: podcastId!, isLiked: wasLiked });
+      await likeMutation.mutateAsync({ podcastId: podcast!.id, isLiked: wasLiked });
     } catch (error) {
       setIsLiked(wasLiked);
       setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
@@ -194,7 +194,7 @@ export default function PodcastDetail() {
     setIsSaved(!isSaved);
 
     try {
-      await saveMutation.mutateAsync({ podcastId: podcastId!, isSaved: wasSaved });
+      await saveMutation.mutateAsync({ podcastId: podcast!.id, isSaved: wasSaved });
       toast({
         title: wasSaved ? "Removido dos salvos" : "Podcast salvo!",
         description: wasSaved ? undefined : "Você pode acessar seus podcasts salvos no perfil",
@@ -282,7 +282,7 @@ export default function PodcastDetail() {
 
     try {
       await commentMutation.mutateAsync({
-        podcastId: podcastId!,
+        podcastId: podcast!.id,
         content,
         parentId,
       });

@@ -15,6 +15,7 @@ import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, sub
 interface Highlight {
   id: string;
   title: string;
+  slug: string;
   content: string | null;
   thumbnail_url: string | null;
   media_type: string | null;
@@ -106,7 +107,7 @@ export default function Highlights() {
       const { data: updates, error: updatesError } = await supabase
         .from('space_updates')
         .select(`
-          id, title, content, thumbnail_url, media_type, 
+          id, title, slug, content, thumbnail_url, media_type, 
           published_at, created_at, space_id,
           spaces!inner(name, slug)
         `)
@@ -152,6 +153,7 @@ export default function Highlights() {
       const highlightsData: Highlight[] = updates.map(update => ({
         id: update.id,
         title: update.title,
+        slug: (update as any).slug || "",
         content: update.content,
         thumbnail_url: update.thumbnail_url,
         media_type: update.media_type,
@@ -194,7 +196,7 @@ export default function Highlights() {
   };
 
   const handleCardClick = (highlight: Highlight) => {
-    navigate(`/spaces/${highlight.space_slug}/post/${highlight.id}`);
+    navigate(`/spaces/${highlight.space_slug}/post/${highlight.slug || highlight.id}`);
   };
 
   if (authLoading) {

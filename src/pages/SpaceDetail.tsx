@@ -30,16 +30,16 @@ const SPACE_TAGLINES: Record<string, string> = {
 };
 
 export default function SpaceDetail() {
-  const { spaceId } = useParams<{ spaceId: string }>();
+  const { spaceSlug } = useParams<{ spaceSlug: string }>();
   const navigate = useNavigate();
   
-  const { data: space, isLoading: loadingSpace } = useSpace(spaceId);
+  const { data: space, isLoading: loadingSpace } = useSpace(spaceSlug);
   const { data: updates = [], isLoading: loadingUpdates } = useSpaceUpdates(space?.id);
 
   const loading = loadingSpace || loadingUpdates;
 
-  const handleCardClick = (updateId: string) => {
-    navigate(`/spaces/${spaceId}/post/${updateId}`);
+  const handleCardClick = (updateSlug: string) => {
+    navigate(`/spaces/${spaceSlug}/post/${updateSlug}`);
   };
 
   const formatTime = (dateString: string | null) => {
@@ -135,14 +135,14 @@ export default function SpaceDetail() {
         </motion.div>
 
         {/* Frase de impacto */}
-        {spaceId && SPACE_TAGLINES[spaceId] && (
+        {spaceSlug && SPACE_TAGLINES[spaceSlug] && (
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.05 }}
             className="text-sm text-muted-foreground italic mb-6 leading-relaxed"
           >
-            "{SPACE_TAGLINES[spaceId]}"
+            "{SPACE_TAGLINES[spaceSlug]}"
           </motion.p>
         )}
 
@@ -162,7 +162,7 @@ export default function SpaceDetail() {
               >
                 <Card 
                   className="hover:border-muted-foreground/30 transition-all duration-200 cursor-pointer active:scale-[0.98]"
-                  onClick={() => handleCardClick(update.id)}
+                  onClick={() => handleCardClick((update as any).slug || update.id)}
                 >
                   <CardContent className="p-4">
                     <div className="flex gap-3">
