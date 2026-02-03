@@ -1,126 +1,212 @@
 
-# Plano: Corrigir Redirecionamento de Usuários com Subscription Ativa
+# Plano: Sistema Completo de Notificacoes do Subhumano
 
-## Diagnóstico
+## Diagnostico do Problema
 
-O usuário `sandro.mesquita@itia.org.br` tem uma subscription mensal ativa no banco de dados (`plan_type: 'monthly'`, `status: 'active'`), mas está sendo redirecionado para `/plans` ao fazer login.
+### Situacao Atual
 
-### Problema Identificado
+| Componente | Status | Problema |
+|------------|--------|----------|
+| Edge Function `send-push-notification` | Existe | Nunca e chamada automaticamente |
+| Tabela `notifications` | Existe | Apenas 1 registro manual |
+| Triggers de banco | Nao existe | Nenhum trigger configurado |
+| Email de resumo diario | Nao existe | Nao ha edge function nem RESEND_API_KEY |
+| Push subscriptions | 4 dispositivos | Registros existem mas nunca recebem push automatico |
 
-Existe uma **condição de corrida (race condition)** no fluxo de redirecionamento da Landing Page. O problema ocorre porque:
+### Causa Raiz
 
-1. O hook `useSubscription` inicializa com `loading: true` e `status: 'none'`
-2. Quando `authLoading` termina, o `useSubscription` faz a query ao banco
-3. **MAS** durante esse período curto, há um momento em que:
-   - `authLoading = false`
-   - `subLoading = false` (estado inicial antes do setLoading(true) ser chamado)
-   - `status = 'none'` (estado inicial)
-4. O `useEffect` da Landing page pode disparar nesse momento e redirecionar para `/plans`
+Quando um administrador publica conteudo em `SpaceContent.tsx`, apenas o registro e salvo na tabela `space_updates`. Nao ha nenhum mecanismo que:
+
+1. Crie notificacoes in-app na tabela `notifications`
+2. Dispare push notifications para usuarios inscritos no espaco
+3. Acumule dados para o resumo diario por email
+
+## Arquitetura Proposta
 
 ```text
-Timeline do problema:
+                          PUBLICACAO DE CONTEUDO
+                                   |
+                                   v
+                     +-------------------------+
+                     |     space_updates       |
+                     |  (is_published = true)  |
+                     +-------------------------+
+                                   |
+                    trigger: after_space_update_published
+                                   |
+                    +--------------+--------------+
+                    |                             |
+                    v                             v
+    +---------------------------+   +---------------------------+
+    |   1. Notificacao In-App   |   |   2. Push Notification    |
+    |---------------------------|   |---------------------------|
+    | INSERT INTO notifications |   | Chama edge function       |
+    | para cada usuario         |   | send-push-notification    |
+    | inscrito no espaco        |   | com spaceId               |
+    +---------------------------+   +---------------------------+
 
-authLoading: [true]--->[false]--------------------------->
-subLoading:  [true]-------------------------------------->
-                            ^
-                            | Momento problemático:
-                            | authLoading=false, subLoading aparenta false
-                            | status='none' → Redireciona para /plans
+                          RESUMO DIARIO (18h)
+                                   |
+                                   v
+                     +-------------------------+
+                     |   Cron Job (pg_cron)    |
+                     |   18:00 UTC-3 diario    |
+                     +-------------------------+
+                                   |
+                                   v
+                     +-------------------------+
+                     | Edge Function:          |
+                     | send-daily-digest       |
+                     +-------------------------+
+                                   |
+                    +--------------+--------------+
+                    |                             |
+                    v                             v
+         +------------------+         +------------------+
+         | Email via Resend |         | Push Notification|
+         | (resumo do dia)  |         | (resumo do dia)  |
+         +------------------+         +------------------+
 ```
 
-## Solução Proposta
+## Mudancas Necessarias
 
-### 1. Ajustar o hook `useSubscription` para sincronizar melhor com auth
+### 1. Criar Trigger no Banco de Dados
 
-**Arquivo**: `src/hooks/useSubscription.ts`
+**Arquivo**: Nova migration SQL
 
-Garantir que `loading` permaneça `true` enquanto a verificação não for completada:
+Funcao e trigger que disparam quando um `space_update` e publicado:
 
-```typescript
-export function useSubscription(): SubscriptionStatus {
-  const { user, loading: authLoading } = useAuth();
-  const userId = user?.id;
-  const [status, setStatus] = useState<'active' | 'trial' | 'expired' | 'none'>('none');
-  const [planType, setPlanType] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
-  const [hasChecked, setHasChecked] = useState(false); // NOVO: Flag para indicar se já verificou
+```sql
+-- Funcao que cria notificacoes e chama push
+CREATE OR REPLACE FUNCTION notify_space_update_published()
+RETURNS TRIGGER AS $$
+DECLARE
+  space_name TEXT;
+  subscriber_record RECORD;
+BEGIN
+  -- Somente quando muda para publicado
+  IF NEW.is_published = true AND (OLD.is_published = false OR OLD.is_published IS NULL) THEN
+    
+    -- Buscar nome do espaco
+    SELECT name INTO space_name FROM spaces WHERE id = NEW.space_id;
+    
+    -- Criar notificacao in-app para cada usuario inscrito no espaco
+    INSERT INTO notifications (user_id, title, message, type, space_id)
+    SELECT 
+      uss.user_id,
+      'Novo em ' || COALESCE(space_name, 'Espaco'),
+      NEW.title,
+      'update',
+      NEW.space_id
+    FROM user_space_subscriptions uss
+    INNER JOIN profiles p ON p.id = uss.user_id AND p.notify_space_updates = true
+    WHERE uss.space_id = NEW.space_id;
+    
+    -- Chamar edge function para push via pg_net
+    PERFORM net.http_post(
+      url := 'https://akkbfzfjappludgsrwsw.supabase.co/functions/v1/send-push-notification',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || current_setting('supabase.service_role_key', true)
+      ),
+      body := jsonb_build_object(
+        'title', 'Novo em ' || COALESCE(space_name, 'Espaco'),
+        'body', NEW.title,
+        'url', '/spaces/' || (SELECT slug FROM spaces WHERE id = NEW.space_id) || '/post/' || NEW.id,
+        'spaceId', NEW.space_id
+      )
+    );
+    
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-  const checkSubscription = useCallback(async () => {
-    if (authLoading) {
-      return { status: 'none', planType: null };
-    }
-
-    if (!userId) {
-      setStatus('none');
-      setPlanType(null);
-      setExpiresAt(null);
-      setDaysRemaining(null);
-      setHasChecked(true); // Marcamos como verificado
-      return { status: 'none', planType: null };
-    }
-
-    try {
-      // ... query existente ...
-      
-      // Após processar resultado
-      setHasChecked(true); // Marcamos como verificado
-      return { status: resultStatus, planType: subscriptionPlanType };
-    } catch (error) {
-      setHasChecked(true); // Marcamos como verificado mesmo em erro
-      // ...
-    }
-  }, [userId, authLoading]);
-
-  // Loading é true enquanto auth carrega OU enquanto não verificou subscription
-  const effectiveLoading = authLoading || !hasChecked;
-
-  return { 
-    status, 
-    planType, 
-    expiresAt, 
-    daysRemaining, 
-    loading: effectiveLoading, // Usa effectiveLoading
-    refetch: checkSubscription 
-  };
-}
+-- Trigger
+CREATE TRIGGER on_space_update_published
+  AFTER INSERT OR UPDATE ON space_updates
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_space_update_published();
 ```
 
-### 2. Manter Landing page inalterada
+### 2. Habilitar Extensao pg_net
 
-A Landing page já verifica `subLoading` corretamente:
+**Arquivo**: Nova migration SQL
 
-```javascript
-if (authLoading || subLoading) return; // Não redireciona enquanto carrega
+```sql
+-- Habilitar extensao para chamadas HTTP do banco
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 ```
 
-Com a correção do hook, o `subLoading` permanecerá `true` até que a verificação seja de fato completada.
+### 3. Criar Edge Function para Resumo Diario
 
-### 3. Manter SubscriptionGuard inalterado
+**Arquivo**: `supabase/functions/send-daily-digest/index.ts`
 
-O SubscriptionGuard também usa `subLoading`, então a correção no hook resolve o problema em todos os lugares.
+Nova edge function que:
+- Busca todos os `space_updates` publicados nas ultimas 24h
+- Agrupa por espaco
+- Para cada usuario com espacos inscritos:
+  - Envia email com resumo (se notify_weekly_email = true)
+  - Envia push com resumo (se tem subscription ativa)
 
-## Resumo das Alterações
+### 4. Configurar RESEND_API_KEY
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useSubscription.ts` | Adicionar flag `hasChecked` para controlar loading corretamente |
+Sera necessario configurar a secret `RESEND_API_KEY` para envio de emails.
+
+### 5. Configurar Cron Job para 18h
+
+**Arquivo**: SQL a executar manualmente
+
+```sql
+SELECT cron.schedule(
+  'daily-digest-18h',
+  '0 21 * * *', -- 18:00 BRT = 21:00 UTC
+  $$
+  SELECT net.http_post(
+    url := 'https://akkbfzfjappludgsrwsw.supabase.co/functions/v1/send-daily-digest',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+### 6. Atualizar Preferencias de Notificacao
+
+**Arquivo**: `src/pages/profile/NotificationPreferences.tsx`
+
+Alterar label de "Resumo semanal" para "Resumo diario as 18h" e atualizar a coluna no banco de `notify_weekly_email` para `notify_daily_email`.
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/send-daily-digest/index.ts` | Criar |
+| `src/pages/profile/NotificationPreferences.tsx` | Modificar label |
+| Migration: habilitar pg_net | Criar |
+| Migration: criar trigger | Criar |
+| Migration: renomear coluna | Criar |
+
+## Pre-requisitos
+
+1. **Configurar RESEND_API_KEY** - Usuario precisa criar conta em resend.com e fornecer a chave
+2. **Habilitar pg_cron** - Necessario para agendamento do resumo diario
 
 ## Resultado Esperado
 
-```text
-Timeline corrigida:
+### Notificacao Imediata (ao publicar)
 
-authLoading: [true]--->[false]--------------------------->
-hasChecked:  [false]---------------------------------->[true]
-effectiveLoading: [true]------------------------------>[false]
-                                                         ^
-                                                         | Só redireciona agora
-                                                         | com status correto = 'active'
-```
+1. Admin publica conteudo no espaco "Produtividade"
+2. Trigger dispara automaticamente
+3. Usuarios inscritos em "Produtividade" recebem:
+   - Notificacao in-app (tabela `notifications`)
+   - Push notification no celular/desktop
 
-1. Usuário faz login (email/senha ou Google OAuth)
-2. Retorna para Landing page
-3. `loading` permanece `true` até subscription ser verificada
-4. Subscription retorna `status: 'active'` 
-5. Redireciona para `/home` corretamente
+### Resumo Diario (18h)
+
+1. Cron job executa as 18h
+2. Edge function busca atualizacoes das ultimas 24h
+3. Para cada usuario com espacos inscritos:
+   - Se `notify_daily_email = true`: envia email
+   - Se tem push subscription: envia push consolidado
