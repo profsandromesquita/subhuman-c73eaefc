@@ -94,7 +94,7 @@ export default function Home() {
       {/* Push banner só aparece se não estiver em onboarding */}
       {!showOnboarding && <PushPermissionBanner />}
       
-      <div className="p-4 space-y-6 pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
         {/* Header with Logo */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

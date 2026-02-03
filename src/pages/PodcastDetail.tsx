@@ -16,7 +16,7 @@ export default function PodcastDetail() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="space-y-6 animate-pulse">
+        <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6 animate-pulse">
           <div className="h-8 w-24 bg-secondary rounded" />
           <div className="aspect-video w-full rounded-2xl bg-secondary" />
           <div className="h-8 w-3/4 bg-secondary rounded mx-auto" />
@@ -30,7 +30,7 @@ export default function PodcastDetail() {
   if (!podcast) {
     return (
       <AppLayout>
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="max-w-lg mx-auto px-4 pt-8 pb-24 flex flex-col items-center justify-center py-16 text-center">
           <h3 className="font-medium text-foreground">Podcast não encontrado</h3>
           <Button
             variant="ghost"
@@ -54,7 +54,7 @@ export default function PodcastDetail() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
         {/* Back Button */}
         <Button
           variant="ghost"
