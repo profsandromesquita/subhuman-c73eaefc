@@ -38,6 +38,7 @@ const Security = lazy(() => import("./pages/profile/Security"));
 const NotificationPreferences = lazy(() => import("./pages/profile/NotificationPreferences"));
 const Settings = lazy(() => import("./pages/profile/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/plans" element={<Plans />} />
               <Route path="/setup-admin" element={<SetupAdmin />} />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
 
               {/* Protected Routes - Require active subscription */}
               <Route path="/home" element={<SubscriptionGuard><Home /></SubscriptionGuard>} />

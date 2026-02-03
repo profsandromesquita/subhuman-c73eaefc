@@ -65,12 +65,23 @@ export default function Plans() {
     }
   };
 
-  const handleSubscribe = async () => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast.success("Assinatura realizada com sucesso!");
-    navigate("/home", { replace: true });
-    setIsLoading(false);
+  const handleSubscribe = () => {
+    // Build Ticto checkout URL with user identification
+    const checkoutUrl = new URL('https://checkout.ticto.app/O1F2F1BB4');
+    
+    // Pass user data to identify them after payment
+    if (user?.email) {
+      checkoutUrl.searchParams.set('email', user.email);
+    }
+    if (user?.id) {
+      checkoutUrl.searchParams.set('src', user.id);
+    }
+    
+    // Set return URL for after payment
+    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    
+    // Redirect to Ticto checkout
+    window.location.href = checkoutUrl.toString();
   };
 
   const handleStartTrial = async () => {
