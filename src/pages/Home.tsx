@@ -6,7 +6,8 @@ import { ptBR } from "date-fns/locale";
 import { 
   ArrowRight, 
   Heart, 
-  ChatCircle
+  ChatCircle,
+  Bell
 } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
 import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
 import { getIconComponent } from "@/components/admin/IconPicker";
+import { useUnreadNotificationsCount } from "@/hooks/useNotifications";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -28,6 +30,7 @@ export default function Home() {
   const { data: highlights = [], isLoading: loadingHighlights } = useHighlights();
   const { data: discussions = [], isLoading: loadingDiscussions } = useRecentDiscussions();
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -96,9 +99,22 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center"
+          className="flex items-center justify-between"
         >
           <Logo size="sm" />
+          
+          <button 
+            onClick={() => navigate("/notifications")}
+            className="relative p-2 rounded-lg hover:bg-accent transition-colors"
+            aria-label="Notificações"
+          >
+            <Bell className="w-5 h-5" weight={unreadCount > 0 ? "fill" : "regular"} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-foreground text-background rounded-full px-1">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
         </motion.div>
 
         {/* Daily Highlights */}
