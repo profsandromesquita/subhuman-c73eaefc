@@ -108,7 +108,7 @@ export function PodcastPlayer({ audioUrl, title, coverUrl }: PodcastPlayerProps)
 
       {/* Cover Image */}
       {coverUrl && (
-        <div className="aspect-square w-full max-w-sm mx-auto rounded-2xl overflow-hidden bg-secondary">
+        <div className="aspect-video w-full rounded-2xl overflow-hidden bg-secondary">
           <img
             src={coverUrl}
             alt={title}

@@ -18,7 +18,7 @@ export default function PodcastDetail() {
       <AppLayout>
         <div className="space-y-6 animate-pulse">
           <div className="h-8 w-24 bg-secondary rounded" />
-          <div className="aspect-square w-full max-w-sm mx-auto rounded-2xl bg-secondary" />
+          <div className="aspect-video w-full rounded-2xl bg-secondary" />
           <div className="h-8 w-3/4 bg-secondary rounded mx-auto" />
           <div className="h-4 w-1/2 bg-secondary rounded mx-auto" />
           <div className="h-12 w-full bg-secondary rounded" />
