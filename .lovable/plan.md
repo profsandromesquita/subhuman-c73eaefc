@@ -1,326 +1,350 @@
 
-# Plano de Correção: Formatação, Preview de Imagem e Inserção de Imagens no Texto
 
-## Problemas Identificados
+# Plano: Nome do Autor Real com Modal de Perfil
 
-### Problema 1: Artigo Publicado Sem Formatação
-A imagem 1 mostra que as tags HTML (`<p>`, `<em>`, `<strong>`, `<h3>`) aparecem como texto bruto ao invés de serem renderizadas.
+## Problema Identificado
 
-**Causa Raiz:** O componente `PostContent.tsx` renderiza o conteúdo como texto simples:
-```tsx
-// Linha 100-102 - ERRADO
-<div className="text-foreground/90 leading-relaxed space-y-4 whitespace-pre-wrap">
-  {content}  // ← Renderiza HTML como texto puro
-</div>
-```
+Analisando a imagem e o código, identifiquei que:
 
-**Solução:** Usar `dangerouslySetInnerHTML` com `DOMPurify` (igual ao `ChannelPostDetail.tsx`):
-```tsx
-// CORRETO
-<div 
-  className="prose prose-sm dark:prose-invert max-w-none"
-  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
-/>
-```
+1. **Nome do autor fixo "Admin"**: Na linha 545 de `PostDetail.tsx`, o `authorName` esta hardcoded como `"Admin"`:
+   ```tsx
+   authorName="Admin"
+   ```
 
----
+2. **Dados do autor nao sao buscados**: A query de fetch do post (linhas 75-87) nao inclui o `author_id` nem busca os dados do perfil do autor.
 
-### Problema 2: Imagem Preview Não Aparece no Card
-A imagem 2 mostra que o card de preview não exibe a miniatura do artigo.
-
-**Causa Raiz:** O sistema salva mídia na tabela `space_update_media`, mas:
-1. Ao salvar, não atualiza o campo `thumbnail_url` da tabela `space_updates`
-2. O card em `SpaceDetail.tsx` só verifica `update.thumbnail_url`
-
-**Solução:** Ao salvar um conteúdo com mídia de imagem, definir automaticamente a primeira imagem como `thumbnail_url`:
-```tsx
-// Em handleSave do SpaceContent.tsx
-const firstImage = media.find(m => m.type === 'image');
-const updateData = {
-  ...
-  thumbnail_url: firstImage?.url || null,
-  media_type: firstImage ? 'image' : null,
-};
-```
-
----
-
-### Problema 3: Impossível Inserir Imagens no Meio do Texto
-A imagem 3 mostra que a toolbar do editor não possui botão para inserir imagens no corpo do texto.
-
-**Causa Raiz:** O `EditorToolbar.tsx` não implementa a funcionalidade de inserção de imagem inline. O componente `MediaUploader` apenas adiciona mídia separada, não dentro do editor Tiptap.
-
-**Solução:** Adicionar botão de imagem na toolbar que:
-1. Abre um modal para upload ou URL
-2. Insere a imagem diretamente no cursor do editor usando `editor.chain().focus().setImage({ src: url })`
+3. **Campos de redes sociais inexistentes**: A tabela `profiles` nao possui os campos `instagram_url` e `linkedin_url`.
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificação |
+| Arquivo | Modificacao |
 |---------|-------------|
-| `src/components/post/PostContent.tsx` | Renderizar HTML com DOMPurify + adicionar galeria de mídia |
-| `src/pages/PostDetail.tsx` | Buscar mídia da tabela `space_update_media` |
-| `src/pages/admin/SpaceContent.tsx` | Definir `thumbnail_url` automaticamente da primeira imagem |
-| `src/components/editor/EditorToolbar.tsx` | Adicionar botão de inserção de imagem inline |
+| Nova migracao SQL | Adicionar `instagram_url` e `linkedin_url` na tabela `profiles` |
+| `src/pages/profile/PersonalData.tsx` | Adicionar campos para Instagram e LinkedIn no formulario |
+| `src/pages/PostDetail.tsx` | Buscar dados do autor via `author_id` e passar para `PostContent` |
+| `src/components/post/PostContent.tsx` | Nome do autor clicavel que abre modal com informacoes |
+| Novo componente `AuthorModal.tsx` | Modal com foto, nome, bio, formacao e redes sociais |
 
 ---
 
-## Implementação Detalhada
+## Implementacao Detalhada
 
-### 1. Corrigir Renderização HTML no PostContent.tsx
+### 1. Migracao SQL - Adicionar Campos de Redes Sociais
 
-**Adicionar import:**
-```tsx
-import DOMPurify from "dompurify";
-import { MediaGallery } from "@/components/post/MediaGallery";
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS instagram_url text,
+ADD COLUMN IF NOT EXISTS linkedin_url text;
 ```
 
-**Nova prop para mídia:**
+### 2. Atualizar PersonalData.tsx
+
+**Adicionar campos no formulario:**
 ```tsx
-interface PostContentProps {
-  // ... props existentes
-  media?: Array<{
+// Nova secao de Redes Sociais
+<ProfileFormSection icon={<Share className="h-5 w-5" />} title="Redes sociais">
+  <div className="space-y-2">
+    <Label htmlFor="instagram_url">Instagram</Label>
+    <Input
+      id="instagram_url"
+      value={formData.instagram_url}
+      onChange={(e) => handleInputChange("instagram_url", e.target.value)}
+      placeholder="https://instagram.com/seu_usuario"
+    />
+  </div>
+  
+  <div className="space-y-2">
+    <Label htmlFor="linkedin_url">LinkedIn</Label>
+    <Input
+      id="linkedin_url"
+      value={formData.linkedin_url}
+      onChange={(e) => handleInputChange("linkedin_url", e.target.value)}
+      placeholder="https://linkedin.com/in/seu_usuario"
+    />
+  </div>
+</ProfileFormSection>
+```
+
+**Atualizar formData e handleSave para incluir os novos campos.**
+
+### 3. Atualizar PostDetail.tsx
+
+**Modificar interface Post:**
+```tsx
+interface Post {
+  // ... campos existentes
+  author_id: string | null;
+  author: {
     id: string;
-    file_url: string;
-    file_type: string;
-    file_name: string | null;
-    youtube_id: string | null;
-  }>;
+    full_name: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    education: string | null;
+    instagram_url: string | null;
+    linkedin_url: string | null;
+  } | null;
 }
 ```
 
-**Substituir renderização do conteúdo (linhas 97-104):**
+**Modificar query (linhas 73-90):**
 ```tsx
-{/* Content */}
-<div 
-  className="prose prose-sm dark:prose-invert max-w-none"
-  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '') }}
-/>
+const { data: postData, error: postError } = await supabase
+  .from("space_updates")
+  .select(`
+    id,
+    title,
+    content,
+    thumbnail_url,
+    media_type,
+    published_at,
+    created_at,
+    author_id,
+    spaces (
+      name,
+      slug
+    )
+  `)
+  .eq("id", postId)
+  .eq("is_published", true)
+  .maybeSingle();
 
-{/* Media Gallery */}
-{media && media.length > 0 && (
-  <div className="mt-8">
-    <MediaGallery media={media} />
-  </div>
-)}
+// Buscar perfil do autor separadamente
+let authorProfile = null;
+if (postData?.author_id) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url")
+    .eq("id", postData.author_id)
+    .maybeSingle();
+  authorProfile = profile;
+}
 ```
 
----
-
-### 2. Buscar Mídia no PostDetail.tsx
-
-**Adicionar estado e fetch:**
-```tsx
-const [media, setMedia] = useState<any[]>([]);
-
-// Dentro de fetchPostData(), após buscar o post:
-const { data: mediaData } = await supabase
-  .from("space_update_media")
-  .select("*")
-  .eq("update_id", postId)
-  .order("sort_order");
-
-setMedia(mediaData || []);
-```
-
-**Passar mídia para PostContent:**
+**Passar dados do autor para PostContent:**
 ```tsx
 <PostContent
-  {...props}
-  media={media}
+  // ... outros props
+  authorName={post.author?.full_name || "Autor"}
+  author={post.author}
+  // ...
 />
 ```
 
----
+### 4. Atualizar PostContent.tsx
 
-### 3. Definir Thumbnail Automaticamente no SpaceContent.tsx
-
-**Modificar handleSave (linha 111-122):**
+**Novas props:**
 ```tsx
-const handleSave = async (publish = false) => {
-  try {
-    // Encontrar primeira imagem para thumbnail
-    const firstImage = media.find(m => m.type === 'image');
+interface Author {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
+}
 
-    const updateData = {
-      space_id: formData.space_id,
-      title: formData.title,
-      content: formData.content,
-      author_id: user?.id,
-      is_published: publish,
-      published_at: publish ? new Date().toISOString() : null,
-      scheduled_at: formData.scheduled_at || null,
-      thumbnail_url: firstImage?.url || null,  // ← NOVO
-      media_type: firstImage ? 'image' : null   // ← NOVO
-    };
-    // ... resto do código
+interface PostContentProps {
+  // ... props existentes
+  author?: Author | null;
+}
 ```
 
----
-
-### 4. Adicionar Botão de Imagem na EditorToolbar.tsx
-
-**Novos imports:**
+**Tornar nome do autor clicavel (linhas 90-104):**
 ```tsx
-import { Image as ImageIcon } from "@phosphor-icons/react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMediaUpload } from "@/hooks/useMediaUpload";
+const [showAuthorModal, setShowAuthorModal] = useState(false);
+
+// ...
+
+<div className="flex items-center gap-3 text-sm text-muted-foreground mb-8">
+  <button 
+    onClick={() => author && setShowAuthorModal(true)}
+    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+  >
+    <Avatar className="w-8 h-8">
+      <AvatarImage src={author?.avatar_url || undefined} />
+      <AvatarFallback className="bg-secondary">
+        <User className="w-4 h-4" weight="bold" />
+      </AvatarFallback>
+    </Avatar>
+    <span className="font-medium text-foreground hover:underline cursor-pointer">
+      {authorName}
+    </span>
+  </button>
+  <span>•</span>
+  <span>{publishedAt}</span>
+  <span>•</span>
+  <span className="flex items-center gap-1">
+    <Clock className="w-3.5 h-3.5" />
+    {readTime}
+  </span>
+</div>
+
+{/* Modal do Autor */}
+<AuthorModal 
+  author={author} 
+  isOpen={showAuthorModal} 
+  onClose={() => setShowAuthorModal(false)} 
+/>
 ```
 
-**Novo estado e hook:**
-```tsx
-const [showImageDialog, setShowImageDialog] = useState(false);
-const [imageUrl, setImageUrl] = useState("");
-const { uploadFile, uploading } = useMediaUpload();
-```
+### 5. Novo Componente AuthorModal.tsx
 
-**Funções de inserção:**
 ```tsx
-const insertImageFromUrl = () => {
-  if (!editor || !imageUrl) return;
-  const url = imageUrl.startsWith("http") ? imageUrl : `https://${imageUrl}`;
-  editor.chain().focus().setImage({ src: url }).run();
-  setImageUrl("");
-  setShowImageDialog(false);
-};
+// src/components/post/AuthorModal.tsx
 
-const handleImageUpload = async (files: FileList | null) => {
-  if (!files || !editor) return;
-  const file = files[0];
-  const media = await uploadFile(file);
-  if (media) {
-    editor.chain().focus().setImage({ src: media.url }).run();
-    setShowImageDialog(false);
-  }
-};
-```
+interface AuthorModalProps {
+  author: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    education: string | null;
+    instagram_url: string | null;
+    linkedin_url: string | null;
+  } | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-**Adicionar botão na toolbar (após o botão de Link):**
-```tsx
-{/* Image */}
-<Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
-  <DialogTrigger asChild>
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="h-8 w-8"
-    >
-      <ImageIcon className="w-4 h-4" />
-    </Button>
-  </DialogTrigger>
-  <DialogContent className="sm:max-w-md">
-    <DialogHeader>
-      <DialogTitle>Inserir imagem</DialogTitle>
-    </DialogHeader>
-    <Tabs defaultValue="url">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="url">URL</TabsTrigger>
-        <TabsTrigger value="upload">Upload</TabsTrigger>
-      </TabsList>
-      <TabsContent value="url" className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="https://exemplo.com/imagem.jpg"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && insertImageFromUrl()}
-          />
-          <Button onClick={insertImageFromUrl} disabled={!imageUrl}>
-            Inserir
-          </Button>
+export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
+  if (!author) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <div className="flex flex-col items-center text-center">
+          {/* Avatar */}
+          <Avatar className="w-20 h-20 mb-4">
+            <AvatarImage src={author.avatar_url || undefined} />
+            <AvatarFallback className="text-2xl bg-secondary">
+              {getInitials(author.full_name)}
+            </AvatarFallback>
+          </Avatar>
+
+          {/* Nome */}
+          <h2 className="text-xl font-bold mb-1">
+            {author.full_name || "Autor"}
+          </h2>
+
+          {/* Formacao */}
+          {author.education && (
+            <p className="text-sm text-muted-foreground mb-4">
+              {author.education}
+            </p>
+          )}
+
+          {/* Biografia */}
+          {author.bio && (
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              {author.bio}
+            </p>
+          )}
+
+          {/* Redes Sociais */}
+          <div className="flex gap-3">
+            {author.instagram_url && (
+              <a 
+                href={author.instagram_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+              >
+                <InstagramLogo className="w-5 h-5" />
+                <span className="text-sm">Instagram</span>
+              </a>
+            )}
+            {author.linkedin_url && (
+              <a 
+                href={author.linkedin_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+              >
+                <LinkedinLogo className="w-5 h-5" />
+                <span className="text-sm">LinkedIn</span>
+              </a>
+            )}
+          </div>
         </div>
-      </TabsContent>
-      <TabsContent value="upload" className="space-y-4">
-        <div className="border-2 border-dashed rounded-lg p-6 text-center">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            id="image-upload"
-            onChange={(e) => handleImageUpload(e.target.files)}
-          />
-          <label htmlFor="image-upload" className="cursor-pointer">
-            <ImageIcon className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm">Clique para selecionar uma imagem</p>
-          </label>
-        </div>
-      </TabsContent>
-    </Tabs>
-  </DialogContent>
-</Dialog>
+      </DialogContent>
+    </Dialog>
+  );
+}
 ```
 
 ---
 
-## Layout Visual da Nova Toolbar
+## Layout Visual do Modal do Autor
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ [B] [I] [U] │ [🎨] [🖍] │ [🔗] [🖼] │ [•] [1.] │ ["] [</>] │            │
-│ Bold Italic │ Cor  Dest │ Link Img │ Listas   │ Quote Code│            │
-└─────────────────────────────────────────────────────────────────────────┘
-                               ↑
-                         NOVO BOTÃO DE IMAGEM
+┌─────────────────────────────────────────────┐
+│                    [X]                      │
+│                                             │
+│              ┌──────────┐                   │
+│              │   FOTO   │                   │
+│              │  80x80   │                   │
+│              └──────────┘                   │
+│                                             │
+│           Sandro Mesquita                   │
+│     Mestrado em Inteligencia Artificial     │
+│                                             │
+│   "Apaixonado por IA e como ela pode        │
+│    transformar negocios. Compartilho        │
+│    insights e descobertas diariamente."     │
+│                                             │
+│    ┌────────────────┐ ┌────────────────┐   │
+│    │ 📸 Instagram   │ │ 💼 LinkedIn    │   │
+│    └────────────────┘ └────────────────┘   │
+│                                             │
+└─────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo de Inserção de Imagem Inline
+## Fluxo de Dados
 
 ```text
-1. Usuário clica no botão 🖼 na toolbar
+1. Usuario abre artigo
    │
    ▼
-2. Modal abre com duas abas:
-   ┌─────────────────────────────┐
-   │  [URL]  |  [Upload]         │
-   ├─────────────────────────────┤
-   │  https://...  [Inserir]     │
-   │                             │
-   │  ─── ou ───                 │
-   │                             │
-   │  📤 Clique para upload      │
-   └─────────────────────────────┘
+2. PostDetail.tsx busca post com author_id
+   │
+   ├──► Busca perfil do autor na tabela profiles
+   │    (full_name, bio, education, instagram_url, linkedin_url)
    │
    ▼
-3. Imagem é inserida na posição do cursor:
-   ┌─────────────────────────────┐
-   │ Texto antes do cursor...   │
-   │                             │
-   │ [    Imagem inserida    ]  │
-   │                             │
-   │ ...texto depois do cursor  │
-   └─────────────────────────────┘
+3. PostContent exibe nome do autor (nao mais "Admin")
+   │
+   ▼
+4. Usuario clica no nome do autor
+   │
+   ▼
+5. Modal abre com informacoes completas
+   │
+   └──► Links de Instagram e LinkedIn clicaveis
 ```
 
 ---
 
 ## Resultado Esperado
 
-| Problema | Antes | Depois |
-|----------|-------|--------|
-| Formatação | Tags HTML como texto | Texto formatado corretamente |
-| Preview no card | Sem imagem | Mostra primeira imagem como thumbnail |
-| Inserir imagem | Impossível | Botão na toolbar para inserir imagem inline |
+| Antes | Depois |
+|-------|--------|
+| `authorName="Admin"` fixo | Nome real do usuario (ex: "Sandro Mesquita") |
+| Nome nao clicavel | Nome clicavel que abre modal |
+| Sem redes sociais | Modal com Instagram e LinkedIn |
+| Campos inexistentes no profile | Novos campos para cadastrar redes sociais |
 
 ---
 
-## Considerações de Segurança
+## Ordem de Implementacao
 
-1. **DOMPurify**: Sanitiza HTML para prevenir XSS
-2. **Upload**: Usa o mesmo bucket `channel-media` com políticas RLS existentes
-3. **Limite de arquivo**: Mantém limite de 50MB por arquivo
-
----
-
-## Ordem de Implementação
-
-1. **PostContent.tsx** - Corrigir renderização HTML (impacto imediato nos artigos existentes)
-2. **PostDetail.tsx** - Adicionar fetch de mídia
-3. **SpaceContent.tsx** - Auto-definir thumbnail ao salvar
-4. **EditorToolbar.tsx** - Adicionar botão de inserção de imagem
+1. **Migracao SQL** - Adicionar campos `instagram_url` e `linkedin_url`
+2. **PersonalData.tsx** - Adicionar formulario para redes sociais
+3. **AuthorModal.tsx** - Criar componente do modal
+4. **PostDetail.tsx** - Buscar dados do autor
+5. **PostContent.tsx** - Tornar nome clicavel e integrar modal
 
