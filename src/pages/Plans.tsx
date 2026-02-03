@@ -16,6 +16,7 @@ const plans = [
     price: "R$ 29,90",
     period: "/mês",
     description: "Ideal para experimentar",
+    checkoutUrl: "https://checkout.ticto.app/O1F2F1BB4",
     features: [
       "Acesso a todos os 5 espaços",
       "Atualizações diárias",
@@ -30,6 +31,7 @@ const plans = [
     period: "/ano",
     description: "Economize 33%",
     badge: "Mais popular",
+    checkoutUrl: "https://payment.ticto.app/O40A9D8E6",
     features: [
       "Tudo do plano mensal",
       "2 meses grátis",
@@ -66,8 +68,12 @@ export default function Plans() {
   };
 
   const handleSubscribe = () => {
+    // Find selected plan
+    const plan = plans.find(p => p.id === selectedPlan);
+    if (!plan) return;
+
     // Build Ticto checkout URL with user identification
-    const checkoutUrl = new URL('https://checkout.ticto.app/O1F2F1BB4');
+    const checkoutUrl = new URL(plan.checkoutUrl);
     
     // Pass user data to identify them after payment
     if (user?.email) {
