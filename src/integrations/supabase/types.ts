@@ -874,7 +874,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      channel_stats: {
+        Row: {
+          channel_id: string | null
+          last_activity: string | null
+          members_count: number | null
+          posts_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_posts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_access_channel: {
