@@ -374,6 +374,62 @@ export type Database = {
         }
         Relationships: []
       }
+      podcasts: {
+        Row: {
+          audio_url: string
+          author_id: string | null
+          cover_url: string | null
+          created_at: string | null
+          description: string | null
+          duration_seconds: number | null
+          id: string
+          is_published: boolean | null
+          published_at: string | null
+          space_id: string | null
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          audio_url: string
+          author_id?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_published?: boolean | null
+          published_at?: string | null
+          space_id?: string | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          audio_url?: string
+          author_id?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_published?: boolean | null
+          published_at?: string | null
+          space_id?: string | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcasts_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ai_experience_level: string | null

@@ -25,6 +25,8 @@ const Highlights = lazy(() => import("./pages/Highlights"));
 const Spaces = lazy(() => import("./pages/Spaces"));
 const SpaceDetail = lazy(() => import("./pages/SpaceDetail"));
 const PostDetail = lazy(() => import("./pages/PostDetail"));
+const Podcasts = lazy(() => import("./pages/Podcasts"));
+const PodcastDetail = lazy(() => import("./pages/PodcastDetail"));
 const Channels = lazy(() => import("./pages/Channels"));
 const ChannelDetail = lazy(() => import("./pages/ChannelDetail"));
 const ChannelPostDetail = lazy(() => import("./pages/ChannelPostDetail"));
@@ -44,6 +46,7 @@ const Users = lazy(() => import("./pages/admin/Users"));
 const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const AdminSpaces = lazy(() => import("./pages/admin/Spaces"));
 const SpaceContent = lazy(() => import("./pages/admin/SpaceContent"));
+const AdminPodcasts = lazy(() => import("./pages/admin/Podcasts"));
 const AdminChannels = lazy(() => import("./pages/admin/Channels"));
 const Moderation = lazy(() => import("./pages/admin/Moderation"));
 const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
@@ -75,6 +78,8 @@ const App = () => (
               <Route path="/spaces" element={<SubscriptionGuard><Spaces /></SubscriptionGuard>} />
               <Route path="/spaces/:spaceId" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
               <Route path="/spaces/:spaceId/post/:postId" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
+              <Route path="/podcasts" element={<SubscriptionGuard><Podcasts /></SubscriptionGuard>} />
+              <Route path="/podcasts/:podcastId" element={<SubscriptionGuard><PodcastDetail /></SubscriptionGuard>} />
               <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
               <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
               <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
@@ -94,6 +99,7 @@ const App = () => (
               <Route path="/admin/subscriptions" element={<AdminGuard><Subscriptions /></AdminGuard>} />
               <Route path="/admin/spaces" element={<AdminGuard><AdminSpaces /></AdminGuard>} />
               <Route path="/admin/content" element={<AdminGuard><SpaceContent /></AdminGuard>} />
+              <Route path="/admin/podcasts" element={<AdminGuard><AdminPodcasts /></AdminGuard>} />
               <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
               <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
               <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
