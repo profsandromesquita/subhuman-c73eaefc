@@ -1,105 +1,126 @@
 
-# Plano: Adicionar Link de Checkout do Plano Anual
+# Plano: Corrigir Redirecionamento de Usuários com Subscription Ativa
 
-## Problema Atual
+## Diagnóstico
 
-O botao "Assinar agora" sempre redireciona para o link do plano mensal, independentemente de qual plano esta selecionado.
+O usuário `sandro.mesquita@itia.org.br` tem uma subscription mensal ativa no banco de dados (`plan_type: 'monthly'`, `status: 'active'`), mas está sendo redirecionado para `/plans` ao fazer login.
 
-## Alteracao Proposta
+### Problema Identificado
 
-Modificar a logica de `handleSubscribe` para redirecionar para o checkout correto baseado no plano selecionado:
+Existe uma **condição de corrida (race condition)** no fluxo de redirecionamento da Landing Page. O problema ocorre porque:
 
-| Plano | Link de Checkout |
-|-------|------------------|
-| Mensal | `https://checkout.ticto.app/O1F2F1BB4` |
-| Anual | `https://payment.ticto.app/O40A9D8E6` |
-
-## Arquivo a Modificar
-
-`src/pages/Plans.tsx`
-
-## Mudancas Tecnicas
-
-### 1. Adicionar URLs de checkout aos planos
-
-Atualizar o array `plans` para incluir a URL de checkout de cada plano:
-
-```typescript
-const plans = [
-  {
-    id: "monthly",
-    name: "Mensal",
-    price: "R$ 29,90",
-    period: "/mes",
-    description: "Ideal para experimentar",
-    checkoutUrl: "https://checkout.ticto.app/O1F2F1BB4", // URL mensal
-    features: [...],
-  },
-  {
-    id: "yearly",
-    name: "Anual",
-    price: "R$ 239,90",
-    period: "/ano",
-    description: "Economize 33%",
-    badge: "Mais popular",
-    checkoutUrl: "https://payment.ticto.app/O40A9D8E6", // URL anual
-    features: [...],
-  },
-];
-```
-
-### 2. Atualizar funcao handleSubscribe
-
-Modificar para usar a URL do plano selecionado:
-
-```typescript
-const handleSubscribe = () => {
-  // Encontrar o plano selecionado
-  const plan = plans.find(p => p.id === selectedPlan);
-  if (!plan) return;
-
-  // Usar a URL de checkout do plano selecionado
-  const checkoutUrl = new URL(plan.checkoutUrl);
-
-  // Passar dados do usuario para identificacao
-  if (user?.email) {
-    checkoutUrl.searchParams.set('email', user.email);
-  }
-  if (user?.id) {
-    checkoutUrl.searchParams.set('src', user.id);
-  }
-
-  // URL de retorno apos pagamento
-  checkoutUrl.searchParams.set('redirect_url', 
-    `${window.location.origin}/payment-success`);
-
-  // Redirecionar para checkout
-  window.location.href = checkoutUrl.toString();
-};
-```
-
-## Fluxo Resultante
+1. O hook `useSubscription` inicializa com `loading: true` e `status: 'none'`
+2. Quando `authLoading` termina, o `useSubscription` faz a query ao banco
+3. **MAS** durante esse período curto, há um momento em que:
+   - `authLoading = false`
+   - `subLoading = false` (estado inicial antes do setLoading(true) ser chamado)
+   - `status = 'none'` (estado inicial)
+4. O `useEffect` da Landing page pode disparar nesse momento e redirecionar para `/plans`
 
 ```text
-Usuario seleciona plano
-         |
-         v
-   +-----------+
-   | selectedPlan |
-   +-----------+
-         |
-    _____|_____
-   |           |
-   v           v
-monthly     yearly
-   |           |
-   v           v
-O1F2F1BB4   O40A9D8E6
-(checkout)  (payment)
+Timeline do problema:
+
+authLoading: [true]--->[false]--------------------------->
+subLoading:  [true]-------------------------------------->
+                            ^
+                            | Momento problemático:
+                            | authLoading=false, subLoading aparenta false
+                            | status='none' → Redireciona para /plans
 ```
+
+## Solução Proposta
+
+### 1. Ajustar o hook `useSubscription` para sincronizar melhor com auth
+
+**Arquivo**: `src/hooks/useSubscription.ts`
+
+Garantir que `loading` permaneça `true` enquanto a verificação não for completada:
+
+```typescript
+export function useSubscription(): SubscriptionStatus {
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id;
+  const [status, setStatus] = useState<'active' | 'trial' | 'expired' | 'none'>('none');
+  const [planType, setPlanType] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const [hasChecked, setHasChecked] = useState(false); // NOVO: Flag para indicar se já verificou
+
+  const checkSubscription = useCallback(async () => {
+    if (authLoading) {
+      return { status: 'none', planType: null };
+    }
+
+    if (!userId) {
+      setStatus('none');
+      setPlanType(null);
+      setExpiresAt(null);
+      setDaysRemaining(null);
+      setHasChecked(true); // Marcamos como verificado
+      return { status: 'none', planType: null };
+    }
+
+    try {
+      // ... query existente ...
+      
+      // Após processar resultado
+      setHasChecked(true); // Marcamos como verificado
+      return { status: resultStatus, planType: subscriptionPlanType };
+    } catch (error) {
+      setHasChecked(true); // Marcamos como verificado mesmo em erro
+      // ...
+    }
+  }, [userId, authLoading]);
+
+  // Loading é true enquanto auth carrega OU enquanto não verificou subscription
+  const effectiveLoading = authLoading || !hasChecked;
+
+  return { 
+    status, 
+    planType, 
+    expiresAt, 
+    daysRemaining, 
+    loading: effectiveLoading, // Usa effectiveLoading
+    refetch: checkSubscription 
+  };
+}
+```
+
+### 2. Manter Landing page inalterada
+
+A Landing page já verifica `subLoading` corretamente:
+
+```javascript
+if (authLoading || subLoading) return; // Não redireciona enquanto carrega
+```
+
+Com a correção do hook, o `subLoading` permanecerá `true` até que a verificação seja de fato completada.
+
+### 3. Manter SubscriptionGuard inalterado
+
+O SubscriptionGuard também usa `subLoading`, então a correção no hook resolve o problema em todos os lugares.
+
+## Resumo das Alterações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useSubscription.ts` | Adicionar flag `hasChecked` para controlar loading corretamente |
 
 ## Resultado Esperado
 
-1. Ao selecionar "Mensal" e clicar "Assinar agora" -> Redireciona para `checkout.ticto.app/O1F2F1BB4`
-2. Ao selecionar "Anual" e clicar "Assinar agora" -> Redireciona para `payment.ticto.app/O40A9D8E6`
-3. Ambos os links passam `email`, `src` (user_id) e `redirect_url` como parametros
+```text
+Timeline corrigida:
+
+authLoading: [true]--->[false]--------------------------->
+hasChecked:  [false]---------------------------------->[true]
+effectiveLoading: [true]------------------------------>[false]
+                                                         ^
+                                                         | Só redireciona agora
+                                                         | com status correto = 'active'
+```
+
+1. Usuário faz login (email/senha ou Google OAuth)
+2. Retorna para Landing page
+3. `loading` permanece `true` até subscription ser verificada
+4. Subscription retorna `status: 'active'` 
+5. Redireciona para `/home` corretamente
