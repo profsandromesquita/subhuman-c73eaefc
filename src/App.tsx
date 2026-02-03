@@ -78,10 +78,10 @@ const App = () => (
               <Route path="/home" element={<SubscriptionGuard><Home /></SubscriptionGuard>} />
               <Route path="/highlights" element={<SubscriptionGuard><Highlights /></SubscriptionGuard>} />
               <Route path="/spaces" element={<SubscriptionGuard><Spaces /></SubscriptionGuard>} />
-              <Route path="/spaces/:spaceId" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
-              <Route path="/spaces/:spaceId/post/:postId" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
+              <Route path="/spaces/:spaceSlug" element={<SubscriptionGuard><SpaceDetail /></SubscriptionGuard>} />
+              <Route path="/spaces/:spaceSlug/post/:postSlug" element={<SubscriptionGuard><PostDetail /></SubscriptionGuard>} />
               <Route path="/podcasts" element={<SubscriptionGuard><Podcasts /></SubscriptionGuard>} />
-              <Route path="/podcasts/:podcastId" element={<SubscriptionGuard><PodcastDetail /></SubscriptionGuard>} />
+              <Route path="/podcasts/:podcastSlug" element={<SubscriptionGuard><PodcastDetail /></SubscriptionGuard>} />
               <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
               <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
               <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />

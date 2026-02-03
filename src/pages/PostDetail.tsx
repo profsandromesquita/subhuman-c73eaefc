@@ -51,7 +51,7 @@ interface Comment {
 }
 
 export default function PostDetail() {
-  const { spaceId, postId } = useParams<{ spaceId: string; postId: string }>();
+  const { spaceSlug, postSlug } = useParams<{ spaceSlug: string; postSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -62,6 +62,7 @@ export default function PostDetail() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [post, setPost] = useState<Post | null>(null);
+  const [postId, setPostId] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
@@ -70,10 +71,10 @@ export default function PostDetail() {
   const [media, setMedia] = useState<any[]>([]);
 
   useEffect(() => {
-    if (postId) {
+    if (spaceSlug && postSlug) {
       fetchPostData();
     }
-  }, [postId]);
+  }, [spaceSlug, postSlug]);
 
   useEffect(() => {
     if (user && postId) {
@@ -82,16 +83,29 @@ export default function PostDetail() {
   }, [user, postId]);
 
   const fetchPostData = async () => {
-    if (!postId) return;
+    if (!spaceSlug || !postSlug) return;
     
     setIsLoading(true);
 
-    // Fetch post with space info
+    // First, get space by slug
+    const { data: spaceData, error: spaceError } = await supabase
+      .from("spaces")
+      .select("id")
+      .eq("slug", spaceSlug)
+      .single();
+
+    if (spaceError || !spaceData) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Fetch post by slug within space
     const { data: postData, error: postError } = await supabase
       .from("space_updates")
       .select(`
         id,
         title,
+        slug,
         content,
         thumbnail_url,
         media_type,
@@ -103,7 +117,8 @@ export default function PostDetail() {
           slug
         )
       `)
-      .eq("id", postId)
+      .eq("space_id", spaceData.id)
+      .eq("slug", postSlug)
       .eq("is_published", true)
       .maybeSingle();
 
@@ -111,6 +126,9 @@ export default function PostDetail() {
       setIsLoading(false);
       return;
     }
+
+    // Store postId for comments/likes
+    setPostId(postData.id);
 
     // Fetch author profile if author_id exists
     let authorProfile: Author | null = null;
@@ -135,7 +153,7 @@ export default function PostDetail() {
     const { count: likesCountResult } = await supabase
       .from("update_likes")
       .select("id", { count: "exact", head: true })
-      .eq("update_id", postId);
+      .eq("update_id", postData.id);
     
     setLikesCount(likesCountResult || 0);
 
@@ -143,7 +161,7 @@ export default function PostDetail() {
     const { data: mediaData } = await supabase
       .from("space_update_media")
       .select("*")
-      .eq("update_id", postId)
+      .eq("update_id", postData.id)
       .order("sort_order");
 
     setMedia(mediaData || []);
@@ -536,7 +554,7 @@ export default function PostDetail() {
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Post não encontrado</p>
           <button 
-            onClick={() => navigate(`/spaces/${spaceId}`)}
+            onClick={() => navigate(`/spaces/${spaceSlug}`)}
             className="text-primary"
           >
             Voltar para o espaço
