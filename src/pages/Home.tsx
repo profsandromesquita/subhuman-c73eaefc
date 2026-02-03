@@ -23,6 +23,10 @@ import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { useUnreadNotificationsCount } from "@/hooks/useNotifications";
 
+// Max animation delay (prevents long waits for lists)
+const MAX_STAGGER_ITEMS = 4;
+const STAGGER_DELAY = 0.03;
+
 export default function Home() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -45,7 +49,6 @@ export default function Home() {
       subscribedSpaces.length === 0 && 
       !hasSeenOnboarding
     ) {
-      // Pequeno delay para não sobrepor outros elementos
       const timer = setTimeout(() => setShowOnboarding(true), 500);
       return () => clearTimeout(timer);
     }
@@ -84,14 +87,12 @@ export default function Home() {
 
   return (
     <AppLayout>
-      {/* Onboarding Modal para novos usuários */}
       <OnboardingModal 
         isOpen={showOnboarding}
         onNavigateToSpaces={handleNavigateToSpaces}
         onDismiss={handleDismissOnboarding}
       />
       
-      {/* Push banner só aparece se não estiver em onboarding */}
       {!showOnboarding && <PushPermissionBanner />}
       
       <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
@@ -121,7 +122,7 @@ export default function Home() {
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.05 }}
           className="space-y-3"
         >
           <div className="flex items-center justify-between">
@@ -175,14 +176,13 @@ export default function Home() {
                   key={highlight.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
+                  transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                 >
                   <Card
                     className="p-3 cursor-pointer hover:bg-accent/50 transition-colors"
                     onClick={() => handleHighlightClick(highlight)}
                   >
                     <div className="flex gap-3">
-                      {/* Content */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
                           <Badge variant="secondary" className="mb-2 text-xs">
@@ -193,7 +193,6 @@ export default function Home() {
                           </h3>
                         </div>
                         
-                        {/* Meta info */}
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Heart className="h-3.5 w-3.5" />
@@ -208,7 +207,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Thumbnail */}
                       {highlight.thumbnail_url && (
                         <div className="shrink-0">
                           <img
@@ -230,7 +228,7 @@ export default function Home() {
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.1 }}
           className="space-y-3"
         >
           <div className="flex items-center justify-between">
@@ -274,7 +272,7 @@ export default function Home() {
                   key={discussion.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + index * 0.05 }}
+                  transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                 >
                   <Card
                     className="p-3 cursor-pointer hover:bg-accent/50 transition-colors"
@@ -327,7 +325,7 @@ export default function Home() {
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.15 }}
           className="space-y-3"
         >
           <div className="flex items-center justify-between">
@@ -380,7 +378,7 @@ export default function Home() {
                     key={space.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.3 + index * 0.05 }}
+                    transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                   >
                     <Card 
                       className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"

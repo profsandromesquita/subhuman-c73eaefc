@@ -15,73 +15,63 @@ interface Channel {
   has_access: boolean;
 }
 
-// Fetch all active channels with stats
+// Fetch all active channels with stats (optimized with view)
 export function useChannels() {
   const { user } = useAuth();
 
   return useQuery({
     queryKey: ["channels", user?.id],
     queryFn: async (): Promise<Channel[]> => {
-      // First get user's subscription plan
-      let userPlan: string | null = null;
-      if (user) {
-        const { data: sub } = await supabase
-          .from("subscriptions")
-          .select("plan_type")
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        userPlan = sub?.plan_type || null;
-      }
+      // Fetch user's subscription plan in parallel with channels
+      const [planResult, channelsResult] = await Promise.all([
+        user
+          ? supabase
+              .from("subscriptions")
+              .select("plan_type")
+              .eq("user_id", user.id)
+              .eq("status", "active")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("channels")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .limit(50),
+      ]);
 
-      // Fetch channels
-      const { data: channelsData, error } = await supabase
-        .from("channels")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
-        .limit(50);
+      const userPlan = planResult.data?.plan_type || null;
 
-      if (error) throw error;
-      if (!channelsData || channelsData.length === 0) return [];
+      if (channelsResult.error) throw channelsResult.error;
+      if (!channelsResult.data || channelsResult.data.length === 0) return [];
 
-      const channelIds = channelsData.map((c) => c.id);
+      const channelIds = channelsResult.data.map((c) => c.id);
 
-      // Batch fetch posts for all channels
-      const { data: allPosts } = await supabase
-        .from("channel_posts")
-        .select("id, channel_id, author_id, created_at")
-        .in("channel_id", channelIds)
-        .eq("is_moderated", false)
-        .order("created_at", { ascending: false })
-        .limit(1000);
+      // Fetch stats from the view (much faster than fetching 1000 posts)
+      const { data: statsData } = await supabase
+        .from("channel_stats")
+        .select("channel_id, posts_count, members_count, last_activity")
+        .in("channel_id", channelIds);
 
-      // Process posts to get stats per channel
+      // Build stats map
       const statsMap: Record<
         string,
-        { posts_count: number; members: Set<string>; last_activity: string | null }
+        { posts_count: number; members_count: number; last_activity: string | null }
       > = {};
 
-      channelIds.forEach((id) => {
-        statsMap[id] = { posts_count: 0, members: new Set(), last_activity: null };
+      statsData?.forEach((stat) => {
+        statsMap[stat.channel_id] = {
+          posts_count: Number(stat.posts_count) || 0,
+          members_count: Number(stat.members_count) || 0,
+          last_activity: stat.last_activity,
+        };
       });
 
-      allPosts?.forEach((post) => {
-        const stats = statsMap[post.channel_id];
-        if (stats) {
-          stats.posts_count++;
-          if (post.author_id) stats.members.add(post.author_id);
-          if (!stats.last_activity || post.created_at > stats.last_activity) {
-            stats.last_activity = post.created_at;
-          }
-        }
-      });
-
-      return channelsData.map((channel) => {
+      return channelsResult.data.map((channel) => {
         const accessType = (channel as any).access_type || "open";
-        const stats = statsMap[channel.id];
+        const stats = statsMap[channel.id] || { posts_count: 0, members_count: 0, last_activity: null };
 
         // Check access based on user plan
         let hasAccess = accessType === "open";
@@ -100,13 +90,14 @@ export function useChannels() {
           access_type: accessType,
           icon: (channel as any).icon || "ChatCircle",
           slug: (channel as any).slug,
-          members_count: stats.members.size,
+          members_count: stats.members_count,
           posts_count: stats.posts_count,
           last_activity: stats.last_activity,
           has_access: hasAccess,
         };
       });
     },
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 }
 

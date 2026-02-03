@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { toast } from "sonner";
 
 interface Space {
   id: string;
@@ -25,6 +26,70 @@ export function useSpaces() {
 
       if (error) throw error;
       return data || [];
+    },
+  });
+}
+
+// Fetch user's space subscriptions (which spaces they follow)
+export function useUserSpaceSubscriptions() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["user-space-subscriptions", user?.id],
+    queryFn: async (): Promise<Record<string, boolean>> => {
+      if (!user) return {};
+
+      const { data, error } = await supabase
+        .from("user_space_subscriptions")
+        .select("space_id")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      const subsMap: Record<string, boolean> = {};
+      data?.forEach((sub) => {
+        subsMap[sub.space_id] = true;
+      });
+      return subsMap;
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+// Toggle space subscription mutation
+export function useToggleSpaceSubscription() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ spaceId, isSubscribed }: { spaceId: string; isSubscribed: boolean }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      if (isSubscribed) {
+        const { error } = await supabase
+          .from("user_space_subscriptions")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("space_id", spaceId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("user_space_subscriptions")
+          .insert({ user_id: user.id, space_id: spaceId });
+        if (error) throw error;
+      }
+
+      return !isSubscribed;
+    },
+    onSuccess: (_, { isSubscribed }) => {
+      toast.success(isSubscribed ? "Inscrição removida" : "Inscrito com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["user-space-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscribed-spaces"] });
+      queryClient.invalidateQueries({ queryKey: ["highlights"] });
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar inscrição");
     },
   });
 }

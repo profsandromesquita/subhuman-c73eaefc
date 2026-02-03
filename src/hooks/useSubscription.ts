@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -16,113 +16,90 @@ export interface SubscriptionStatus {
   refetch: () => Promise<SubscriptionResult>;
 }
 
+interface SubscriptionData {
+  plan_type: string;
+  status: string;
+  expires_at: string | null;
+  starts_at: string;
+}
+
+function computeSubscriptionStatus(subscription: SubscriptionData | null): {
+  status: 'active' | 'trial' | 'expired' | 'none';
+  planType: string | null;
+  expiresAt: Date | null;
+  daysRemaining: number | null;
+} {
+  if (!subscription) {
+    return { status: 'none', planType: null, expiresAt: null, daysRemaining: null };
+  }
+
+  const planType = subscription.plan_type;
+  const expiresAt = subscription.expires_at ? new Date(subscription.expires_at) : null;
+
+  if (expiresAt) {
+    const now = new Date();
+    const isExpired = expiresAt < now;
+
+    if (isExpired) {
+      return { status: 'expired', planType, expiresAt, daysRemaining: 0 };
+    }
+
+    const diffTime = expiresAt.getTime() - now.getTime();
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (planType === 'trial') {
+      return { status: 'trial', planType, expiresAt, daysRemaining };
+    }
+
+    return { status: 'active', planType, expiresAt, daysRemaining };
+  }
+
+  return { status: 'active', planType, expiresAt: null, daysRemaining: null };
+}
+
 export function useSubscription(): SubscriptionStatus {
   const { user, loading: authLoading } = useAuth();
-  const userId = user?.id;
-  const [status, setStatus] = useState<'active' | 'trial' | 'expired' | 'none'>('none');
-  const [planType, setPlanType] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
-  const [hasChecked, setHasChecked] = useState(false);
 
-  const checkSubscription = useCallback(async (): Promise<SubscriptionResult> => {
-    if (authLoading) {
-      return { status: 'none', planType: null };
-    }
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['subscription', user?.id],
+    queryFn: async (): Promise<SubscriptionData | null> => {
+      if (!user) return null;
 
-    if (!userId) {
-      setStatus('none');
-      setPlanType(null);
-      setExpiresAt(null);
-      setDaysRemaining(null);
-      setHasChecked(true);
-      return { status: 'none', planType: null };
-    }
-
-    try {
       const { data: subscription, error } = await supabase
         .from('subscriptions')
         .select('plan_type, status, expires_at, starts_at')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (error || !subscription) {
-        setStatus('none');
-        setPlanType(null);
-        setExpiresAt(null);
-        setDaysRemaining(null);
-        setHasChecked(true);
-        return { status: 'none', planType: null };
+      if (error) {
+        console.error('Error checking subscription:', error);
+        return null;
       }
 
-      const subscriptionPlanType = subscription.plan_type;
-      const subscriptionExpiresAt = subscription.expires_at 
-        ? new Date(subscription.expires_at) 
-        : null;
+      return subscription;
+    },
+    enabled: !!user && !authLoading,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    gcTime: 1000 * 60 * 30, // 30 minutes
+  });
 
-      setPlanType(subscriptionPlanType);
-      setExpiresAt(subscriptionExpiresAt);
+  const computed = computeSubscriptionStatus(data ?? null);
 
-      let resultStatus: 'active' | 'trial' | 'expired' | 'none' = 'none';
+  const handleRefetch = async (): Promise<SubscriptionResult> => {
+    const result = await refetch();
+    const newComputed = computeSubscriptionStatus(result.data ?? null);
+    return { status: newComputed.status, planType: newComputed.planType };
+  };
 
-      if (subscriptionExpiresAt) {
-        const now = new Date();
-        const isExpired = subscriptionExpiresAt < now;
-
-        if (isExpired) {
-          setStatus('expired');
-          setDaysRemaining(0);
-          resultStatus = 'expired';
-        } else {
-          const diffTime = subscriptionExpiresAt.getTime() - now.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          setDaysRemaining(diffDays);
-
-          if (subscriptionPlanType === 'trial') {
-            setStatus('trial');
-            resultStatus = 'trial';
-          } else {
-            setStatus('active');
-            resultStatus = 'active';
-          }
-        }
-      } else {
-        setStatus('active');
-        setDaysRemaining(null);
-        resultStatus = 'active';
-      }
-      
-      setHasChecked(true);
-      return { status: resultStatus, planType: subscriptionPlanType };
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-      setStatus('none');
-      setPlanType(null);
-      setExpiresAt(null);
-      setDaysRemaining(null);
-      setHasChecked(true);
-      return { status: 'none', planType: null };
-    }
-  }, [userId, authLoading]);
-
-  useEffect(() => {
-    if (!authLoading) {
-      checkSubscription();
-    }
-  }, [checkSubscription, authLoading]);
-
-  // Loading permanece true até que auth termine E subscription seja verificada
-  const effectiveLoading = authLoading || !hasChecked;
-
-  return { 
-    status, 
-    planType, 
-    expiresAt, 
-    daysRemaining, 
-    loading: effectiveLoading,
-    refetch: checkSubscription 
+  return {
+    status: computed.status,
+    planType: computed.planType,
+    expiresAt: computed.expiresAt,
+    daysRemaining: computed.daysRemaining,
+    loading: authLoading || isLoading,
+    refetch: handleRefetch,
   };
 }
