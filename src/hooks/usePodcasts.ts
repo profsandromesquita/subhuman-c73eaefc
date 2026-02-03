@@ -182,6 +182,132 @@ export function useDeletePodcast() {
   });
 }
 
+// ============ ENGAGEMENT HOOKS ============
+
+export function useLikePodcast() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ podcastId, isLiked }: { podcastId: string; isLiked: boolean }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      if (isLiked) {
+        const { error } = await supabase
+          .from("podcast_likes")
+          .delete()
+          .eq("podcast_id", podcastId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("podcast_likes")
+          .insert({ podcast_id: podcastId, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["podcast", variables.podcastId] });
+    },
+    onError: (error) => {
+      console.error("Error toggling podcast like:", error);
+    },
+  });
+}
+
+export function useSavePodcast() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ podcastId, isSaved }: { podcastId: string; isSaved: boolean }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      if (isSaved) {
+        const { error } = await supabase
+          .from("saved_podcasts")
+          .delete()
+          .eq("podcast_id", podcastId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("saved_podcasts")
+          .insert({ podcast_id: podcastId, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["podcasts"] });
+      queryClient.invalidateQueries({ queryKey: ["podcast", variables.podcastId] });
+      queryClient.invalidateQueries({ queryKey: ["saved-podcasts"] });
+    },
+    onError: (error) => {
+      console.error("Error toggling podcast save:", error);
+    },
+  });
+}
+
+export function useAddPodcastComment() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ podcastId, content, parentId }: { podcastId: string; content: string; parentId?: string }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from("podcast_comments")
+        .insert({
+          podcast_id: podcastId,
+          user_id: user.id,
+          content,
+          parent_id: parentId || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["podcast", variables.podcastId] });
+      queryClient.invalidateQueries({ queryKey: ["podcast-comments", variables.podcastId] });
+    },
+    onError: (error) => {
+      console.error("Error adding podcast comment:", error);
+    },
+  });
+}
+
+export function useLikePodcastComment() {
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ commentId, isLiked }: { commentId: string; isLiked: boolean }) => {
+      if (!user) throw new Error("User not authenticated");
+
+      if (isLiked) {
+        const { error } = await supabase
+          .from("podcast_comment_likes")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("podcast_comment_likes")
+          .insert({ comment_id: commentId, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onError: (error) => {
+      console.error("Error toggling comment like:", error);
+    },
+  });
+}
+
 export function formatDuration(seconds: number | null): string {
   if (!seconds) return "0 min";
   
