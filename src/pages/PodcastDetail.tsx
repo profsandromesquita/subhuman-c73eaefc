@@ -100,9 +100,9 @@ export default function PodcastDetail() {
 
           {/* Description */}
           {podcast.description && (
-            <p className="text-muted-foreground text-left mt-6">
+            <div className="text-muted-foreground text-left mt-6 whitespace-pre-wrap leading-relaxed">
               {podcast.description}
-            </p>
+            </div>
           )}
         </div>
       </div>
