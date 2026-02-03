@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     console.log('Found user:', user.id)
 
     // Handle different status types
-    const isApproved = status === 'approved' || status === 'paid'
+    const isApproved = status === 'approved' || status === 'paid' || status === 'authorized'
     const isCanceled = status === 'canceled' || status === 'cancelled' || status === 'expired'
     const isRefunded = status === 'refunded'
 
