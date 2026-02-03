@@ -11,7 +11,7 @@ export default function Podcasts() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-foreground">Podcast</h1>
