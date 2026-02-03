@@ -18,6 +18,7 @@ export interface SubscriptionStatus {
 
 export function useSubscription(): SubscriptionStatus {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id; // Extract ID for stable dependency
   const [status, setStatus] = useState<'active' | 'trial' | 'expired' | 'none'>('none');
   const [planType, setPlanType] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
@@ -33,7 +34,7 @@ export function useSubscription(): SubscriptionStatus {
       return { status: 'none', planType: null };
     }
 
-    if (!user) {
+    if (!userId) {
       setStatus('none');
       setPlanType(null);
       setExpiresAt(null);
@@ -48,7 +49,7 @@ export function useSubscription(): SubscriptionStatus {
       const { data: subscription, error } = await supabase
         .from('subscriptions')
         .select('plan_type, status, expires_at, starts_at')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -115,7 +116,7 @@ export function useSubscription(): SubscriptionStatus {
       setLoading(false);
       return { status: 'none', planType: null };
     }
-  }, [user, authLoading]);
+  }, [userId, authLoading]); // Use userId instead of user
 
   useEffect(() => {
     // Only run when auth is done loading

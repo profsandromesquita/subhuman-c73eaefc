@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -23,6 +24,7 @@ export function RichTextEditor({
   placeholder = "Escreva sua publicação..." 
 }: RichTextEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false, // Prevents SSR issues and stabilizes initialization
     extensions: [
       StarterKit.configure({
         heading: {
@@ -67,6 +69,14 @@ export function RichTextEditor({
       },
     },
   });
+
+  // Sync initial content when editor is created and content prop has value
+  // but editor is empty (handles parent re-renders)
+  useEffect(() => {
+    if (editor && content && editor.isEmpty) {
+      editor.commands.setContent(content);
+    }
+  }, [editor, content]);
 
   return (
     <div className="border border-border rounded-lg overflow-hidden bg-card">

@@ -12,6 +12,7 @@ interface ChannelAccessResult {
 
 export function useChannelAccess(channelId: string | undefined): ChannelAccessResult {
   const { user } = useAuth();
+  const userId = user?.id; // Extract ID for stable dependency
   const [hasAccess, setHasAccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accessType, setAccessType] = useState<'open' | 'subscribers' | 'premium' | null>(null);
@@ -54,7 +55,7 @@ export function useChannelAccess(channelId: string | undefined): ChannelAccessRe
       }
 
       // For non-open channels, user must be logged in
-      if (!user) {
+      if (!userId) {
         setHasAccess(false);
         setLoading(false);
         return;
@@ -64,7 +65,7 @@ export function useChannelAccess(channelId: string | undefined): ChannelAccessRe
       const { data: subscription, error: subError } = await supabase
         .from('subscriptions')
         .select('plan_type, status')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -100,7 +101,7 @@ export function useChannelAccess(channelId: string | undefined): ChannelAccessRe
     } finally {
       setLoading(false);
     }
-  }, [channelId, user]);
+  }, [channelId, userId]); // Use userId instead of user
 
   useEffect(() => {
     checkAccess();

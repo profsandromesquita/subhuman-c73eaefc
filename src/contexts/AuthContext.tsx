@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,13 +18,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        const newUserId = session?.user?.id ?? null;
+        
+        // Always update session (for fresh tokens)
         setSession(session);
-        setUser(session?.user ?? null);
+        
+        // Only update user if ID actually changed
+        // This prevents re-renders when only the token is refreshed
+        if (newUserId !== currentUserIdRef.current) {
+          currentUserIdRef.current = newUserId;
+          setUser(session?.user ?? null);
+        }
+        
         setLoading(false);
       }
     );
@@ -32,7 +43,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      const userId = session?.user?.id ?? null;
+      if (userId !== currentUserIdRef.current) {
+        currentUserIdRef.current = userId;
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 
