@@ -1,82 +1,85 @@
 
-# Plano: Corrigir Formatação da Descrição do Podcast
+# Plano: Padronizar Margens das Páginas
 
 ## Problema Identificado
 
-Na página de detalhe do podcast (`PodcastDetail.tsx`), a descrição está sendo renderizada em uma tag `<p>` simples que não preserva quebras de linha nem formatação textual.
+As páginas **Podcasts**, **PodcastDetail** e **Home** estão fora do padrão de layout usado nas outras páginas do app.
 
-**Código atual (linha 103-105):**
+### Padrão Correto (usado em Spaces.tsx e Channels.tsx)
+
 ```jsx
-<p className="text-muted-foreground text-left mt-6">
-  {podcast.description}
-</p>
+<AppLayout>
+  <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
+    {/* conteúdo */}
+  </div>
+</AppLayout>
 ```
 
-**Resultado:** Todo o texto aparece em um bloco único, sem respeitar parágrafos nem bullets.
+| Classe | Função |
+|--------|--------|
+| `max-w-lg` | Largura máxima do container (mobile-first) |
+| `mx-auto` | Centraliza horizontalmente |
+| `px-4` | Padding horizontal de 16px |
+| `pt-8` | Padding top de 32px |
+| `pb-24` | Padding bottom para bottom navigation |
 
-## Análise dos Dados
+### Páginas Fora do Padrão
 
-A descrição dos podcasts contém:
-- Parágrafos separados por quebras de linha duplas (`\n\n`)
-- Listas com marcadores usando hífen (`- item`)
-- Seções com títulos implícitos
+| Página | Container Atual | Problema |
+|--------|-----------------|----------|
+| `Podcasts.tsx` | `<div className="space-y-6">` | Sem margens, sem max-width |
+| `PodcastDetail.tsx` | `<div className="space-y-6">` | Sem margens, sem max-width |
+| `Home.tsx` | `<div className="p-4 space-y-6 pb-24">` | Sem max-width, sem mx-auto, sem pt-8 |
 
-## Solução Proposta
+## Alterações Necessárias
 
-Usar a propriedade CSS `whitespace-pre-wrap` que:
-- Preserva quebras de linha do texto original
-- Mantém espaçamentos
-- Permite quebra automática de linhas longas
-
-### Alteração no Arquivo
-
-**Arquivo**: `src/pages/PodcastDetail.tsx`
+### 1. `src/pages/Podcasts.tsx` (linha 14)
 
 **De:**
 ```jsx
-{podcast.description && (
-  <p className="text-muted-foreground text-left mt-6">
-    {podcast.description}
-  </p>
-)}
+<div className="space-y-6">
 ```
 
 **Para:**
 ```jsx
-{podcast.description && (
-  <div className="text-muted-foreground text-left mt-6 whitespace-pre-wrap leading-relaxed">
-    {podcast.description}
-  </div>
-)}
+<div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
 ```
 
-### Detalhes Técnicos
+### 2. `src/pages/PodcastDetail.tsx` (linhas 19, 33, 57)
 
-| Propriedade | Efeito |
-|-------------|--------|
-| `whitespace-pre-wrap` | Preserva quebras de linha e espaços, permite wrap em telas menores |
-| `leading-relaxed` | Aumenta espaçamento entre linhas para melhor legibilidade |
-| `<div>` em vez de `<p>` | Semanticamente mais correto para múltiplos parágrafos |
+Aplicar o container padrão nos três estados (loading, not found, sucesso):
+
+**Loading state (linha 19):**
+```jsx
+<div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6 animate-pulse">
+```
+
+**Not found state (linha 33):**
+```jsx
+<div className="max-w-lg mx-auto px-4 pt-8 pb-24 flex flex-col items-center justify-center py-16 text-center">
+```
+
+**Success state (linha 57):**
+```jsx
+<div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
+```
+
+### 3. `src/pages/Home.tsx` (linha 97)
+
+**De:**
+```jsx
+<div className="p-4 space-y-6 pb-24">
+```
+
+**Para:**
+```jsx
+<div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
+```
 
 ## Resultado Esperado
 
-O texto passará de:
-
-```
-Em fevereiro de 2026, a discussão sobre IA... Cursor 2.4 como "IDE de execução"... GitHub Copilot Auto...
-```
-
-Para:
-
-```
-Em fevereiro de 2026, a discussão sobre IA para programação mudou de patamar...
-
-Cursor 2.4 como "IDE de execução": subagentes, Skills (SKILL.md)...
-
-GitHub Copilot Auto como "Corporate First": seleção automática de modelo...
-
-Assuntos do episódio:
-- Agentes de IA: planejar, executar, iterar
-- Cursor 2.4: subagentes, Skills (SKILL.md)
-- Copilot Auto: seleção de modelo
-```
+Todas as páginas terão:
+- Conteúdo centralizado com largura máxima consistente
+- Margens horizontais de 16px (px-4)
+- Espaçamento superior de 32px (pt-8)
+- Espaçamento inferior adequado para bottom navigation (pb-24)
