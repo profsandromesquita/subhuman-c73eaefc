@@ -6,35 +6,27 @@ const corsHeaders = {
 }
 
 interface TictoPayload {
-  event?: string;
-  type?: string;
-  data?: {
-    transaction_id?: string;
-    order_id?: string;
-    subscription_id?: string;
-    customer?: {
-      email?: string;
-      name?: string;
-    };
-    buyer?: {
-      email?: string;
-      name?: string;
-    };
-    product?: {
-      id?: string;
-      name?: string;
-    };
-    offer?: {
-      code?: string;
-    };
-    subscription?: {
-      plan?: string;
-      status?: string;
-    };
-    payment?: {
-      status?: string;
-    };
+  status?: string;
+  payment_method?: string;
+  order?: {
+    hash?: string;
+    paid_amount?: number;
+    installments?: number;
   };
+  item?: {
+    product_name?: string;
+    product_id?: number;
+    offer_name?: string;
+    offer_id?: number;
+    days_of_access?: number | null;
+    trial_days?: number | null;
+  };
+  customer?: {
+    email?: string;
+    name?: string;
+    cpf?: string;
+  };
+  token?: string;
 }
 
 Deno.serve(async (req) => {
@@ -56,25 +48,35 @@ Deno.serve(async (req) => {
     const payload: TictoPayload = await req.json()
     console.log('Received Ticto webhook:', JSON.stringify(payload, null, 2))
 
-    // Extract event type (Ticto may use different field names)
-    const eventType = payload.event || payload.type || ''
-    console.log('Event type:', eventType)
+    // Extract status from payload
+    const status = payload.status?.toLowerCase() || ''
+    console.log('Status:', status)
 
-    // Extract customer email (Ticto may use different structures)
-    const customerEmail = payload.data?.customer?.email || payload.data?.buyer?.email
+    // Extract customer email
+    const customerEmail = payload.customer?.email
     console.log('Customer email:', customerEmail)
 
+    // Extract order hash for idempotency
+    const orderHash = payload.order?.hash
+    console.log('Order hash:', orderHash)
+
+    // If no email, return success but log warning
     if (!customerEmail) {
-      console.error('No customer email found in payload')
+      console.warn('No customer email found in payload')
       return new Response(
-        JSON.stringify({ error: 'Customer email is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, message: 'No customer email, webhook acknowledged' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Extract transaction/order ID for idempotency
-    const externalId = payload.data?.transaction_id || payload.data?.order_id || payload.data?.subscription_id
-    console.log('External ID:', externalId)
+    // Handle waiting_payment - just acknowledge without processing
+    if (status === 'waiting_payment') {
+      console.log('Ignoring waiting_payment event')
+      return new Response(
+        JSON.stringify({ success: true, message: 'waiting_payment acknowledged' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Initialize Supabase client with service role for admin access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -102,7 +104,7 @@ Deno.serve(async (req) => {
     
     if (!user) {
       console.log('User not found for email:', customerEmail)
-      // Still return 200 to avoid Ticto retrying - user might register later
+      // Return 200 to avoid Ticto retrying - user might register later
       return new Response(
         JSON.stringify({ success: true, message: 'User not found, webhook acknowledged' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -111,44 +113,25 @@ Deno.serve(async (req) => {
 
     console.log('Found user:', user.id)
 
-    // Handle different event types
-    const eventTypeLower = eventType.toLowerCase()
-    
-    // Check for purchase/payment approved events
-    const isPurchaseEvent = 
-      eventTypeLower.includes('purchase') ||
-      eventTypeLower.includes('order') ||
-      eventTypeLower.includes('paid') ||
-      eventTypeLower.includes('approved') ||
-      eventTypeLower.includes('payment') ||
-      payload.data?.payment?.status?.toLowerCase() === 'approved' ||
-      payload.data?.payment?.status?.toLowerCase() === 'paid'
+    // Handle different status types
+    const isApproved = status === 'approved' || status === 'paid'
+    const isCanceled = status === 'canceled' || status === 'cancelled' || status === 'expired'
+    const isRefunded = status === 'refunded'
 
-    // Check for subscription renewal
-    const isRenewalEvent = eventTypeLower.includes('renew')
+    if (isApproved) {
+      console.log('Processing approved payment')
 
-    // Check for cancellation
-    const isCancelEvent = 
-      eventTypeLower.includes('cancel') ||
-      eventTypeLower.includes('expired')
-
-    // Check for refund
-    const isRefundEvent = eventTypeLower.includes('refund')
-
-    if (isPurchaseEvent || isRenewalEvent) {
-      console.log('Processing purchase/renewal event')
-
-      // Check for existing subscription with same external_id to prevent duplicates
-      if (externalId) {
+      // Check for existing subscription with same order hash to prevent duplicates
+      if (orderHash) {
         const { data: existing } = await supabase
           .from('subscriptions')
           .select('id')
-          .eq('external_id', externalId)
+          .eq('external_id', orderHash)
           .eq('provider', 'ticto')
           .maybeSingle()
 
         if (existing) {
-          console.log('Transaction already processed:', externalId)
+          console.log('Order already processed:', orderHash)
           return new Response(
             JSON.stringify({ success: true, message: 'Already processed' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -156,23 +139,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Determine plan type based on product/offer info
-      // Default to monthly, can be adjusted based on Ticto offer configuration
-      const offerCode = payload.data?.offer?.code || ''
-      const productName = payload.data?.product?.name?.toLowerCase() || ''
-      const subscriptionPlan = payload.data?.subscription?.plan?.toLowerCase() || ''
+      // Determine plan type based on item info
+      const offerName = payload.item?.offer_name?.toLowerCase() || ''
+      const daysOfAccess = payload.item?.days_of_access
       
-      // Check if yearly based on various indicators
+      // Check if yearly based on offer name or days of access
       const isYearly = 
-        offerCode.includes('ANUAL') ||
-        offerCode.includes('YEARLY') ||
-        productName.includes('anual') ||
-        productName.includes('yearly') ||
-        subscriptionPlan.includes('anual') ||
-        subscriptionPlan.includes('yearly')
+        offerName.includes('anual') ||
+        offerName.includes('yearly') ||
+        (daysOfAccess && daysOfAccess >= 365)
 
       const planType = isYearly ? 'yearly' : 'monthly'
-      const daysToAdd = isYearly ? 365 : 30
+      const daysToAdd = daysOfAccess || (isYearly ? 365 : 30)
 
       const now = new Date()
       const expiresAt = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000)
@@ -192,7 +170,7 @@ Deno.serve(async (req) => {
           .from('subscriptions')
           .update({
             expires_at: expiresAt.toISOString(),
-            external_id: externalId,
+            external_id: orderHash,
             updated_at: now.toISOString(),
           })
           .eq('id', existingSub.id)
@@ -211,7 +189,7 @@ Deno.serve(async (req) => {
             plan_type: planType,
             status: 'active',
             provider: 'ticto',
-            external_id: externalId,
+            external_id: orderHash,
             starts_at: now.toISOString(),
             expires_at: expiresAt.toISOString(),
           })
@@ -223,10 +201,9 @@ Deno.serve(async (req) => {
         console.log('Created subscription for user:', user.id, 'Plan:', planType)
       }
 
-    } else if (isCancelEvent) {
+    } else if (isCanceled) {
       console.log('Processing cancellation event')
 
-      // Update subscription status to canceled
       const { error: cancelError } = await supabase
         .from('subscriptions')
         .update({
@@ -243,15 +220,14 @@ Deno.serve(async (req) => {
       }
       console.log('Canceled subscription for user:', user.id)
 
-    } else if (isRefundEvent) {
+    } else if (isRefunded) {
       console.log('Processing refund event')
 
-      // Update subscription status to refunded (immediately revoke access)
       const { error: refundError } = await supabase
         .from('subscriptions')
         .update({
           status: 'refunded',
-          expires_at: new Date().toISOString(), // Expire immediately
+          expires_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
@@ -265,7 +241,7 @@ Deno.serve(async (req) => {
       console.log('Refunded subscription for user:', user.id)
 
     } else {
-      console.log('Unhandled event type:', eventType)
+      console.log('Unhandled status type:', status, '- acknowledging webhook')
     }
 
     return new Response(
