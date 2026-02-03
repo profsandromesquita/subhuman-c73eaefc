@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useEffect } from "react";
 
 export interface Notification {
   id: string;
@@ -13,9 +14,59 @@ export interface Notification {
   space_name?: string;
 }
 
+// Hook para subscrição realtime de notificações
+function useNotificationsRealtime() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+        },
+        (payload) => {
+          console.log('New notification received:', payload);
+          // Invalidar queries para buscar novos dados
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+        },
+        () => {
+          // Atualizar quando notificação é marcada como lida
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+        }
+      )
+      .subscribe((status) => {
+        console.log('Notifications realtime subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
+}
+
 // Fetch user notifications
 export function useNotifications() {
   const { user } = useAuth();
+  
+  // Ativar subscription realtime
+  useNotificationsRealtime();
 
   return useQuery({
     queryKey: ["notifications", user?.id],
@@ -47,6 +98,7 @@ export function useNotifications() {
       }));
     },
     enabled: !!user,
+    staleTime: 1000 * 60, // 1 minuto - mais curto para notificações
   });
 }
 
@@ -69,6 +121,7 @@ export function useMarkNotificationRead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
     },
   });
 }
@@ -92,6 +145,7 @@ export function useMarkAllNotificationsRead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
     },
   });
 }
@@ -115,5 +169,6 @@ export function useUnreadNotificationsCount() {
       return count || 0;
     },
     enabled: !!user,
+    staleTime: 1000 * 30, // 30 segundos para contador
   });
 }
