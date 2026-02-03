@@ -10,7 +10,8 @@ import {
   Briefcase,
   GraduationCap,
   Sparkle,
-  Robot
+  Robot,
+  ShareNetwork
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,8 @@ interface Profile {
   bio: string | null;
   ai_experience_level: string | null;
   goals: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
 }
 
 export default function PersonalData() {
@@ -75,6 +78,8 @@ export default function PersonalData() {
     bio: "",
     ai_experience_level: "",
     goals: "",
+    instagram_url: "",
+    linkedin_url: "",
   });
 
   useEffect(() => {
@@ -114,6 +119,8 @@ export default function PersonalData() {
         bio: data?.bio || "",
         ai_experience_level: data?.ai_experience_level || "",
         goals: data?.goals || "",
+        instagram_url: data?.instagram_url || "",
+        linkedin_url: data?.linkedin_url || "",
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -214,6 +221,8 @@ export default function PersonalData() {
           bio: formData.bio || null,
           ai_experience_level: formData.ai_experience_level || null,
           goals: formData.goals || null,
+          instagram_url: formData.instagram_url || null,
+          linkedin_url: formData.linkedin_url || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -260,7 +269,9 @@ export default function PersonalData() {
       formData.hobbies !== (profile.hobbies || "") ||
       formData.bio !== (profile.bio || "") ||
       formData.ai_experience_level !== (profile.ai_experience_level || "") ||
-      formData.goals !== (profile.goals || "")
+      formData.goals !== (profile.goals || "") ||
+      formData.instagram_url !== (profile.instagram_url || "") ||
+      formData.linkedin_url !== (profile.linkedin_url || "")
     );
   };
 
@@ -561,6 +572,35 @@ export default function PersonalData() {
                   value={formData.hobbies}
                   onChange={(e) => handleInputChange("hobbies", e.target.value)}
                   placeholder="Ex: Leitura, Games, Música"
+                />
+              </div>
+            </ProfileFormSection>
+          </motion.div>
+
+          {/* Seção 6 - Redes Sociais */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.42 }}
+          >
+            <ProfileFormSection icon={<ShareNetwork className="h-5 w-5" />} title="Redes sociais">
+              <div className="space-y-2">
+                <Label htmlFor="instagram_url">Instagram</Label>
+                <Input
+                  id="instagram_url"
+                  value={formData.instagram_url}
+                  onChange={(e) => handleInputChange("instagram_url", e.target.value)}
+                  placeholder="https://instagram.com/seu_usuario"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="linkedin_url">LinkedIn</Label>
+                <Input
+                  id="linkedin_url"
+                  value={formData.linkedin_url}
+                  onChange={(e) => handleInputChange("linkedin_url", e.target.value)}
+                  placeholder="https://linkedin.com/in/seu_usuario"
                 />
               </div>
             </ProfileFormSection>

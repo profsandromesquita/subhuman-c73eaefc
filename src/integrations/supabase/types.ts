@@ -388,7 +388,9 @@ export type Database = {
           hobbies: string | null
           id: string
           industry: string | null
+          instagram_url: string | null
           job_title: string | null
+          linkedin_url: string | null
           notify_announcements: boolean | null
           notify_comments: boolean | null
           notify_mentions: boolean | null
@@ -412,7 +414,9 @@ export type Database = {
           hobbies?: string | null
           id: string
           industry?: string | null
+          instagram_url?: string | null
           job_title?: string | null
+          linkedin_url?: string | null
           notify_announcements?: boolean | null
           notify_comments?: boolean | null
           notify_mentions?: boolean | null
@@ -436,7 +440,9 @@ export type Database = {
           hobbies?: string | null
           id?: string
           industry?: string | null
+          instagram_url?: string | null
           job_title?: string | null
+          linkedin_url?: string | null
           notify_announcements?: boolean | null
           notify_comments?: boolean | null
           notify_mentions?: boolean | null

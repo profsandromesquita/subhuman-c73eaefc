@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { PlayCircle, Clock, User } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { MediaGallery } from "@/components/post/MediaGallery";
+import { AuthorModal } from "@/components/post/AuthorModal";
 
 interface MediaItem {
   id: string;
@@ -11,6 +14,16 @@ interface MediaItem {
   file_type: string;
   file_name: string | null;
   youtube_id: string | null;
+}
+
+interface Author {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
 }
 
 interface PostContentProps {
@@ -24,6 +37,7 @@ interface PostContentProps {
   publishedAt: string;
   readTime: string;
   media?: MediaItem[];
+  author?: Author | null;
 }
 
 export function PostContent({
@@ -37,7 +51,10 @@ export function PostContent({
   publishedAt,
   readTime,
   media,
+  author,
 }: PostContentProps) {
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
+
   return (
     <motion.article
       initial={{ opacity: 0 }}
@@ -88,12 +105,21 @@ export function PostContent({
 
         {/* Meta Info */}
         <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-              <User className="w-4 h-4" weight="bold" />
-            </div>
-            <span className="font-medium text-foreground">{authorName}</span>
-          </div>
+          <button 
+            onClick={() => author && setShowAuthorModal(true)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            disabled={!author}
+          >
+            <Avatar className="w-8 h-8">
+              <AvatarImage src={author?.avatar_url || undefined} />
+              <AvatarFallback className="bg-secondary">
+                <User className="w-4 h-4" weight="bold" />
+              </AvatarFallback>
+            </Avatar>
+            <span className={`font-medium text-foreground ${author ? 'hover:underline cursor-pointer' : ''}`}>
+              {authorName}
+            </span>
+          </button>
           <span>•</span>
           <span>{publishedAt}</span>
           <span>•</span>
@@ -119,6 +145,13 @@ export function PostContent({
           </div>
         )}
       </div>
+
+      {/* Author Modal */}
+      <AuthorModal 
+        author={author || null} 
+        isOpen={showAuthorModal} 
+        onClose={() => setShowAuthorModal(false)} 
+      />
     </motion.article>
   );
 }
