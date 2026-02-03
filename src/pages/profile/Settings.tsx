@@ -135,7 +135,7 @@ export default function Settings() {
             notifyComments: profile.notify_comments,
             notifyMentions: profile.notify_mentions,
             notifyAnnouncements: profile.notify_announcements,
-            notifyWeeklyEmail: profile.notify_weekly_email,
+            notifyDailyEmail: profile.notify_daily_email,
           },
         } : null,
         subscriptions: subscriptions?.map(sub => ({
