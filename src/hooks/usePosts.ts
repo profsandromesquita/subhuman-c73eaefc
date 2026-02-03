@@ -396,3 +396,88 @@ export function useLikeChannelPost() {
     },
   });
 }
+
+// Hook para deletar publicação de canal
+export function useDeleteChannelPost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      // Primeiro buscar IDs dos comentários para deletar os likes dos comentários
+      const { data: commentIds } = await supabase
+        .from("channel_post_comments")
+        .select("id")
+        .eq("post_id", postId);
+
+      // Deletar likes dos comentários
+      if (commentIds && commentIds.length > 0) {
+        await supabase
+          .from("channel_post_comment_likes")
+          .delete()
+          .in("comment_id", commentIds.map(c => c.id));
+      }
+
+      // Deletar comentários
+      await supabase
+        .from("channel_post_comments")
+        .delete()
+        .eq("post_id", postId);
+
+      // Deletar likes do post
+      await supabase
+        .from("channel_post_likes")
+        .delete()
+        .eq("post_id", postId);
+
+      // Deletar mídia
+      await supabase
+        .from("channel_post_media")
+        .delete()
+        .eq("post_id", postId);
+
+      // Finalmente deletar o post
+      const { error } = await supabase
+        .from("channel_posts")
+        .delete()
+        .eq("id", postId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
+    },
+  });
+}
+
+// Hook para atualizar publicação de canal
+export function useUpdateChannelPost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      postId,
+      title,
+      content,
+    }: {
+      postId: string;
+      title: string | null;
+      content: string;
+    }) => {
+      const { error } = await supabase
+        .from("channel_posts")
+        .update({
+          title,
+          content,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", postId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { postId }) => {
+      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["channel-post", postId] });
+    },
+  });
+}

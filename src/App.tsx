@@ -78,6 +78,7 @@ const App = () => (
               <Route path="/channels" element={<SubscriptionGuard><Channels /></SubscriptionGuard>} />
               <Route path="/channels/:channelId" element={<SubscriptionGuard><ChannelDetail /></SubscriptionGuard>} />
               <Route path="/channels/:channelId/new-post" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
+              <Route path="/channels/:channelId/edit/:postId" element={<SubscriptionGuard><CreateChannelPost /></SubscriptionGuard>} />
               <Route path="/channels/:channelId/post/:postId" element={<SubscriptionGuard><ChannelPostDetail /></SubscriptionGuard>} />
               <Route path="/notifications" element={<SubscriptionGuard><Notifications /></SubscriptionGuard>} />
               <Route path="/profile" element={<SubscriptionGuard><Profile /></SubscriptionGuard>} />

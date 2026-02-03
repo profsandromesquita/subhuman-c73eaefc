@@ -2,20 +2,37 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Heart, ChatCircle, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowLeft, Heart, ChatCircle, PaperPlaneTilt, DotsThree, Pencil, Trash } from "@phosphor-icons/react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useDeleteChannelPost } from "@/hooks/usePosts";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import DOMPurify from "dompurify";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Post {
   id: string;
@@ -45,6 +62,8 @@ export default function ChannelPostDetail() {
   const { channelId, postId } = useParams<{ channelId: string; postId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isAdminOrModerator } = useAdminAuth();
+  const deleteMutation = useDeleteChannelPost();
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   
   const [post, setPost] = useState<Post | null>(null);
@@ -56,6 +75,22 @@ export default function ChannelPostDetail() {
   const [commentContent, setCommentContent] = useState("");
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const canEdit = user?.id === post?.author_id;
+  const canDelete = user?.id === post?.author_id || isAdminOrModerator;
+  const showActions = canEdit || canDelete;
+
+  const handleDelete = async () => {
+    try {
+      await deleteMutation.mutateAsync(postId!);
+      toast.success("Publicação excluída!");
+      navigate(`/channels/${channelId}`);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      toast.error("Erro ao excluir publicação");
+    }
+  };
 
   useEffect(() => {
     if (postId) {
@@ -444,16 +479,67 @@ export default function ChannelPostDetail() {
           className="mb-6"
         >
           {/* Author */}
-          <div className="flex items-center gap-3 mb-4">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src={post.author_avatar || undefined} />
-              <AvatarFallback>{post.author_name?.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium">{post.author_name}</p>
-              <p className="text-sm text-muted-foreground">{formatTime(post.created_at)}</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={post.author_avatar || undefined} />
+                <AvatarFallback>{post.author_name?.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="font-medium">{post.author_name}</p>
+                <p className="text-sm text-muted-foreground">{formatTime(post.created_at)}</p>
+              </div>
             </div>
+
+            {showActions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <DotsThree className="w-5 h-5" weight="bold" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card border-border">
+                  {canEdit && (
+                    <DropdownMenuItem onClick={() => navigate(`/channels/${channelId}/edit/${postId}`)}>
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Editar
+                    </DropdownMenuItem>
+                  )}
+                  {canDelete && (
+                    <DropdownMenuItem 
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-red-500 focus:text-red-500"
+                    >
+                      <Trash className="w-4 h-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir publicação?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. A publicação será permanentemente excluída.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDelete} 
+                  className="bg-red-500 hover:bg-red-600"
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Title & Content */}
           {post.title && (
