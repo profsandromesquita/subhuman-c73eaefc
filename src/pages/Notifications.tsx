@@ -60,7 +60,9 @@ export default function Notifications() {
     }
 
     // Navigate based on type
-    if (notification.type === "update" && notification.space_id) {
+    if (notification.type === "update" && notification.space_slug) {
+      navigate(`/spaces/${notification.space_slug}`);
+    } else if (notification.type === "update" && notification.space_id) {
       navigate(`/spaces`);
     } else if (notification.type === "channel") {
       navigate(`/canais`);

@@ -12,6 +12,7 @@ export interface Notification {
   created_at: string;
   space_id: string | null;
   space_name?: string;
+  space_slug?: string;
 }
 
 // Hook para subscrição realtime de notificações
@@ -78,7 +79,7 @@ export function useNotifications() {
         .from("notifications")
         .select(`
           id, type, title, message, is_read, created_at, space_id,
-          spaces(name)
+          spaces(name, slug)
         `)
         .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("created_at", { ascending: false })
@@ -95,6 +96,7 @@ export function useNotifications() {
         created_at: n.created_at,
         space_id: n.space_id,
         space_name: (n.spaces as any)?.name || null,
+        space_slug: (n.spaces as any)?.slug || null,
       }));
     },
     enabled: !!user,
