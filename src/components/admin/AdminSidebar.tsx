@@ -12,7 +12,8 @@ import {
   Wallet,
   SignOut,
   House,
-  Microphone
+  Microphone,
+  Ticket
 } from '@phosphor-icons/react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -34,6 +35,7 @@ const mainNavItems = [
   { title: 'Dashboard', url: '/admin', icon: ChartLine },
   { title: 'Usuários', url: '/admin/users', icon: Users },
   { title: 'Assinaturas', url: '/admin/subscriptions', icon: CreditCard },
+  { title: 'Cupons', url: '/admin/coupons', icon: Ticket },
 ];
 
 const contentNavItems = [

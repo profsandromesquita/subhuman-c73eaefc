@@ -49,6 +49,7 @@ const AdminSpaces = lazy(() => import("./pages/admin/Spaces"));
 const SpaceContent = lazy(() => import("./pages/admin/SpaceContent"));
 const AdminPodcasts = lazy(() => import("./pages/admin/Podcasts"));
 const AdminChannels = lazy(() => import("./pages/admin/Channels"));
+const AdminCoupons = lazy(() => import("./pages/admin/Coupons"));
 const Moderation = lazy(() => import("./pages/admin/Moderation"));
 const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
 const SystemUsers = lazy(() => import("./pages/admin/settings/SystemUsers"));
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/admin" element={<AdminGuard><Dashboard /></AdminGuard>} />
               <Route path="/admin/users" element={<AdminGuard><Users /></AdminGuard>} />
               <Route path="/admin/subscriptions" element={<AdminGuard><Subscriptions /></AdminGuard>} />
+              <Route path="/admin/coupons" element={<AdminGuard><AdminCoupons /></AdminGuard>} />
               <Route path="/admin/spaces" element={<AdminGuard><AdminSpaces /></AdminGuard>} />
               <Route path="/admin/content" element={<AdminGuard><SpaceContent /></AdminGuard>} />
               <Route path="/admin/podcasts" element={<AdminGuard><AdminPodcasts /></AdminGuard>} />

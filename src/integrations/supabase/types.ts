@@ -303,6 +303,51 @@ export type Database = {
           },
         ]
       }
+      coupon_redemptions: {
+        Row: {
+          coupon_id: string
+          id: string
+          ip_address: string | null
+          redeemed_at: string
+          subscription_id: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          coupon_id: string
+          id?: string
+          ip_address?: string | null
+          redeemed_at?: string
+          subscription_id?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          coupon_id?: string
+          id?: string
+          ip_address?: string | null
+          redeemed_at?: string
+          subscription_id?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "promo_coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -613,6 +658,48 @@ export type Database = {
           occupation_type?: string | null
           skills?: string[] | null
           state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      promo_coupons: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          current_uses: number
+          days_granted: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number
+          plan_type: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          current_uses?: number
+          days_granted?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number
+          plan_type?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          current_uses?: number
+          days_granted?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number
+          plan_type?: string
           updated_at?: string
         }
         Relationships: []
