@@ -210,7 +210,7 @@ export default function CreateChannelPost() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-safe overflow-y-auto">
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -10 }}
@@ -243,7 +243,7 @@ export default function CreateChannelPost() {
       </motion.header>
 
       {/* Content */}
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
+      <main className="max-w-2xl mx-auto px-4 py-6 pb-32 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -256,7 +256,7 @@ export default function CreateChannelPost() {
               placeholder="Título (opcional)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="text-lg font-medium border-none bg-transparent px-0 focus-visible:ring-0 placeholder:text-muted-foreground"
+              className="text-lg font-medium bg-input border border-border rounded-lg px-4 py-3 focus-visible:ring-1 focus-visible:ring-border placeholder:text-muted-foreground"
             />
           </div>
 
