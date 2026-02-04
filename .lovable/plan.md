@@ -1,259 +1,160 @@
 
+# Plano de Correcao: 4 Falhas Mobile Subhumano
 
-# Plano: Sistema de Cupons Promocionais (30 dias)
+## Diagnostico Completo
 
-## Objetivo
-Criar um sistema seguro de cupons promocionais de uso único que concedam 30 dias de acesso gratuito à plataforma Subhumano, sem possibilidade de compartilhamento ou reutilização.
+### Problema 1: Overflow na pagina de edicao de canais (/channels/)
+**Causa identificada:** A pagina `CreateChannelPost.tsx` usa `pb-24` para padding inferior, mas o conteudo total (header + title + editor + media + tips) nao tem limite de altura controlado. Em telas pequenas, o conteudo ultrapassa a area visivel e botoes ficam inacessiveis.
+
+**Arquivo:** `src/pages/CreateChannelPost.tsx`
+
+### Problema 2: Campo de titulo sem contorno visivel
+**Causa identificada:** O Input do titulo tem classes `border-none bg-transparent px-0`, removendo qualquer indicacao visual de que e um campo editavel.
+
+**Arquivo:** `src/pages/CreateChannelPost.tsx` (linha 259)
+
+### Problema 3: Botao voltar muito proximo ao topo na pagina /plans
+**Causa identificada:** O container usa `pt-8` sem considerar a safe-area-inset do iOS (Dynamic Island/notch). O botao fica parcialmente oculto.
+
+**Arquivo:** `src/pages/Plans.tsx` (linha 196)
+
+### Problema 4: Notificacoes nao aparecem na pagina /notifications
+**Causa identificada:** O trigger que cria notificacoes foi adicionado em 2026-02-03 19:25 UTC. Porem, os artigos publicados foram criados **antes** dessa data (11:29 UTC do mesmo dia). Portanto, o trigger nao disparou para eles. Alem disso, a unica notificacao existente na base e do tipo "info" (teste manual), sem notificacoes do tipo "update".
+
+**Solucao necessaria:** 
+1. Recriar notificacoes para conteudos ja publicados
+2. Verificar se o trigger esta funcionando para novas publicacoes
 
 ---
 
-## Visao Geral da Arquitetura
+## Plano de Implementacao
+
+### Correcao 1: Overflow na edicao de canais
+
+Alterar o layout para garantir scroll correto em mobile:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLUXO DO CUPOM                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. ADMIN cria cupom no painel                                 │
-│     ↓                                                           │
-│  2. Sistema gera codigo unico (ex: SUB-X7K9-PROMO-2026)       │
-│     ↓                                                           │
-│  3. USUARIO digita codigo na pagina de planos                  │
-│     ↓                                                           │
-│  4. Edge Function valida:                                       │
-│     - Cupom existe?                                             │
-│     - Cupom não usado?                                          │
-│     - Cupom não expirado?                                       │
-│     - Usuario já teve cupom antes?                              │
-│     ↓                                                           │
-│  5. Se válido: cria assinatura + marca cupom como usado        │
-│     ↓                                                           │
-│  6. Usuario ganha 30 dias de acesso                            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+src/pages/CreateChannelPost.tsx
+
+Mudancas:
+1. Adicionar min-h-screen ao container principal
+2. Adicionar pt-safe ao container para respeitar safe areas
+3. Adicionar overflow-y-auto no main
+4. Reduzir o pb-24 para pb-32 garantindo espaco para navegacao
+5. Envolver o conteudo em um ScrollArea se necessario
 ```
 
----
+### Correcao 2: Campo de titulo com borda visivel
 
-## Fase 1: Modelagem do Banco de Dados
+Modificar o Input do titulo para ter borda e background consistente:
 
-### 1.1 Tabela `promo_coupons`
+```text
+src/pages/CreateChannelPost.tsx (linha 254-260)
 
-Armazena todos os cupons criados pelo admin:
+De:
+className="text-lg font-medium border-none bg-transparent px-0 
+  focus-visible:ring-0 placeholder:text-muted-foreground"
+
+Para:
+className="text-lg font-medium bg-input border border-border rounded-lg px-4 py-3 
+  focus-visible:ring-1 focus-visible:ring-border 
+  placeholder:text-muted-foreground"
+```
+
+### Correcao 3: Botao voltar com safe-area na /plans
+
+Adicionar padding-top para safe-area do iOS:
+
+```text
+src/pages/Plans.tsx (linha 196)
+
+De:
+<div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
+
+Para:
+<div className="relative max-w-lg mx-auto px-6 pt-8 pt-safe pb-12">
+
+E adicionar margem extra ao botao voltar (linha 201-209):
+
+De:
+className="flex items-center mb-12"
+
+Para:
+className="flex items-center mb-12 mt-4"
+```
+
+### Correcao 4: Criar notificacoes para conteudos publicados
+
+**Opcao A - Migration SQL (recomendada):**
+
+Executar uma migracao que cria notificacoes retroativas para todos os space_updates publicados:
 
 ```sql
-CREATE TABLE public.promo_coupons (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT NOT NULL UNIQUE,              -- Codigo unico do cupom
-  plan_type TEXT NOT NULL DEFAULT 'promo', -- Tipo do plano concedido
-  days_granted INTEGER NOT NULL DEFAULT 30, -- Dias de acesso
-  max_uses INTEGER NOT NULL DEFAULT 1,    -- Maximo de usos (1 = uso unico)
-  current_uses INTEGER NOT NULL DEFAULT 0, -- Contador de usos
-  expires_at TIMESTAMPTZ,                 -- Data de expiracao do cupom
-  is_active BOOLEAN NOT NULL DEFAULT true, -- Se esta ativo para uso
-  created_by UUID REFERENCES auth.users(id), -- Admin que criou
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
-  -- Constraints
-  CONSTRAINT valid_uses CHECK (current_uses <= max_uses),
-  CONSTRAINT positive_days CHECK (days_granted > 0)
-);
+-- Criar notificacoes para artigos ja publicados que nao geraram notificacoes
+INSERT INTO public.notifications (user_id, title, message, type, space_id)
+SELECT DISTINCT
+  uss.user_id,
+  'Novo em ' || s.name,
+  su.title,
+  'update',
+  su.space_id
+FROM public.space_updates su
+JOIN public.spaces s ON s.id = su.space_id
+JOIN public.user_space_subscriptions uss ON uss.space_id = su.space_id
+JOIN public.profiles p ON p.id = uss.user_id
+WHERE su.is_published = true
+  AND su.created_at >= NOW() - INTERVAL '7 days'
+  AND COALESCE(p.notify_space_updates, true) = true
+  AND NOT EXISTS (
+    SELECT 1 FROM public.notifications n 
+    WHERE n.user_id = uss.user_id 
+    AND n.space_id = su.space_id 
+    AND n.message = su.title
+  );
 ```
 
-### 1.2 Tabela `coupon_redemptions`
+**Opcao B - Verificar trigger (complementar):**
 
-Registra cada uso de cupom (previne reuso):
-
-```sql
-CREATE TABLE public.coupon_redemptions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  coupon_id UUID NOT NULL REFERENCES public.promo_coupons(id),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  subscription_id UUID REFERENCES public.subscriptions(id),
-  redeemed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ip_address TEXT,                        -- Para auditoria
-  user_agent TEXT,                        -- Para auditoria
-  
-  -- Garante que cada usuario usa cada cupom apenas uma vez
-  UNIQUE(coupon_id, user_id)
-);
-```
-
-### 1.3 Politicas RLS
-
-```sql
--- promo_coupons: apenas admins gerenciam
-CREATE POLICY "Admins can manage coupons"
-  ON public.promo_coupons FOR ALL
-  USING (has_role(auth.uid(), 'admin'));
-
--- promo_coupons: usuarios podem ver cupons ativos (para validacao)
-CREATE POLICY "Users can view active coupons"
-  ON public.promo_coupons FOR SELECT
-  USING (is_active = true);
-
--- coupon_redemptions: usuarios veem proprios resgates
-CREATE POLICY "Users can view own redemptions"
-  ON public.coupon_redemptions FOR SELECT
-  USING (auth.uid() = user_id);
-
--- coupon_redemptions: admins veem todos
-CREATE POLICY "Admins can view all redemptions"
-  ON public.coupon_redemptions FOR SELECT
-  USING (has_role(auth.uid(), 'admin'));
-```
+Testar publicando um novo artigo via admin e verificar se notificacao e criada automaticamente.
 
 ---
 
-## Fase 2: Edge Function para Resgate de Cupom
+## Resumo dos Arquivos a Modificar
 
-### 2.1 Funcao `redeem-coupon`
-
-Edge function segura que processa o resgate:
-
-```typescript
-// supabase/functions/redeem-coupon/index.ts
-
-// Validacoes:
-// 1. Usuario autenticado
-// 2. Cupom existe e esta ativo
-// 3. Cupom nao expirou
-// 4. Cupom nao atingiu limite de usos
-// 5. Usuario nunca usou QUALQUER cupom promocional antes
-// 6. Usuario nao tem assinatura ativa
-
-// Se tudo OK:
-// 1. Incrementa current_uses do cupom
-// 2. Cria registro em coupon_redemptions
-// 3. Cria assinatura com plan_type='promo' e duracao de days_granted
-// 4. Retorna sucesso
-```
-
-### 2.2 Seguranca Implementada
-
-| Ataque | Protecao |
-|--------|----------|
-| Reutilizacao do mesmo cupom | UNIQUE(coupon_id, user_id) na tabela |
-| Compartilhamento | Cupom vinculado a 1 usuario maximo |
-| Brute force de codigos | Codigos longos + rate limiting |
-| Multiplos cupons por usuario | Verificacao se usuario ja usou algum cupom |
-| Cupom expirado | Validacao de expires_at |
-| Manipulacao client-side | Toda logica na Edge Function |
-
----
-
-## Fase 3: Interface do Admin
-
-### 3.1 Nova Pagina `admin/Coupons.tsx`
-
-Funcionalidades:
-- Listar todos os cupons com status
-- Criar novo cupom (individual ou em lote)
-- Desativar cupom
-- Ver historico de resgates
-- Exportar cupons nao usados
-
-### 3.2 Formulario de Criacao
-
-```typescript
-interface CouponForm {
-  prefix?: string;        // Ex: "BLACKFRIDAY" -> BLACKFRIDAY-X7K9
-  quantity: number;       // Quantos cupons gerar
-  daysGranted: number;    // Dias de acesso (default: 30)
-  expiresAt?: Date;       // Quando o cupom expira
-}
-```
-
----
-
-## Fase 4: Interface do Usuario
-
-### 4.1 Componente `CouponInput` na Pagina de Planos
-
-Adicionar campo para digitar cupom promocional:
-
-```typescript
-// Em Plans.tsx - adicionar secao apos trial
-<div className="mt-6 p-4 rounded-xl border border-border">
-  <p className="text-sm text-muted-foreground mb-2">
-    Possui um cupom promocional?
-  </p>
-  <div className="flex gap-2">
-    <Input 
-      placeholder="Digite seu cupom"
-      value={couponCode}
-      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-    />
-    <Button onClick={handleRedeemCoupon}>
-      Resgatar
-    </Button>
-  </div>
-</div>
-```
-
----
-
-## Fase 5: Atualizacao do CHECK Constraint
-
-O banco atual tem uma restricao que permite apenas `monthly`, `yearly` e `trial`:
-
-```sql
--- Adicionar 'promo' aos tipos permitidos
-ALTER TABLE public.subscriptions 
-DROP CONSTRAINT IF EXISTS subscriptions_plan_type_check;
-
-ALTER TABLE public.subscriptions 
-ADD CONSTRAINT subscriptions_plan_type_check 
-CHECK (plan_type IN ('monthly', 'yearly', 'trial', 'promo'));
-```
-
----
-
-## Formato do Codigo do Cupom
-
-Padrao seguro e legivel:
-
-```
-SUB-XXXX-YYYY-ZZZZ
-
-SUB     = Prefixo fixo (identifica Subhumano)
-XXXX    = 4 caracteres alfanumericos aleatorios
-YYYY    = 4 caracteres alfanumericos aleatorios  
-ZZZZ    = 4 caracteres (pode ser customizado, ex: 2026, PROMO)
-
-Exemplo: SUB-K7X9-M2P4-2026
-```
-
-Caracteristicas:
-- 12 caracteres aleatorios = mais de 4 bilhoes de combinacoes
-- Facil de digitar e ler
-- Resistente a brute force
-
----
-
-## Resumo de Arquivos
-
-| Operacao | Arquivo |
-|----------|---------|
-| **Migration SQL** | Criar tabelas promo_coupons e coupon_redemptions + RLS + atualizar constraint |
-| **Criar** | `supabase/functions/redeem-coupon/index.ts` - Edge function de resgate |
-| **Criar** | `src/pages/admin/Coupons.tsx` - Pagina de gestao de cupons |
-| **Criar** | `src/hooks/useCoupons.ts` - Hook para cupons |
-| **Editar** | `src/pages/Plans.tsx` - Adicionar campo de cupom |
-| **Editar** | `src/components/admin/AdminSidebar.tsx` - Link para cupons |
-| **Editar** | `src/App.tsx` - Rota /admin/coupons |
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/CreateChannelPost.tsx` | Layout mobile-safe + borda no titulo |
+| `src/pages/Plans.tsx` | Safe-area no topo + espaco para botao voltar |
+| **Migration SQL** | Criar notificacoes retroativas |
 
 ---
 
 ## Resultado Esperado
 
-Apos implementacao:
+1. Pagina de edicao de canal com scroll funcional em mobile
+2. Campo de titulo claramente visivel e editavel
+3. Botao voltar acessivel abaixo da Dynamic Island
+4. Notificacoes de atualizacoes aparecem na pagina /notifications
 
-1. Admin pode criar cupons unicos de 30 dias
-2. Cada cupom so pode ser usado uma vez
-3. Usuario so pode usar um cupom promocional em toda a vida
-4. Sistema 100% seguro contra compartilhamento
-5. Auditoria completa de quem usou qual cupom
-6. Interface amigavel para admin e usuario
+---
 
+## Secao Tecnica
+
+### Detalhes do overflow mobile
+O problema ocorre porque:
+- O `header` e sticky com `top-0`
+- O `main` tem `py-6 pb-24` mas nao tem altura maxima
+- O `RichTextEditor` ja tem `max-h-[300px]` mas outros elementos somam
+
+### Detalhes do trigger de notificacoes
+- Trigger: `on_space_update_published`
+- Funcao: `notify_space_update_published()`
+- Dispara em: INSERT ou UPDATE de `is_published` na tabela `space_updates`
+- O trigger foi criado **depois** dos ultimos artigos serem publicados
+
+### Classes CSS para safe-area
+Ja definidas em `src/index.css`:
+```css
+.pt-safe { padding-top: env(safe-area-inset-top, 0); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0); }
+```
