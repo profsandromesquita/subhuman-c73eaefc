@@ -1,284 +1,248 @@
 
-# Plano: URLs Amigáveis para SEO
+
+# Plano: Sistema de Cupons Promocionais (30 dias)
 
 ## Objetivo
-Transformar URLs com UUIDs em URLs legíveis e SEO-friendly:
-
-**Antes:**
-- `/spaces/produtividade/post/b4e54116-49d2-4f10-8090-ce09b00e3038`
-- `/podcasts/992bfff5-79d3-4f9e-bdf1-ffe494c8ee6d`
-
-**Depois:**
-- `/spaces/produtividade/post/copilot-secretario-chegou-agora-voce-agenda-reunioes`
-- `/podcasts/o-evernote-finalmente-acordou-ou-so-colocou-ia`
+Criar um sistema seguro de cupons promocionais de uso único que concedam 30 dias de acesso gratuito à plataforma Subhumano, sem possibilidade de compartilhamento ou reutilização.
 
 ---
 
-## Visao Geral das Mudancas
+## Visao Geral da Arquitetura
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ESTRUTURA DE URLs                            │
+│                    FLUXO DO CUPOM                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ARTIGOS                                                        │
-│  /spaces/:spaceSlug/post/:postSlug                             │
-│  Exemplo: /spaces/marketing/post/claude-e-salesforce-casamento │
-│                                                                 │
-│  PODCASTS                                                       │
-│  /podcasts/:podcastSlug                                        │
-│  Exemplo: /podcasts/batalha-dos-editores-de-ia-2026           │
+│  1. ADMIN cria cupom no painel                                 │
+│     ↓                                                           │
+│  2. Sistema gera codigo unico (ex: SUB-X7K9-PROMO-2026)       │
+│     ↓                                                           │
+│  3. USUARIO digita codigo na pagina de planos                  │
+│     ↓                                                           │
+│  4. Edge Function valida:                                       │
+│     - Cupom existe?                                             │
+│     - Cupom não usado?                                          │
+│     - Cupom não expirado?                                       │
+│     - Usuario já teve cupom antes?                              │
+│     ↓                                                           │
+│  5. Se válido: cria assinatura + marca cupom como usado        │
+│     ↓                                                           │
+│  6. Usuario ganha 30 dias de acesso                            │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fase 1: Migracao de Banco de Dados
+## Fase 1: Modelagem do Banco de Dados
 
-### 1.1 Adicionar Campo `slug` nas Tabelas
+### 1.1 Tabela `promo_coupons`
 
-```sql
--- Adicionar coluna slug em space_updates
-ALTER TABLE public.space_updates 
-  ADD COLUMN slug TEXT;
-
--- Adicionar coluna slug em podcasts
-ALTER TABLE public.podcasts 
-  ADD COLUMN slug TEXT;
-
--- Criar indices unicos para garantir slugs unicos por espaço/global
-CREATE UNIQUE INDEX idx_space_updates_slug ON public.space_updates(space_id, slug);
-CREATE UNIQUE INDEX idx_podcasts_slug ON public.podcasts(slug);
-```
-
-### 1.2 Funcao de Geracao de Slugs
+Armazena todos os cupons criados pelo admin:
 
 ```sql
--- Funcao para converter titulo em slug
-CREATE OR REPLACE FUNCTION public.generate_slug(title TEXT)
-RETURNS TEXT AS $$
-DECLARE
-  result TEXT;
-BEGIN
-  result := lower(title);
-  -- Remove acentos
-  result := translate(result, 
-    'àáâãäåèéêëìíîïòóôõöùúûüýÿñç',
-    'aaaaaaeeeeiiiiooooouuuuyync');
-  -- Remove caracteres especiais, mantém apenas letras, números e espaços
-  result := regexp_replace(result, '[^a-z0-9\s-]', '', 'g');
-  -- Substitui espaços por hifens
-  result := regexp_replace(result, '\s+', '-', 'g');
-  -- Remove hifens duplicados
-  result := regexp_replace(result, '-+', '-', 'g');
-  -- Remove hifens no inicio e fim
-  result := trim(both '-' from result);
-  -- Limita a 80 caracteres para URLs limpas
-  result := left(result, 80);
+CREATE TABLE public.promo_coupons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT NOT NULL UNIQUE,              -- Codigo unico do cupom
+  plan_type TEXT NOT NULL DEFAULT 'promo', -- Tipo do plano concedido
+  days_granted INTEGER NOT NULL DEFAULT 30, -- Dias de acesso
+  max_uses INTEGER NOT NULL DEFAULT 1,    -- Maximo de usos (1 = uso unico)
+  current_uses INTEGER NOT NULL DEFAULT 0, -- Contador de usos
+  expires_at TIMESTAMPTZ,                 -- Data de expiracao do cupom
+  is_active BOOLEAN NOT NULL DEFAULT true, -- Se esta ativo para uso
+  created_by UUID REFERENCES auth.users(id), -- Admin que criou
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+  -- Constraints
+  CONSTRAINT valid_uses CHECK (current_uses <= max_uses),
+  CONSTRAINT positive_days CHECK (days_granted > 0)
+);
 ```
 
-### 1.3 Trigger para Geracao Automatica
+### 1.2 Tabela `coupon_redemptions`
+
+Registra cada uso de cupom (previne reuso):
 
 ```sql
--- Trigger para gerar slug automaticamente no INSERT/UPDATE
-CREATE OR REPLACE FUNCTION public.set_slug_on_insert()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.slug IS NULL OR NEW.slug = '' THEN
-    NEW.slug := public.generate_slug(NEW.title);
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_space_updates_slug
-  BEFORE INSERT OR UPDATE ON public.space_updates
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_slug_on_insert();
-
-CREATE TRIGGER trigger_podcasts_slug
-  BEFORE INSERT OR UPDATE ON public.podcasts
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_slug_on_insert();
+CREATE TABLE public.coupon_redemptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  coupon_id UUID NOT NULL REFERENCES public.promo_coupons(id),
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  subscription_id UUID REFERENCES public.subscriptions(id),
+  redeemed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ip_address TEXT,                        -- Para auditoria
+  user_agent TEXT,                        -- Para auditoria
+  
+  -- Garante que cada usuario usa cada cupom apenas uma vez
+  UNIQUE(coupon_id, user_id)
+);
 ```
 
-### 1.4 Migrar Dados Existentes
+### 1.3 Politicas RLS
 
 ```sql
--- Gerar slugs para artigos existentes
-UPDATE public.space_updates 
-SET slug = public.generate_slug(title)
-WHERE slug IS NULL;
+-- promo_coupons: apenas admins gerenciam
+CREATE POLICY "Admins can manage coupons"
+  ON public.promo_coupons FOR ALL
+  USING (has_role(auth.uid(), 'admin'));
 
--- Gerar slugs para podcasts existentes
-UPDATE public.podcasts 
-SET slug = public.generate_slug(title)
-WHERE slug IS NULL;
+-- promo_coupons: usuarios podem ver cupons ativos (para validacao)
+CREATE POLICY "Users can view active coupons"
+  ON public.promo_coupons FOR SELECT
+  USING (is_active = true);
 
--- Após migração, tornar NOT NULL
-ALTER TABLE public.space_updates 
-  ALTER COLUMN slug SET NOT NULL;
+-- coupon_redemptions: usuarios veem proprios resgates
+CREATE POLICY "Users can view own redemptions"
+  ON public.coupon_redemptions FOR SELECT
+  USING (auth.uid() = user_id);
 
-ALTER TABLE public.podcasts 
-  ALTER COLUMN slug SET NOT NULL;
+-- coupon_redemptions: admins veem todos
+CREATE POLICY "Admins can view all redemptions"
+  ON public.coupon_redemptions FOR SELECT
+  USING (has_role(auth.uid(), 'admin'));
 ```
 
 ---
 
-## Fase 2: Atualizacao dos Hooks
+## Fase 2: Edge Function para Resgate de Cupom
 
-### 2.1 Hook `usePosts.ts`
+### 2.1 Funcao `redeem-coupon`
 
-Adicionar nova função para buscar artigo por slug:
+Edge function segura que processa o resgate:
 
 ```typescript
-// Buscar artigo por slug do espaço e slug do post
-export function useSpaceUpdateBySlug(spaceSlug: string | undefined, postSlug: string | undefined) {
-  return useQuery({
-    queryKey: ["space-update", spaceSlug, postSlug],
-    queryFn: async () => {
-      // Primeiro busca o espaço pelo slug
-      const { data: space } = await supabase
-        .from("spaces")
-        .select("id")
-        .eq("slug", spaceSlug)
-        .single();
-      
-      if (!space) return null;
+// supabase/functions/redeem-coupon/index.ts
 
-      // Depois busca o post pelo slug dentro do espaço
-      const { data, error } = await supabase
-        .from("space_updates")
-        .select("*, spaces(name, slug)")
-        .eq("space_id", space.id)
-        .eq("slug", postSlug)
-        .eq("is_published", true)
-        .single();
+// Validacoes:
+// 1. Usuario autenticado
+// 2. Cupom existe e esta ativo
+// 3. Cupom nao expirou
+// 4. Cupom nao atingiu limite de usos
+// 5. Usuario nunca usou QUALQUER cupom promocional antes
+// 6. Usuario nao tem assinatura ativa
 
-      if (error) return null;
-      return data;
-    },
-    enabled: !!spaceSlug && !!postSlug,
-  });
-}
+// Se tudo OK:
+// 1. Incrementa current_uses do cupom
+// 2. Cria registro em coupon_redemptions
+// 3. Cria assinatura com plan_type='promo' e duracao de days_granted
+// 4. Retorna sucesso
 ```
 
-### 2.2 Hook `usePodcasts.ts`
+### 2.2 Seguranca Implementada
 
-Adicionar nova função para buscar podcast por slug:
+| Ataque | Protecao |
+|--------|----------|
+| Reutilizacao do mesmo cupom | UNIQUE(coupon_id, user_id) na tabela |
+| Compartilhamento | Cupom vinculado a 1 usuario maximo |
+| Brute force de codigos | Codigos longos + rate limiting |
+| Multiplos cupons por usuario | Verificacao se usuario ja usou algum cupom |
+| Cupom expirado | Validacao de expires_at |
+| Manipulacao client-side | Toda logica na Edge Function |
+
+---
+
+## Fase 3: Interface do Admin
+
+### 3.1 Nova Pagina `admin/Coupons.tsx`
+
+Funcionalidades:
+- Listar todos os cupons com status
+- Criar novo cupom (individual ou em lote)
+- Desativar cupom
+- Ver historico de resgates
+- Exportar cupons nao usados
+
+### 3.2 Formulario de Criacao
 
 ```typescript
-// Buscar podcast por slug
-export function usePodcastBySlug(podcastSlug: string | undefined) {
-  return useQuery({
-    queryKey: ["podcast-by-slug", podcastSlug],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("podcasts")
-        .select(`*, spaces(id, name, slug, icon)`)
-        .eq("slug", podcastSlug)
-        .eq("is_published", true)
-        .single();
-
-      if (error) return null;
-      return data as Podcast;
-    },
-    enabled: !!podcastSlug,
-  });
+interface CouponForm {
+  prefix?: string;        // Ex: "BLACKFRIDAY" -> BLACKFRIDAY-X7K9
+  quantity: number;       // Quantos cupons gerar
+  daysGranted: number;    // Dias de acesso (default: 30)
+  expiresAt?: Date;       // Quando o cupom expira
 }
 ```
 
 ---
 
-## Fase 3: Atualizacao de Rotas
+## Fase 4: Interface do Usuario
 
-### 3.1 App.tsx
+### 4.1 Componente `CouponInput` na Pagina de Planos
 
-Alterar parâmetros de rota:
+Adicionar campo para digitar cupom promocional:
 
 ```typescript
-// Antes
-<Route path="/spaces/:spaceId/post/:postId" element={...} />
-<Route path="/podcasts/:podcastId" element={...} />
-
-// Depois
-<Route path="/spaces/:spaceSlug/post/:postSlug" element={...} />
-<Route path="/podcasts/:podcastSlug" element={...} />
+// Em Plans.tsx - adicionar secao apos trial
+<div className="mt-6 p-4 rounded-xl border border-border">
+  <p className="text-sm text-muted-foreground mb-2">
+    Possui um cupom promocional?
+  </p>
+  <div className="flex gap-2">
+    <Input 
+      placeholder="Digite seu cupom"
+      value={couponCode}
+      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+    />
+    <Button onClick={handleRedeemCoupon}>
+      Resgatar
+    </Button>
+  </div>
+</div>
 ```
 
 ---
 
-## Fase 4: Atualizacao de Paginas
+## Fase 5: Atualizacao do CHECK Constraint
 
-### 4.1 PostDetail.tsx
+O banco atual tem uma restricao que permite apenas `monthly`, `yearly` e `trial`:
 
-- Mudar `useParams` para pegar `spaceSlug` e `postSlug`
-- Usar novo hook `useSpaceUpdateBySlug` ao invés de buscar por ID
+```sql
+-- Adicionar 'promo' aos tipos permitidos
+ALTER TABLE public.subscriptions 
+DROP CONSTRAINT IF EXISTS subscriptions_plan_type_check;
 
-### 4.2 PodcastDetail.tsx
-
-- Mudar `useParams` para pegar `podcastSlug`
-- Usar novo hook `usePodcastBySlug` ao invés de buscar por ID
-
-### 4.3 SpaceDetail.tsx
-
-- Atualizar navegação para usar slug do post:
-
-```typescript
-// Antes
-navigate(`/spaces/${spaceId}/post/${update.id}`);
-
-// Depois
-navigate(`/spaces/${spaceId}/post/${update.slug}`);
+ALTER TABLE public.subscriptions 
+ADD CONSTRAINT subscriptions_plan_type_check 
+CHECK (plan_type IN ('monthly', 'yearly', 'trial', 'promo'));
 ```
 
 ---
 
-## Fase 5: Atualizacao de Componentes de Navegacao
+## Formato do Codigo do Cupom
 
-### 5.1 PodcastCard.tsx
+Padrao seguro e legivel:
 
-```typescript
-// Antes
-<Link to={`/podcasts/${podcast.id}`}>
+```
+SUB-XXXX-YYYY-ZZZZ
 
-// Depois
-<Link to={`/podcasts/${podcast.slug}`}>
+SUB     = Prefixo fixo (identifica Subhumano)
+XXXX    = 4 caracteres alfanumericos aleatorios
+YYYY    = 4 caracteres alfanumericos aleatorios  
+ZZZZ    = 4 caracteres (pode ser customizado, ex: 2026, PROMO)
+
+Exemplo: SUB-K7X9-M2P4-2026
 ```
 
-### 5.2 Home.tsx e Highlights.tsx
-
-Atualizar links para usar slugs nos cards de artigos e podcasts.
-
----
-
-## Fase 6: Atualizacao dos Headers (Compartilhamento)
-
-### 6.1 PodcastHeader.tsx e PostHeader.tsx
-
-As URLs de compartilhamento já usam `window.location.href`, então funcionarão automaticamente com a nova estrutura.
+Caracteristicas:
+- 12 caracteres aleatorios = mais de 4 bilhoes de combinacoes
+- Facil de digitar e ler
+- Resistente a brute force
 
 ---
 
-## Resumo de Arquivos a Modificar
+## Resumo de Arquivos
 
 | Operacao | Arquivo |
 |----------|---------|
-| **Migration SQL** | Adicionar campo slug, funcao, triggers e migrar dados |
-| **Editar** | `src/hooks/usePosts.ts` - Adicionar `useSpaceUpdateBySlug` |
-| **Editar** | `src/hooks/usePodcasts.ts` - Adicionar `usePodcastBySlug` |
-| **Editar** | `src/App.tsx` - Atualizar parâmetros de rota |
-| **Editar** | `src/pages/PostDetail.tsx` - Usar novo hook e parâmetros |
-| **Editar** | `src/pages/PodcastDetail.tsx` - Usar novo hook e parâmetros |
-| **Editar** | `src/pages/SpaceDetail.tsx` - Navegar com slug |
-| **Editar** | `src/components/podcast/PodcastCard.tsx` - Link com slug |
-| **Editar** | `src/pages/Home.tsx` - Links com slugs |
-| **Editar** | `src/pages/Highlights.tsx` - Links com slugs |
+| **Migration SQL** | Criar tabelas promo_coupons e coupon_redemptions + RLS + atualizar constraint |
+| **Criar** | `supabase/functions/redeem-coupon/index.ts` - Edge function de resgate |
+| **Criar** | `src/pages/admin/Coupons.tsx` - Pagina de gestao de cupons |
+| **Criar** | `src/hooks/useCoupons.ts` - Hook para cupons |
+| **Editar** | `src/pages/Plans.tsx` - Adicionar campo de cupom |
+| **Editar** | `src/components/admin/AdminSidebar.tsx` - Link para cupons |
+| **Editar** | `src/App.tsx` - Rota /admin/coupons |
 
 ---
 
@@ -286,8 +250,10 @@ As URLs de compartilhamento já usam `window.location.href`, então funcionarão
 
 Apos implementacao:
 
-1. URLs legiveis e memoraveis para compartilhamento
-2. Melhor indexacao pelo Google (SEO)
-3. Experiencia profissional ao compartilhar links
-4. Slugs gerados automaticamente a partir dos titulos
-5. Compatibilidade retroativa (dados existentes migrados)
+1. Admin pode criar cupons unicos de 30 dias
+2. Cada cupom so pode ser usado uma vez
+3. Usuario so pode usar um cupom promocional em toda a vida
+4. Sistema 100% seguro contra compartilhamento
+5. Auditoria completa de quem usou qual cupom
+6. Interface amigavel para admin e usuario
+
