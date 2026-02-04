@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft, Gift } from "@phosphor-icons/react";
+import { Input } from "@/components/ui/input";
+import { Check, ArrowLeft, Gift, Ticket } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { TrialOfferModal } from "@/components/TrialOfferModal";
+import { useRedeemCoupon } from "@/hooks/useCoupons";
 
 const plans = [
   {
@@ -46,9 +48,11 @@ export default function Plans() {
   const [isLoading, setIsLoading] = useState(false);
   const [isTrialLoading, setIsTrialLoading] = useState(false);
   const [showTrialModal, setShowTrialModal] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
   const navigate = useNavigate();
   const { user } = useAuth();
   const { status, loading: subLoading, refetch } = useSubscription();
+  const redeemCoupon = useRedeemCoupon();
 
   // Determine if showing expired trial message
   const showExpiredMessage = status === 'expired';
@@ -88,6 +92,27 @@ export default function Plans() {
     
     // Redirect to Ticto checkout
     window.location.href = checkoutUrl.toString();
+  };
+
+  const handleRedeemCoupon = async () => {
+    if (!user) {
+      toast.error("Você precisa estar logado para resgatar um cupom.");
+      navigate("/login");
+      return;
+    }
+
+    if (!couponCode.trim()) {
+      toast.error("Digite o código do cupom");
+      return;
+    }
+
+    try {
+      await redeemCoupon.mutateAsync(couponCode.trim());
+      await refetch();
+      navigate("/home", { replace: true });
+    } catch (error) {
+      // Error is already handled by the mutation
+    }
   };
 
   const handleStartTrial = async () => {
@@ -319,6 +344,37 @@ export default function Plans() {
           <p className="text-center text-xs text-muted-foreground mt-4">
             Pagamento seguro via cartão de crédito ou PIX
           </p>
+
+          {/* Coupon Section */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 p-4 rounded-xl border border-border bg-card/50"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Ticket className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Possui um cupom promocional?
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Digite seu cupom"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                className="flex-1"
+                maxLength={20}
+              />
+              <Button
+                variant="outline"
+                onClick={handleRedeemCoupon}
+                disabled={redeemCoupon.isPending || !couponCode.trim()}
+              >
+                {redeemCoupon.isPending ? "..." : "Resgatar"}
+              </Button>
+            </div>
+          </motion.div>
         </motion.div>
       </div>
 
