@@ -213,10 +213,20 @@ function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): st
   return chunks;
 }
 
+// Result type for embedding generation with detailed error info
+interface EmbeddingResult {
+  embedding: number[] | null;
+  error?: {
+    status: number;
+    message: string;
+    model: string;
+  };
+}
+
 // Generate embedding using Lovable AI Gateway
-async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
+async function generateEmbedding(text: string, apiKey: string): Promise<EmbeddingResult> {
+  const model = "openai/text-embedding-3-small"; // MUST use provider prefix
   try {
-    // Use OpenAI text-embedding-3-small through the gateway
     const response = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
       method: "POST",
       headers: {
@@ -224,7 +234,7 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "text-embedding-3-small",
+        model,
         input: text,
       }),
     });
@@ -232,15 +242,42 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Embedding API error:", response.status, errorText);
-      return null;
+      return { 
+        embedding: null, 
+        error: { 
+          status: response.status, 
+          message: errorText.substring(0, 500), 
+          model 
+        } 
+      };
     }
     
     const data = await response.json();
-    return data.data?.[0]?.embedding || null;
+    const embedding = data.data?.[0]?.embedding || null;
+    return { embedding };
   } catch (error) {
     console.error("Error generating embedding:", error);
-    return null;
+    return { 
+      embedding: null, 
+      error: { 
+        status: 0, 
+        message: error instanceof Error ? error.message : "Erro desconhecido", 
+        model 
+      } 
+    };
   }
+}
+
+// Preflight check: test if embedding API is working before destructive operations
+async function preflightEmbeddingCheck(apiKey: string): Promise<{ ok: boolean; error?: string }> {
+  const testResult = await generateEmbedding("test", apiKey);
+  if (testResult.embedding) {
+    return { ok: true };
+  }
+  const errMsg = testResult.error 
+    ? `Status ${testResult.error.status}: ${testResult.error.message}` 
+    : "Embedding API não respondeu";
+  return { ok: false, error: errMsg };
 }
 
 serve(async (req) => {
@@ -313,6 +350,22 @@ serve(async (req) => {
       );
     }
 
+    // PREFLIGHT CHECK: Test embedding API before any destructive operations
+    console.log("Running preflight embedding check...");
+    const preflight = await preflightEmbeddingCheck(LOVABLE_API_KEY);
+    if (!preflight.ok) {
+      console.error("Preflight check failed:", preflight.error);
+      return new Response(
+        JSON.stringify({ 
+          error: "Serviço de embeddings indisponível", 
+          details: preflight.error,
+          hint: "O gateway de IA pode estar temporariamente fora ou o modelo de embedding não é suportado."
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log("Preflight check passed - embedding API is working");
+
     let docId: string;
     let docContent: string;
     let docMetadata: Record<string, unknown>;
@@ -347,7 +400,7 @@ serve(async (req) => {
         .update({ status: "processing", error_message: null })
         .eq("id", docId);
 
-      // Delete existing chunks
+      // Delete existing chunks ONLY after preflight passed
       await supabaseAdmin
         .from("rag_chunks")
         .delete()
@@ -414,26 +467,31 @@ serve(async (req) => {
 
     // Process chunks and generate embeddings
     const chunkRecords = [];
+    let lastEmbeddingError: { status: number; message: string; model: string } | undefined;
+    
     for (let i = 0; i < chunks.length; i++) {
-      const chunkContent = chunks[i];
-      const embedding = await generateEmbedding(chunkContent, LOVABLE_API_KEY);
+      const chunkText = chunks[i];
+      const result = await generateEmbedding(chunkText, LOVABLE_API_KEY);
       
-      if (!embedding) {
+      if (!result.embedding) {
         console.warn(`Failed to generate embedding for chunk ${i}`);
+        if (result.error) {
+          lastEmbeddingError = result.error;
+        }
         continue;
       }
 
       // Extract tags specific to this chunk
-      const chunkTags = extractAutoTags(chunkContent);
-      const tokenCount = Math.ceil(chunkContent.length / 4);
+      const chunkTags = extractAutoTags(chunkText);
+      const tokenCount = Math.ceil(chunkText.length / 4);
 
-      console.log(`Chunk ${i}: Generated embedding with ${embedding.length} dimensions`);
+      console.log(`Chunk ${i}: Generated embedding with ${result.embedding.length} dimensions`);
 
       chunkRecords.push({
         document_id: docId,
         chunk_index: i,
-        content: chunkContent,
-        embedding: `[${embedding.join(',')}]`, // Format correctly for pgvector
+        content: chunkText,
+        embedding: `[${result.embedding.join(',')}]`, // Format correctly for pgvector
         token_count: tokenCount,
         tags: chunkTags,
         priority: Number(docMetadata.priority) || 50,
@@ -465,21 +523,30 @@ serve(async (req) => {
       console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
     } else {
       console.warn("No chunks were created - embedding generation may have failed");
+      console.warn("Last embedding error:", lastEmbeddingError);
+      
+      // Build detailed error message
+      const errorDetails = lastEmbeddingError 
+        ? `Erro da API (status ${lastEmbeddingError.status}): ${lastEmbeddingError.message.substring(0, 200)}`
+        : "Nenhum chunk gerado - verifique se o conteúdo é válido.";
       
       // If no chunks were created, mark as error
       await supabaseAdmin
         .from("rag_documents")
         .update({ 
           status: "error", 
-          error_message: "Nenhum chunk foi criado. Verifique se o conteúdo é válido e tente novamente." 
+          error_message: errorDetails
         })
         .eq("id", docId);
 
       return new Response(
         JSON.stringify({ 
-          error: "Nenhum chunk criado - geração de embeddings pode ter falhado",
+          error: "Falha ao gerar embeddings",
+          details: errorDetails,
+          embeddingError: lastEmbeddingError,
           documentId: docId,
-          chunksCreated: 0
+          chunksCreated: 0,
+          totalChunksAttempted: chunks.length
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
