@@ -43,6 +43,23 @@ interface RAGChunk {
   similarity: number;
 }
 
+interface SpaceUpdate {
+  id: string;
+  title: string;
+  content: string;
+  published_at: string;
+  spaces: { name: string; slug: string };
+}
+
+interface ChannelPost {
+  id: string;
+  title: string | null;
+  content: string;
+  created_at: string;
+  channels: { name: string; slug: string };
+  profiles: { full_name: string } | null;
+}
+
 // Search for relevant RAG chunks
 async function searchRAGChunks(
   query: string,
@@ -64,7 +81,7 @@ async function searchRAGChunks(
 
   try {
     const { data: chunks, error } = await supabaseAdmin.rpc("search_rag_chunks", {
-      query_embedding: JSON.stringify(queryEmbedding),
+      query_embedding: `[${queryEmbedding.join(',')}]`,
       match_threshold: config.rag_threshold ?? 0.5,
       match_count: config.rag_top_k ?? 8,
       filter_tags: null,
@@ -84,8 +101,68 @@ async function searchRAGChunks(
   }
 }
 
+// Fetch recent published posts from platform
+async function fetchRecentPosts(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any,
+  limit = 15
+): Promise<SpaceUpdate[]> {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data, error } = await supabaseAdmin
+      .from("space_updates")
+      .select("id, title, content, published_at, spaces!inner(name, slug)")
+      .eq("is_published", true)
+      .gte("published_at", thirtyDaysAgo.toISOString())
+      .order("published_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("Error fetching recent posts:", error);
+      return [];
+    }
+
+    return (data || []) as SpaceUpdate[];
+  } catch (error) {
+    console.error("Exception fetching posts:", error);
+    return [];
+  }
+}
+
+// Fetch recent channel discussions
+async function fetchRecentChannelPosts(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any,
+  limit = 20
+): Promise<ChannelPost[]> {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data, error } = await supabaseAdmin
+      .from("channel_posts")
+      .select("id, title, content, created_at, channels!inner(name, slug), profiles:author_id(full_name)")
+      .eq("is_moderated", false)
+      .gte("created_at", sevenDaysAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("Error fetching channel posts:", error);
+      return [];
+    }
+
+    return (data || []) as ChannelPost[];
+  } catch (error) {
+    console.error("Exception fetching channel posts:", error);
+    return [];
+  }
+}
+
 // Build context from RAG chunks
-function buildRAGContext(chunks: Array<{ content: string; document_title: string; layer: string; priority: number; similarity: number }>): string {
+function buildRAGContext(chunks: RAGChunk[]): string {
   if (!chunks || chunks.length === 0) {
     return "";
   }
@@ -113,6 +190,51 @@ function buildRAGContext(chunks: Array<{ content: string; document_title: string
   }
 
   return context.trim();
+}
+
+// Build context from recent platform content
+function buildPlatformContext(posts: SpaceUpdate[], channelPosts: ChannelPost[]): string {
+  let context = "";
+
+  if (posts.length > 0) {
+    context += "\n\n=== POSTS RECENTES NA PLATAFORMA ===\n\n";
+    for (const post of posts.slice(0, 10)) {
+      const date = new Date(post.published_at).toLocaleDateString("pt-BR");
+      const spaceName = post.spaces?.name || "Espaço";
+      // Summarize content (first 300 chars)
+      const summary = post.content?.replace(/<[^>]*>/g, '').substring(0, 300) || "";
+      context += `[${spaceName}] "${post.title}" - ${date}\n`;
+      context += `Resumo: ${summary}...\n\n`;
+    }
+  }
+
+  if (channelPosts.length > 0) {
+    context += "\n\n=== DISCUSSÕES RECENTES NOS CANAIS ===\n\n";
+    for (const post of channelPosts.slice(0, 10)) {
+      const date = new Date(post.created_at).toLocaleDateString("pt-BR");
+      const channelName = post.channels?.name || "Canal";
+      const authorName = post.profiles?.full_name || "Usuário";
+      // Summarize content (first 200 chars)
+      const summary = post.content?.replace(/<[^>]*>/g, '').substring(0, 200) || "";
+      context += `[${channelName}] @${authorName} - ${date}\n`;
+      if (post.title) context += `Título: ${post.title}\n`;
+      context += `${summary}...\n\n`;
+    }
+  }
+
+  return context;
+}
+
+// Get current date in Brazilian Portuguese
+function getCurrentDateBR(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = { 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric',
+    timeZone: 'America/Sao_Paulo'
+  };
+  return now.toLocaleDateString('pt-BR', options);
 }
 
 serve(async (req) => {
@@ -211,12 +333,31 @@ serve(async (req) => {
 
     console.log(`RAG search returned ${ragChunks.length} chunks for query: "${userQuery.substring(0, 50)}..."`);
 
+    // Fetch platform content in parallel
+    const [recentPosts, channelPosts] = await Promise.all([
+      fetchRecentPosts(supabaseAdmin, 15),
+      fetchRecentChannelPosts(supabaseAdmin, 20),
+    ]);
+
+    console.log(`Platform content: ${recentPosts.length} posts, ${channelPosts.length} channel discussions`);
+
     // Build RAG context
     const ragContext = buildRAGContext(ragChunks);
+    
+    // Build platform context
+    const platformContext = buildPlatformContext(recentPosts, channelPosts);
 
     // Build system message with knowledge base and RAG context
-    // Priority: RAG Constitution > System Prompt > RAG Knowledge > Legacy Knowledge Base
+    // Priority: Current Date > RAG Constitution > System Prompt > RAG Knowledge > Platform Content
     let systemMessage = "";
+    
+    // 0. Current date (always first for temporal awareness)
+    const currentDate = getCurrentDateBR();
+    systemMessage += `Data atual: ${currentDate}\n\n`;
+    systemMessage += `REGRAS TEMPORAIS:\n`;
+    systemMessage += `- Informações com datas anteriores a Janeiro de 2026 podem estar desatualizadas\n`;
+    systemMessage += `- Sempre verifique a data das informações antes de citá-las\n`;
+    systemMessage += `- Se não souber algo atual, admita que precisa de informações mais recentes\n\n`;
 
     // 1. System prompt (personality/instructions)
     if (config.system_prompt) {
@@ -228,24 +369,32 @@ serve(async (req) => {
       systemMessage += config.system_instruction + "\n\n";
     }
 
-    // 3. RAG Context (Constitution + relevant knowledge)
+    // 3. RAG Context (Constitution + relevant knowledge) - PRIORITY SOURCE
     if (ragContext) {
       systemMessage += "---\n\n" + ragContext + "\n\n---\n\n";
     }
-
-    // 4. Legacy knowledge base (fallback if no RAG or for additional context)
-    if (config.knowledge_base && Object.keys(config.knowledge_base).length > 0) {
-      systemMessage += "INFORMAÇÕES ADICIONAIS:\n" + JSON.stringify(config.knowledge_base, null, 2) + "\n\n";
+    
+    // 4. Platform content (published posts + channel discussions)
+    if (platformContext) {
+      systemMessage += platformContext + "\n\n";
     }
 
-    // 5. Response guidelines
+    // 5. Legacy knowledge base (fallback if no RAG - should be phased out)
+    if (config.knowledge_base && Object.keys(config.knowledge_base).length > 0 && ragChunks.length === 0) {
+      systemMessage += "INFORMAÇÕES ADICIONAIS (base legada):\n" + JSON.stringify(config.knowledge_base, null, 2) + "\n\n";
+    }
+
+    // 6. Response guidelines - CRITICAL RULES
     systemMessage += `
 DIRETRIZES DE RESPOSTA:
 - Responda sempre em português brasileiro
-- Use as informações da base de conhecimento quando disponíveis
-- Se não souber algo, admita honestamente
+- PRIORIZE informações da base de conhecimento RAG e posts da plataforma
+- Se perguntarem sobre a plataforma Subhumano, cite a Constituição quando disponível
+- Quando mencionar discussões, indique o canal e o autor se disponível
+- Se não souber algo, admita honestamente - NUNCA invente especificações técnicas, preços ou datas
 - Seja didático e acessível
 - Evite jargões técnicos desnecessários
+- Quando citar informações, mencione a fonte (documento RAG, post da plataforma ou canal)
 `;
 
     // Build request body with correct token parameter based on model
