@@ -82,7 +82,10 @@
  BASE DE CONHECIMENTO:
  ${JSON.stringify(config.knowledge_base, null, 2)}`;
  
-     // Call Lovable AI Gateway with streaming
+      // Build request body with correct token parameter based on model
+      const modelName = config.model || "google/gemini-3-flash-preview";
+      const isOpenAIModel = modelName.startsWith("openai/");
+
      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
      if (!LOVABLE_API_KEY) {
        console.error("LOVABLE_API_KEY not configured");
@@ -92,22 +95,32 @@
        );
      }
  
+      // Build request body
+      const requestBody: Record<string, unknown> = {
+        model: modelName,
+        messages: [
+          { role: "system", content: systemMessage },
+          ...messages,
+        ],
+        stream: true,
+        temperature: Number(config.temperature) || 0.7,
+      };
+
+      // Add correct token parameter based on model provider
+      if (isOpenAIModel) {
+        requestBody.max_completion_tokens = config.max_tokens || 2048;
+      } else {
+        requestBody.max_tokens = config.max_tokens || 2048;
+      }
+
+      // Call Lovable AI Gateway with streaming
      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
        method: "POST",
        headers: {
          Authorization: `Bearer ${LOVABLE_API_KEY}`,
          "Content-Type": "application/json",
        },
-       body: JSON.stringify({
-         model: config.model || "google/gemini-3-flash-preview",
-         messages: [
-           { role: "system", content: systemMessage },
-           ...messages,
-         ],
-         stream: true,
-         temperature: Number(config.temperature) || 0.7,
-         max_tokens: config.max_tokens || 2048,
-       }),
+        body: JSON.stringify(requestBody),
      });
  
      if (!aiResponse.ok) {
