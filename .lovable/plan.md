@@ -1,152 +1,168 @@
 
-## Diagnóstico (causa raiz confirmada pelos logs)
 
-Pelos logs da função `ingest-document` (e pela imagem), o problema não está no “momento de criação” dos chunks, e sim na etapa de **gerar embeddings** (vetores) para cada chunk.
+# Plano de Correção Definitivo: Sistema RAG sem Embeddings Vetoriais
 
-Hoje o fluxo do indexador é:
+## Causa Raiz Confirmada
 
-1) Insere/atualiza o documento (`rag_documents`) com status `processing`  
-2) Faz o chunking do texto (gera 8 chunks, por exemplo)  
-3) Para cada chunk, chama o endpoint de embeddings no gateway de IA  
-4) Se conseguir embeddings, insere em `rag_chunks` e marca o documento como `indexed`
+O **Lovable AI Gateway NÃO suporta modelos de embedding**. A lista de modelos permitidos é exclusivamente de modelos de chat/geração de texto:
 
-O erro acontece no passo **3**. O log mostra explicitamente:
+```
+allowed models: [
+  openai/gpt-5-mini, openai/gpt-5, openai/gpt-5-nano, openai/gpt-5.2,
+  google/gemini-2.5-pro, google/gemini-2.5-flash, google/gemini-2.5-flash-lite,
+  google/gemini-2.5-flash-image, google/gemini-3-pro-preview, 
+  google/gemini-3-flash-preview, google/gemini-3-pro-image-preview
+]
+```
 
-- `Embedding API error: 400 ... invalid model: text-embedding-3-small, allowed models: [openai/gpt-5-mini ... google/gemini-...]`
-- Em seguida: `Failed to generate embedding for chunk X`
-- Resultado final: `Attempting to insert 0 chunks...` e `No chunks were created...`
-- A função retorna 400 com: `Nenhum chunk criado - geração de embeddings pode ter falhado`
-
-Ou seja: **os chunks (texto) até são gerados**, mas **nenhum chunk “vira registro”** porque **sem embedding o código descarta o chunk** e não insere nada.
-
-### Causa técnica mais provável
-O gateway de IA está rejeitando o modelo `"text-embedding-3-small"` porque ele exige o nome completo com prefixo do provedor, no mesmo padrão dos modelos de chat exibidos no erro (`openai/...` e `google/...`).
-
-A correção mais provável e consistente com o erro é trocar:
-
-- `text-embedding-3-small`
-por:
-- `openai/text-embedding-3-small`
-
-Se mesmo assim falhar, então o gateway **não está oferecendo embeddings** (ou está em rota diferente), e precisaremos de um fallback definitivo (ver “Plano B” abaixo). Mas, pelo padrão do erro, a chance maior é ser apenas o nome do modelo.
+Nenhum modelo de embedding (como `text-embedding-3-small`, `ada-002`, etc.) está disponível. Isso significa que a abordagem atual de RAG com busca vetorial **não pode funcionar** sem uma chave de API externa.
 
 ---
 
-## Plano de correção definitivo (o que vou mudar)
+## Solucao: Sistema de Busca Hibrido (Lexical + Prioridade por Camadas)
 
-### 1) Corrigir o nome do modelo de embeddings em TODAS as funções que geram embedding
-**Arquivos:**
-- `supabase/functions/ingest-document/index.ts`
-- `supabase/functions/search-chunks/index.ts`
-- `supabase/functions/ai-assistant/index.ts`
+Vou implementar um sistema de RAG que funciona **SEM embeddings**, usando:
 
-**Mudança:**
-- Atualizar `generateEmbedding()` para usar `model: "openai/text-embedding-3-small"` (em vez de `"text-embedding-3-small"`)
-
-**Por que isso é definitivo:**
-- Elimina o erro “invalid model” que impede a criação de qualquer chunk.
-- Mantém a dimensionalidade esperada (1536) compatível com a coluna `embedding` (pgvector).
+1. **Busca textual (Full-Text Search)** com PostgreSQL `tsvector`/`tsquery`
+2. **Priorização por camadas** (constituicao > nucleo > biblioteca)
+3. **Filtragem por tags** para relevância contextual
 
 ---
 
-### 2) Adicionar “preflight” (checagem rápida) antes de destruir o que já existe
-Hoje, ao reindexar (`documentId`), a função:
-- marca `processing`
-- apaga chunks existentes
-- tenta gerar embeddings
-- se falhar, você fica com **0 chunks** e documento em `error`
+## Mudancas Tecnicas
 
-**Mudança:**
-- Antes de deletar chunks existentes, fazer uma chamada de teste:
-  - gerar embedding de um texto curto (ex: `"ping"`) ou do primeiro chunk
-- Se falhar:
-  - **não deletar chunks antigos**
-  - retornar erro com detalhe
-  - manter documento como `error` ou reverter status (dependendo do caso)
+### 1. Atualizar Edge Function `ingest-document`
 
-**Resultado:**
-- Você nunca mais perde uma base indexada por uma falha momentânea de embeddings.
+**Remover**: Toda a lógica de geração de embeddings
+**Adicionar**: Indexação de chunks sem embedding (persistir texto para busca lexical)
+
+```text
+Antes:
+- Gerar embedding para cada chunk
+- Se falhar, descartar chunk
+- Só inserir chunks com embedding
+
+Depois:
+- Gerar chunks de texto
+- Inserir TODOS os chunks (sem embedding)
+- Marcar documento como 'indexed' após inserir chunks
+```
+
+### 2. Atualizar Edge Function `search-chunks`
+
+**Remover**: Busca por similaridade vetorial
+**Adicionar**: Busca Full-Text Search (FTS) com PostgreSQL
+
+```sql
+-- Nova busca lexical
+SELECT * FROM rag_chunks
+WHERE to_tsvector('portuguese', content) @@ plainto_tsquery('portuguese', $query)
+ORDER BY 
+  CASE WHEN layer = 'constituicao' THEN 0 WHEN layer = 'nucleo' THEN 1 ELSE 2 END,
+  priority DESC,
+  ts_rank(to_tsvector('portuguese', content), plainto_tsquery('portuguese', $query)) DESC
+LIMIT 10;
+```
+
+### 3. Atualizar Edge Function `ai-assistant`
+
+**Ajustar**: Chamada de busca para usar o novo sistema lexical (sem alterações na interface)
+
+### 4. Atualizar Funcao RPC `search_rag_chunks`
+
+**Substituir**: Busca vetorial por busca Full-Text Search
+
+```sql
+CREATE OR REPLACE FUNCTION search_rag_chunks(
+  query_text text,
+  match_count integer DEFAULT 10,
+  filter_tags text[] DEFAULT NULL,
+  filter_layer text DEFAULT NULL,
+  include_constitution boolean DEFAULT true
+)
+RETURNS TABLE (
+  id uuid,
+  document_id uuid,
+  document_title text,
+  layer text,
+  content text,
+  priority integer,
+  tags text[],
+  rank real
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    c.id,
+    c.document_id,
+    d.title as document_title,
+    d.layer,
+    c.content,
+    c.priority,
+    c.tags,
+    ts_rank(to_tsvector('portuguese', c.content), plainto_tsquery('portuguese', query_text)) as rank
+  FROM rag_chunks c
+  JOIN rag_documents d ON c.document_id = d.id
+  WHERE 
+    d.status = 'indexed'
+    AND (
+      (include_constitution AND d.layer = 'constituicao')
+      OR (
+        to_tsvector('portuguese', c.content) @@ plainto_tsquery('portuguese', query_text)
+        AND (filter_tags IS NULL OR c.tags && filter_tags)
+        AND (filter_layer IS NULL OR d.layer = filter_layer)
+      )
+    )
+  ORDER BY 
+    CASE WHEN d.layer = 'constituicao' THEN 0 WHEN d.layer = 'nucleo' THEN 1 ELSE 2 END,
+    c.priority DESC,
+    rank DESC
+  LIMIT match_count;
+END;
+$$;
+```
 
 ---
 
-### 3) Retornar mensagem de erro útil para o Admin (sem “erro genérico”)
-Hoje a função loga o erro do gateway, mas a UI recebe apenas “Nenhum chunk criado...”.
+## Arquivos a Modificar
 
-**Mudança:**
-- Incluir no JSON de erro retornado:
-  - status code do gateway
-  - trecho do `errorText` retornado pelo gateway
-  - modelo usado
-- Isso permite diagnosticar rápido (ex: “modelo inválido”, “créditos”, “rate limit”, etc.) sem tentativa-e-erro.
-
----
-
-### 4) Corrigir o erro “Unhandled Promise Rejection” na UI de documentos
-Na sua imagem aparece:
-- `Unhandled Promise Rejection: Error: Nenhum chunk criado...`
-
-Isso ocorre porque `handleSubmit` faz `await ingestMutation.mutateAsync(content)` sem `try/catch`. Quando a função retorna 400, o erro vira “promessa rejeitada” e polui o console.
-
-**Arquivo:**
-- `src/pages/admin/rag/Documents.tsx`
-
-**Mudança:**
-- Envolver `handleSubmit` em `try/catch`
-- Em caso de erro:
-  - manter o diálogo aberto
-  - exibir toast amigável com a mensagem detalhada vinda do backend
-
-Isso não resolve embeddings, mas evita “efeito cascata” de erros no navegador e melhora o feedback para você.
+| Arquivo | Mudanca |
+|---------|---------|
+| `supabase/functions/ingest-document/index.ts` | Remover logica de embeddings, inserir chunks diretamente |
+| `supabase/functions/search-chunks/index.ts` | Substituir busca vetorial por Full-Text Search |
+| `supabase/functions/ai-assistant/index.ts` | Ajustar chamada de busca (interface mantida) |
+| Migracao SQL | Criar/atualizar RPC `search_rag_chunks` para busca lexical |
 
 ---
 
-## Plano B (fallback definitivo se o gateway não suportar embeddings)
-Se após trocar para `openai/text-embedding-3-small` o gateway continuar sem aceitar embeddings, aí a causa raiz muda para: “gateway não fornece embeddings”.
+## Vantagens desta Abordagem
 
-Nesse cenário, para não ficar travado, eu implemento um fallback que garante indexação e busca:
-
-1) **Indexação sem embeddings**:
-- Inserir chunks mesmo com `embedding = null`
-- Marcar documento como `indexed_lexical` (ou manter `indexed` mas com flag em metadata)
-
-2) **Busca lexical (sem vetores)**:
-- Atualizar `search-chunks` para:
-  - quando não houver embeddings disponíveis, usar busca por texto (ILIKE / tsvector)
-  - respeitar `layer`, `tags` e `priority`
-
-Isso exigirá ajustes no backend e possivelmente uma pequena alteração/novo RPC (via migração) para busca textual performática. Só aplico este Plano B se o Plano A falhar após teste.
+1. **Funciona imediatamente** - Não depende de API de embeddings externa
+2. **Sem custo adicional** - Usa apenas PostgreSQL nativo
+3. **Performance boa** - Full-Text Search do PostgreSQL é otimizado
+4. **Mantém hierarquia** - Constituição sempre tem prioridade máxima
+5. **Compatível com futuro** - Se embeddings forem adicionados ao gateway, podemos evoluir
 
 ---
 
-## Como vou validar que foi corrigido (checklist objetivo)
+## Limitacoes (transparencia)
 
-1) Rodar indexação da Constituição
-2) Ver no log do `ingest-document`:
-   - não aparecer mais `invalid model`
-   - aparecer `Generated embedding with 1536 dimensions`
-   - `Successfully inserted X chunks`
-3) Em `/admin/rag/chunks`:
-   - Constituição listada com chunks
-4) Em `/ai-assistant`:
-   - perguntar sobre regras/identidade
-   - resposta deve citar conteúdo real da Constituição (RAG funcionando)
+- Busca lexical é menos "inteligente" que busca vetorial
+- Sinônimos e paráfrases não são capturados automaticamente
+- Requer que termos de busca estejam presentes no texto
+
+**Mitigação**: A Constituição sempre será incluída nos resultados (via `include_constitution = true`), garantindo que o assistente mantenha sua identidade.
 
 ---
 
-## Entregáveis (mudanças que você verá)
+## Fluxo Apos Implementacao
 
-- Indexação deixa de retornar 400 por “invalid model”
-- Constituição passa a gerar chunks de fato
-- Reindex não apaga chunks antigos se embeddings falhar
-- UI não gera mais “Unhandled Promise Rejection” e mostra erro detalhado
-
----
-
-## Observação importante sobre sua pergunta (“chunks não deveriam vir após inserir documento?”)
-Sim, eles vêm depois. O que está acontecendo é:
-- o documento é inserido
-- os chunks de texto são gerados
-- mas **nenhum chunk é persistido** porque a etapa seguinte (embedding) falha e o código descarta o chunk sem embedding
-
-A correção do modelo (Plano A) ataca exatamente esse ponto.
+1. Indexar documento Constituição (vai funcionar)
+2. Chunks serão criados na tabela `rag_chunks`
+3. Assistente IA buscará via Full-Text Search
+4. Constituição sempre presente nas respostas
 
