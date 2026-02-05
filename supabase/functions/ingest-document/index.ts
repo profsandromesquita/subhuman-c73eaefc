@@ -410,7 +410,8 @@ serve(async (req) => {
     const { body: parsedBody } = parseFrontmatter(docContent);
     const chunks = chunkContent(parsedBody);
     
-    console.log(`Processing document ${docId}: ${chunks.length} chunks`);
+    console.log(`Processing document ${docId}: ${chunks.length} chunks to create`);
+    console.log(`Document layer: ${docMetadata.layer}, priority: ${docMetadata.priority}`);
 
     // Process chunks and generate embeddings
     const chunkRecords = [];
@@ -427,11 +428,13 @@ serve(async (req) => {
       const chunkTags = extractAutoTags(chunkContent);
       const tokenCount = Math.ceil(chunkContent.length / 4);
 
+      console.log(`Chunk ${i}: Generated embedding with ${embedding.length} dimensions`);
+
       chunkRecords.push({
         document_id: docId,
         chunk_index: i,
         content: chunkContent,
-        embedding: JSON.stringify(embedding), // Store as JSON for vector type
+        embedding: `[${embedding.join(',')}]`, // Format correctly for pgvector
         token_count: tokenCount,
         tags: chunkTags,
         priority: Number(docMetadata.priority) || 50,
@@ -439,23 +442,30 @@ serve(async (req) => {
     }
 
     // Insert chunks
+    console.log(`Attempting to insert ${chunkRecords.length} chunks for document ${docId}`);
+    
     if (chunkRecords.length > 0) {
-      const { error: chunksError } = await supabaseAdmin
+      const { data: insertedChunks, error: chunksError } = await supabaseAdmin
         .from("rag_chunks")
-        .insert(chunkRecords);
+        .insert(chunkRecords)
+        .select("id");
 
       if (chunksError) {
-        console.error("Chunks insert error:", chunksError);
+        console.error("Chunks insert error:", JSON.stringify(chunksError));
         await supabaseAdmin
           .from("rag_documents")
           .update({ status: "error", error_message: chunksError.message })
           .eq("id", docId);
 
         return new Response(
-          JSON.stringify({ error: "Erro ao salvar chunks" }),
+          JSON.stringify({ error: "Erro ao salvar chunks", details: chunksError.message }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
+      console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
+    } else {
+      console.warn("No chunks were created - embedding generation may have failed");
     }
 
     // Update document status to indexed
