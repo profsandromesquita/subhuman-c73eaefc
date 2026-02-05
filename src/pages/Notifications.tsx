@@ -53,7 +53,10 @@ export default function Notifications() {
     // Mark as read if not already
     if (!notification.is_read) {
       try {
-        await markRead.mutateAsync(notification.id);
+        await markRead.mutateAsync({ 
+          notificationId: notification.id, 
+          isGlobal: notification.isGlobal 
+        });
       } catch {
         // Ignore errors
       }
