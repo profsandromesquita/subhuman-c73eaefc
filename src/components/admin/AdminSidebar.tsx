@@ -13,7 +13,8 @@ import {
   SignOut,
   House,
   Microphone,
-  Ticket
+   Ticket,
+   Robot
 } from '@phosphor-icons/react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -51,6 +52,7 @@ const settingsNavItems = [
   { title: 'Usuários do Sistema', url: '/admin/settings/users', icon: UserCircleGear },
   { title: 'Notificações', url: '/admin/settings/notifications', icon: Bell },
   { title: 'Pagamentos', url: '/admin/settings/payments', icon: Wallet },
+   { title: 'Assistente IA', url: '/admin/settings/ai-assistant', icon: Robot },
 ];
 
 export function AdminSidebar() {

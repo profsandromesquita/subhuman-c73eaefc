@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_assistant_config: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          knowledge_base: Json | null
+          max_tokens: number
+          model: string
+          system_instruction: string | null
+          system_prompt: string
+          temperature: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          knowledge_base?: Json | null
+          max_tokens?: number
+          model?: string
+          system_instruction?: string | null
+          system_prompt?: string
+          temperature?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          knowledge_base?: Json | null
+          max_tokens?: number
+          model?: string
+          system_instruction?: string | null
+          system_prompt?: string
+          temperature?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string
