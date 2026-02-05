@@ -76,6 +76,9 @@
    const [config, setConfig] = useState<AIAssistantConfig | null>(null);
    const [knowledgeBaseJson, setKnowledgeBaseJson] = useState('');
    const [jsonError, setJsonError] = useState<string | null>(null);
+  
+  // Check if current model is OpenAI (requires temperature = 1)
+  const isOpenAIModel = config?.model?.startsWith('openai/') ?? false;
  
    const { data, isLoading } = useQuery({
      queryKey: ['ai-assistant-config'],
@@ -138,9 +141,11 @@
  
    const handleSaveSettings = () => {
      if (!config) return;
+    // Force temperature = 1 for OpenAI models
+    const temperatureToSave = config.model?.startsWith('openai/') ? 1 : config.temperature;
      updateMutation.mutate({
        model: config.model,
-       temperature: config.temperature,
+      temperature: temperatureToSave,
        max_tokens: config.max_tokens,
        is_active: config.is_active,
      });
@@ -313,19 +318,29 @@
                  <CardDescription>
                    Controla a criatividade das respostas (0 = mais preciso, 1 = mais criativo)
                  </CardDescription>
+                {isOpenAIModel && (
+                   <p className="text-sm text-muted-foreground mt-1">
+                    ⚠️ Modelos OpenAI (GPT-5) só aceitam temperatura = 1
+                  </p>
+                )}
                </CardHeader>
                <CardContent className="space-y-4">
                  <div className="flex items-center gap-4 max-w-md">
                    <Slider
-                     value={[config.temperature]}
-                     onValueChange={([value]) => setConfig({ ...config, temperature: value })}
+                    value={[isOpenAIModel ? 1 : config.temperature]}
+                    onValueChange={([value]) => {
+                      if (!isOpenAIModel) {
+                        setConfig({ ...config, temperature: value });
+                      }
+                    }}
                      min={0}
                      max={1}
                      step={0.1}
                      className="flex-1"
+                    disabled={isOpenAIModel}
                    />
                    <span className="text-sm font-mono w-12 text-right">
-                     {config.temperature.toFixed(1)}
+                    {(isOpenAIModel ? 1 : config.temperature).toFixed(1)}
                    </span>
                  </div>
                </CardContent>
