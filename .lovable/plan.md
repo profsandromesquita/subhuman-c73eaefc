@@ -1,187 +1,152 @@
 
-
-# Plano de Correção: Sistema de Chunks sob Controle Manual do Admin
-
-## Diagnóstico do Problema
-
-### Fluxo Atual (errado)
-```text
-Admin clica "Indexar Documento"
-      ↓
-ingest-document executa:
-  1. Insere/atualiza documento
-  2. AUTOMATICAMENTE gera chunks → (comportamento indesejado)
-  3. Marca como "indexed"
-```
-
-### Fluxo Desejado
-```text
-Admin clica "Adicionar Documento"
-      ↓
-ingest-document:
-  1. Insere documento com status "pending"
-  2. NÃO gera chunks
-  3. Retorna sucesso
-
-      ↓ (ação separada)
-
-Admin clica "Gerar Chunks" na página de Chunks
-      ↓
-generate-chunks (nova edge function):
-  1. Busca documento
-  2. Gera chunks
-  3. Marca como "indexed"
-```
+## Objetivo (o que vai ficar certo)
+1) **Página /admin/rag/chunks** vai ter **exclusão funcionando e visível** (sem depender de “hover”).
+2) **Frontmatter YAML** (`--- ... ---`) vai ser **lido corretamente** ao salvar documento, preenchendo:
+   - `title`
+   - `layer` (constituicao | nucleo | biblioteca)
+   - `priority`
+   - `tags`
+3) **Chunks nunca serão gerados automaticamente** (somente quando o admin clicar em “Gerar/Regenerar Chunks”).
+4) Resolver o “lixo” atual: dar caminhos claros para **limpar chunks indevidos** e **corrigir documento salvo errado**.
 
 ---
 
-## Mudanças Necessárias
+## Diagnóstico com base nas imagens anexas
+### Imagem 1 (Chunks)
+- O botão de excluir **existe no código**, mas está configurado como:
+  - `opacity-0 group-hover:opacity-100`
+- Em prática isso vira “não existe” para:
+  - uso sem hover (mobile, trackpad, ou usuário sem perceber que precisa passar o mouse)
+  - e mesmo no desktop fica invisível no print (porque não havia hover no momento).
 
-### 1. Modificar Edge Function `ingest-document`
+### Imagem 2 (Documents)
+- Documento salvo como **“Documento sem título / Biblioteca / tags automáticas”**.
+- Isso só acontece quando o **frontmatter não foi detectado** (parser falhou) e o sistema caiu nos defaults:
+  - title: “Documento sem título”
+  - layer: “biblioteca”
+  - tags: extraídas automaticamente do texto (“programacao, dev, codigo +22”)
+- Além disso, na Imagem 1 dá para ver que o conteúdo do chunk ainda contém o próprio frontmatter, confirmando que a remoção do frontmatter também falhou.
 
-**Comportamento atual**: Gera chunks automaticamente
-**Novo comportamento**: Apenas salva o documento, NÃO gera chunks
-
-```text
-Mudanças:
-- Remover toda a lógica de chunking
-- Inserir documento com status "pending" (não "processing")
-- Retornar sucesso imediatamente
-```
-
-### 2. Criar Nova Edge Function `generate-chunks`
-
-Nova função dedicada para geração de chunks, chamada manualmente:
-
-```text
-Parâmetros:
-- documentId: ID do documento para gerar chunks
-
-Fluxo:
-1. Verificar se documento existe
-2. Deletar chunks existentes (se houver)
-3. Processar conteúdo em chunks
-4. Inserir chunks na tabela
-5. Marcar documento como "indexed"
-```
-
-### 3. Adicionar Hook `useGenerateChunks`
-
-Novo hook em `src/hooks/useRAGDocuments.ts`:
-
-```typescript
-export function useGenerateChunks() {
-  // Chama a edge function generate-chunks
-  // Invalida queries de chunks após sucesso
-}
-```
-
-### 4. Adicionar Hook `useDeleteChunk`
-
-Permitir exclusão de chunks individuais:
-
-```typescript
-export function useDeleteChunk() {
-  // DELETE chunk por ID
-  // Invalida queries de chunks
-}
-```
-
-### 5. Atualizar Página `/admin/rag/Documents.tsx`
-
-Adicionar botão "Gerar Chunks" para documentos com status "pending":
-
-```text
-Na tabela de documentos:
-- Documentos "pending" mostram botão "Gerar Chunks"
-- Documentos "indexed" mostram botão "Regenerar Chunks"
-- Remover geração automática do botão "Indexar Documento"
-```
-
-### 6. Atualizar Página `/admin/rag/Chunks.tsx`
-
-Adicionar funcionalidade de exclusão:
-
-```text
-- Botão de excluir em cada card de chunk
-- Botão "Excluir Todos" para limpar chunks de um documento
-- Confirmação antes de excluir
-```
+Causa provável: o parser atual depende de regex estrita `^---\n ... \n---\n...` e falha com pequenas variações comuns (ex.: espaços antes do `---`, BOM/char invisível no início, linha `---` com espaços, ausência de quebra de linha exata, etc.).
 
 ---
 
-## Arquivos a Modificar/Criar
+## Mudanças propostas (implementação)
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/ingest-document/index.ts` | Modificar - remover chunking automático |
-| `supabase/functions/generate-chunks/index.ts` | **CRIAR** - nova função para gerar chunks |
-| `supabase/config.toml` | Adicionar nova função |
-| `src/hooks/useRAGDocuments.ts` | Adicionar `useGenerateChunks` |
-| `src/hooks/useRAGChunks.ts` | Adicionar `useDeleteChunk`, `useDeleteAllChunks` |
-| `src/pages/admin/rag/Documents.tsx` | Adicionar botão "Gerar Chunks" |
-| `src/pages/admin/rag/Chunks.tsx` | Adicionar botões de exclusão |
+### A) Corrigir a UI de exclusão na página Chunks (visível sempre)
+**Arquivo:** `src/pages/admin/rag/Chunks.tsx`
 
----
+1) **Excluir por chunk (visível sempre)**
+   - Trocar o botão de excluir para ficar **sempre visível** no header do card.
+   - Estilo: ícone pequeno, discreto, mas presente (ex.: `text-muted-foreground hover:text-destructive`).
+   - Manter confirmação via `AlertDialog`.
 
-## Detalhes Técnicos
+2) **Excluir todos (por documento) mais óbvio**
+   - O botão “Excluir Todos” hoje só aparece quando o filtro do documento ≠ “all”.
+   - Melhorias:
+     - Deixar o Select “Todos os documentos” com texto/ajuda: “Selecione um documento para habilitar ações em massa”.
+     - Opcional: exibir um callout/mini alerta quando `documentFilter === "all"` dizendo:
+       - “Para excluir em massa, selecione um documento no filtro.”
 
-### Nova Edge Function `generate-chunks`
-
-```text
-Endpoint: POST /functions/v1/generate-chunks
-Body: { documentId: string }
-Auth: Requer admin/moderator
-
-Fluxo:
-1. Validar autenticação
-2. Buscar documento por ID
-3. Validar que documento existe
-4. Marcar status como "processing"
-5. Deletar chunks existentes
-6. Fazer chunking do conteúdo
-7. Inserir novos chunks
-8. Marcar status como "indexed"
-9. Retornar contagem de chunks criados
-```
-
-### Botão de Exclusão de Chunk
-
-```text
-- Cada chunk terá ícone de lixeira
-- Clique abre confirmação
-- Após excluir, atualiza lista
-- Se documento ficar sem chunks, status volta para "pending"
-```
+3) **Acessibilidade**
+   - Adicionar `aria-label="Excluir chunk"` no botão.
+   - Garantir que o ícone tenha contraste e não dependa de hover.
 
 ---
 
-## Fluxo Final do Admin
+### B) Garantir que deletar chunk realmente deixe o estado consistente
+**Arquivo:** `src/hooks/useRAGChunks.ts`
 
-1. **Adicionar Documento**
-   - Admin cola conteúdo no modal
-   - Clica "Adicionar Documento"
-   - Documento salvo com status "pending"
-   - Nenhum chunk gerado
+1) Ajustar `useDeleteChunk` para receber também `documentId` (ex.: `{ chunkId, documentId }`).
+2) Após deletar:
+   - verificar se ainda existem chunks para o documento (query `head: true, count: exact`)
+   - se `count === 0`, atualizar o documento para `status: "pending"` (igual já fazemos no “Excluir Todos”).
 
-2. **Gerar Chunks (ação separada)**
-   - Admin vai na lista de documentos
-   - Clica no botão "Gerar Chunks" do documento desejado
-   - Sistema processa e cria chunks
-   - Status muda para "indexed"
-
-3. **Gerenciar Chunks**
-   - Admin pode ver todos os chunks em `/admin/rag/chunks`
-   - Pode excluir chunks individuais
-   - Pode excluir todos os chunks de um documento
-   - Pode regenerar chunks a qualquer momento
+Isso evita documento “indexed” sem chunks.
 
 ---
 
-## Resultado Esperado
+### C) Corrigir parsing do frontmatter (robusto) no backend functions
+Vamos padronizar um parser mais resiliente, sem regex frágil, usando leitura de linhas:
 
-- Nenhum chunk é gerado automaticamente
-- Admin tem controle total sobre quando gerar chunks
-- Chunks podem ser excluídos individualmente ou em massa
-- Sistema mantém consistência entre documentos e chunks
+- Aceitar:
+  - espaços antes de `---`
+  - `---` com espaços ao final
+  - BOM no início do texto
+  - frontmatter com linhas em branco entre campos
+- Separar:
+  - `metadata` (title/layer/priority/tags)
+  - `body` (conteúdo real sem frontmatter)
+
+**Arquivos:**
+- `supabase/functions/ingest-document/index.ts`
+- `supabase/functions/generate-chunks/index.ts`
+
+Mudanças específicas:
+1) **ingest-document**
+   - Usar o novo parser para extrair metadados.
+   - Validar `layer` e `priority`.
+   - **Tags**:
+     - Se `tags` vierem no frontmatter e não estiverem vazias: usar **somente as tags manuais** (sem auto-tag “programacao/dev/codigo”).
+     - Se não vier tags manuais: aí sim aplicar auto-tags (e ainda assim com limite, ex.: máximo 12 para evitar explosão).
+
+2) **generate-chunks**
+   - Usar o mesmo parser para pegar `body` sem frontmatter antes de chunkar.
+   - Tags por chunk:
+     - herdar tags do documento (manuais) + auto-tags do chunk
+     - deduplicar e limitar (ex.: máximo 15)
+
+Resultado: a “Constituição do Subhumano” vai cair como `constituicao`, prioridade 100 e tags `identidade/manifesto/regras` como esperado.
+
+---
+
+### D) Corrigir o que já foi salvo errado (sem “jogar fora” se você não quiser)
+Hoje você tem 2 caminhos; vou implementar pelo menos o mais direto dentro do admin:
+
+**Arquivo:** `src/pages/admin/rag/Documents.tsx`
+
+Adicionar ações por documento:
+1) **“Corrigir metadados do frontmatter”**
+   - Lê `source_content` do documento (já está no banco) e reaplica o parser:
+     - atualiza `title`, `layer`, `priority`, `tags`
+   - Observação: pode manter `slug` como está (para não “mudar identidade”), ou regenerar apenas se for “documento-sem-titulo…”. Vou manter por segurança e simplicidade.
+
+2) **“Excluir chunks”**
+   - Botão que chama `useDeleteAllChunks` (ou cria um hook auxiliar que delete por docId e marque pending).
+   - Isso resolve o “montão de chunk indevido” rapidamente sem precisar caçar um por um.
+
+3) Fluxo recomendado pós-correção:
+   - Corrigir metadados
+   - Excluir chunks
+   - Gerar chunks novamente (manual)
+
+---
+
+## Checklist de teste (o que vou validar)
+1) Em `/admin/rag/chunks`: cada card mostra ícone de lixeira **sem hover**.
+2) Clique no ícone → abre confirmação → exclui chunk → toast OK → lista atualiza.
+3) Se apagar o último chunk de um doc → doc vira `pending`.
+4) Em `/admin/rag/documents`: colar exatamente o seu frontmatter:
+   - salva com `Constituição do Subhumano`, `constituicao`, prioridade 100, tags manuais.
+5) Gerar chunks:
+   - chunks não contêm o frontmatter no corpo
+   - tags não “explodem” indevidamente (manuais prevalecem)
+6) “Corrigir metadados do frontmatter” em um doc bugado:
+   - atualiza título/camada/tags corretamente
+7) “Excluir chunks” limpa tudo e volta doc para `pending`.
+
+---
+
+## Arquivos que serão alterados
+- `src/pages/admin/rag/Chunks.tsx` (botão excluir visível + UX ações em massa)
+- `src/hooks/useRAGChunks.ts` (delete individual ajusta status para pending quando necessário)
+- `supabase/functions/ingest-document/index.ts` (parser robusto + regras de tags)
+- `supabase/functions/generate-chunks/index.ts` (remover frontmatter do body + tags por chunk)
+- `src/pages/admin/rag/Documents.tsx` (ações “Corrigir metadados” e “Excluir chunks”)
+
+---
+
+## Mitigação imediata (enquanto eu implemento)
+- Para apagar tudo rápido hoje: em `/admin/rag/chunks`, selecione o documento no filtro (não “Todos os documentos”) e use **Excluir Todos**.
+- Para corrigir o documento bugado hoje: apagar o documento e criar novamente funciona, mas vou implementar o botão “Corrigir metadados” para não depender disso.
 
