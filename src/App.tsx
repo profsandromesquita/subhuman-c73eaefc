@@ -55,6 +55,7 @@ const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
 const SystemUsers = lazy(() => import("./pages/admin/settings/SystemUsers"));
 const NotificationSettings = lazy(() => import("./pages/admin/settings/Notifications"));
 const PaymentSettings = lazy(() => import("./pages/admin/settings/Payments"));
+ const AIAssistantSettings = lazy(() => import("./pages/admin/settings/AIAssistant"));
 
 const App = () => (
   <ErrorBoundary>
@@ -110,6 +111,7 @@ const App = () => (
               <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
               <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
               <Route path="/admin/settings/payments" element={<AdminGuard requireAdmin><PaymentSettings /></AdminGuard>} />
+               <Route path="/admin/settings/ai-assistant" element={<AdminGuard requireAdmin><AIAssistantSettings /></AdminGuard>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
