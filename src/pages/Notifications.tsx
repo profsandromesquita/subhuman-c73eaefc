@@ -133,8 +133,8 @@ export default function Notifications() {
           )}
         </motion.div>
 
-        {/* Notifications List */}
-        <div className="space-y-3">
+        {/* Notifications List - Separated by read/unread */}
+        <div className="space-y-6">
           {notifications.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -147,49 +147,100 @@ export default function Notifications() {
               </p>
             </motion.div>
           ) : (
-            notifications.map((notification, index) => {
-              const Icon = iconMap[notification.type] || Bell;
-              
-              return (
-                <motion.div
-                  key={notification.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card 
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`transition-all duration-200 cursor-pointer hover:border-muted-foreground/30 ${
-                      !notification.is_read ? 'border-l-2 border-l-foreground' : ''
-                    }`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${!notification.is_read ? 'bg-foreground' : 'bg-secondary'}`}>
-                          <Icon className={`w-4 h-4 ${!notification.is_read ? 'text-background' : 'text-foreground'}`} weight="bold" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`text-sm font-medium mb-0.5 ${notification.is_read ? 'text-muted-foreground' : ''}`}>
-                            {notification.title}
-                          </h3>
-                          {notification.message && (
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {notification.message}
-                            </p>
-                          )}
-                          <span className="text-xs text-muted-foreground mt-1 block">
-                            {formatTime(notification.created_at)}
-                          </span>
-                        </div>
-                        {!notification.is_read && (
-                          <div className="w-2 h-2 rounded-full bg-foreground" />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })
+            <>
+              {/* Unread notifications */}
+              {notifications.filter(n => !n.is_read).length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Não lidas
+                  </h2>
+                  {notifications.filter(n => !n.is_read).map((notification, index) => {
+                    const Icon = iconMap[notification.type] || Bell;
+                    return (
+                      <motion.div
+                        key={notification.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <Card 
+                          onClick={() => handleNotificationClick(notification)}
+                          className="transition-all duration-200 cursor-pointer hover:border-muted-foreground/30 border-l-2 border-l-foreground"
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-foreground">
+                                <Icon className="w-4 h-4 text-background" weight="bold" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-medium mb-0.5">
+                                  {notification.title}
+                                </h3>
+                                {notification.message && (
+                                  <p className="text-sm text-muted-foreground line-clamp-1">
+                                    {notification.message}
+                                  </p>
+                                )}
+                                <span className="text-xs text-muted-foreground mt-1 block">
+                                  {formatTime(notification.created_at)}
+                                </span>
+                              </div>
+                              <div className="w-2 h-2 rounded-full bg-foreground" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Read notifications */}
+              {notifications.filter(n => n.is_read).length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Lidas
+                  </h2>
+                  {notifications.filter(n => n.is_read).map((notification, index) => {
+                    const Icon = iconMap[notification.type] || Bell;
+                    return (
+                      <motion.div
+                        key={notification.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <Card 
+                          onClick={() => handleNotificationClick(notification)}
+                          className="transition-all duration-200 cursor-pointer hover:border-muted-foreground/30"
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-secondary">
+                                <Icon className="w-4 h-4 text-foreground" weight="bold" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-medium mb-0.5 text-muted-foreground">
+                                  {notification.title}
+                                </h3>
+                                {notification.message && (
+                                  <p className="text-sm text-muted-foreground line-clamp-1">
+                                    {notification.message}
+                                  </p>
+                                )}
+                                <span className="text-xs text-muted-foreground mt-1 block">
+                                  {formatTime(notification.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -19,6 +19,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 interface Subscription {
@@ -40,6 +65,11 @@ export default function Subscriptions() {
     active: 0,
     mrr: 0
   });
+  const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showChangePlanDialog, setShowChangePlanDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [newPlanType, setNewPlanType] = useState('');
 
   useEffect(() => {
     fetchSubscriptions();
@@ -69,14 +99,15 @@ export default function Subscriptions() {
       setSubscriptions(subscriptionsWithNames);
 
       // Calculate stats
-      const activeCount = (data || []).filter(s => s.status === 'active').length;
-      const monthlyPrice = 29.90;
-      const yearlyPrice = 299.90 / 12;
+      const paidPlans = ['monthly', 'yearly'];
+      const activeCount = (data || []).filter(s => 
+        s.status === 'active' && paidPlans.includes(s.plan_type)
+      ).length;
 
       const mrr = (data || [])
-        .filter(s => s.status === 'active')
+        .filter(s => s.status === 'active' && paidPlans.includes(s.plan_type))
         .reduce((acc, s) => {
-          return acc + (s.plan_type === 'monthly' ? monthlyPrice : yearlyPrice);
+          return acc + (s.plan_type === 'monthly' ? 29.90 : 299.90 / 12);
         }, 0);
 
       setStats({
@@ -95,6 +126,62 @@ export default function Subscriptions() {
   const filteredSubscriptions = subscriptions.filter(sub =>
     sub.user_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleViewDetails = (subscription: Subscription) => {
+    setSelectedSubscription(subscription);
+    setShowDetailsDialog(true);
+  };
+
+  const handleChangePlan = (subscription: Subscription) => {
+    setSelectedSubscription(subscription);
+    setNewPlanType(subscription.plan_type);
+    setShowChangePlanDialog(true);
+  };
+
+  const handleCancelSubscription = (subscription: Subscription) => {
+    setSelectedSubscription(subscription);
+    setShowCancelDialog(true);
+  };
+
+  const confirmChangePlan = async () => {
+    if (!selectedSubscription || !newPlanType) return;
+    
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ plan_type: newPlanType })
+        .eq('id', selectedSubscription.id);
+
+      if (error) throw error;
+
+      toast.success('Plano alterado com sucesso');
+      setShowChangePlanDialog(false);
+      fetchSubscriptions();
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      toast.error('Erro ao alterar plano');
+    }
+  };
+
+  const confirmCancelSubscription = async () => {
+    if (!selectedSubscription) return;
+
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('id', selectedSubscription.id);
+
+      if (error) throw error;
+
+      toast.success('Assinatura cancelada com sucesso');
+      setShowCancelDialog(false);
+      fetchSubscriptions();
+    } catch (error) {
+      console.error('Error canceling subscription:', error);
+      toast.error('Erro ao cancelar assinatura');
+    }
+  };
 
   const columns = [
     {
@@ -161,7 +248,7 @@ export default function Subscriptions() {
     {
       key: 'actions',
       header: '',
-      render: () => (
+      render: (item: Subscription) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -169,9 +256,16 @@ export default function Subscriptions() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>Ver detalhes</DropdownMenuItem>
-            <DropdownMenuItem>Alterar plano</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem onClick={() => handleViewDetails(item)}>
+              Ver detalhes
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleChangePlan(item)}>
+              Alterar plano
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              className="text-destructive"
+              onClick={() => handleCancelSubscription(item)}
+            >
               Cancelar
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -232,6 +326,121 @@ export default function Subscriptions() {
           loading={loading}
           emptyMessage="Nenhuma assinatura encontrada"
         />
+
+        {/* Details Dialog */}
+        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Detalhes da Assinatura</DialogTitle>
+              <DialogDescription>
+                Informações completas da assinatura
+              </DialogDescription>
+            </DialogHeader>
+            {selectedSubscription && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Usuário</Label>
+                    <p className="font-medium">{selectedSubscription.user_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">ID</Label>
+                    <p className="font-mono text-sm">{selectedSubscription.id.slice(0, 8)}...</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Plano</Label>
+                    <p className="font-medium">
+                      {selectedSubscription.plan_type === 'monthly' ? 'Mensal' : 
+                       selectedSubscription.plan_type === 'yearly' ? 'Anual' : 
+                       selectedSubscription.plan_type === 'trial' ? 'Trial' : 
+                       selectedSubscription.plan_type}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className={`font-medium ${
+                      selectedSubscription.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'
+                    }`}>
+                      {selectedSubscription.status === 'active' ? 'Ativo' : 
+                       selectedSubscription.status === 'cancelled' ? 'Cancelado' : 
+                       selectedSubscription.status}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Início</Label>
+                    <p>{new Date(selectedSubscription.starts_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Expira em</Label>
+                    <p>
+                      {selectedSubscription.expires_at 
+                        ? new Date(selectedSubscription.expires_at).toLocaleDateString('pt-BR')
+                        : 'Sem data'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Change Plan Dialog */}
+        <Dialog open={showChangePlanDialog} onOpenChange={setShowChangePlanDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Alterar Plano</DialogTitle>
+              <DialogDescription>
+                Selecione o novo plano para {selectedSubscription?.user_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Novo Plano</Label>
+                <Select value={newPlanType} onValueChange={setNewPlanType}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Selecione o plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trial">Trial (7 dias)</SelectItem>
+                    <SelectItem value="monthly">Mensal (R$ 29,90)</SelectItem>
+                    <SelectItem value="yearly">Anual (R$ 299,90)</SelectItem>
+                    <SelectItem value="promo">Promocional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowChangePlanDialog(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={confirmChangePlan}>
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cancel Dialog */}
+        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancelar Assinatura</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja cancelar a assinatura de {selectedSubscription?.user_name}?
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmCancelSubscription}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Cancelar Assinatura
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </AdminLayout>
   );
