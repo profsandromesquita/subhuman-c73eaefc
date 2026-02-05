@@ -52,6 +52,7 @@ export function useRAGDocument(id: string | undefined) {
   });
 }
 
+// Adicionar documento (sem gerar chunks automaticamente)
 export function useIngestDocument() {
   const queryClient = useQueryClient();
 
@@ -78,15 +79,14 @@ export function useIngestDocument() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Erro ao processar documento");
+        throw new Error(errorData.error || "Erro ao salvar documento");
       }
 
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
-      queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
-      toast.success("Documento indexado com sucesso!");
+      toast.success("Documento salvo! Use 'Gerar Chunks' para criar os fragmentos.");
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -94,6 +94,51 @@ export function useIngestDocument() {
   });
 }
 
+// Gerar chunks manualmente (nova função)
+export function useGenerateChunks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Você precisa estar logado");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-chunks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ documentId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Erro ao gerar chunks");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
+      toast.success(data.message || "Chunks gerados com sucesso!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Reindexar documento (agora chama generate-chunks em vez de ingest-document)
 export function useReindexDocument() {
   const queryClient = useQueryClient();
 
@@ -107,7 +152,7 @@ export function useReindexDocument() {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest-document`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-chunks`,
         {
           method: "POST",
           headers: {
@@ -128,7 +173,8 @@ export function useReindexDocument() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
       queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
-      toast.success("Documento reindexado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
+      toast.success("Chunks regenerados com sucesso!");
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -151,6 +197,7 @@ export function useDeleteRAGDocument() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
       queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
       toast.success("Documento excluído com sucesso!");
     },
     onError: (error: Error) => {

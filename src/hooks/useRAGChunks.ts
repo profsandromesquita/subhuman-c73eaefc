@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface RAGChunk {
   id: string;
@@ -82,6 +83,64 @@ export function useRAGChunkStats() {
         byLayer: byLayer || {},
         byStatus: byStatus || {},
       };
+    },
+  });
+}
+
+// Excluir um chunk individual
+export function useDeleteChunk() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (chunkId: string) => {
+      const { error } = await supabase
+        .from("rag_chunks")
+        .delete()
+        .eq("id", chunkId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
+      toast.success("Chunk excluído!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Excluir todos os chunks de um documento
+export function useDeleteAllChunks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      // Delete all chunks for this document
+      const { error: deleteError } = await supabase
+        .from("rag_chunks")
+        .delete()
+        .eq("document_id", documentId);
+
+      if (deleteError) throw deleteError;
+
+      // Update document status back to pending
+      const { error: updateError } = await supabase
+        .from("rag_documents")
+        .update({ status: "pending" })
+        .eq("id", documentId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+      toast.success("Todos os chunks foram excluídos!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 }

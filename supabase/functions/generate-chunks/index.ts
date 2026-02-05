@@ -8,44 +8,31 @@ const corsHeaders = {
 
 // Domain vocabulary for auto-tagging
 const DOMAIN_VOCABULARY: Record<string, string[]> = {
-  // Modelos OpenAI
   'gpt-5': ['openai', 'gpt', 'chatbot', 'llm'],
   'gpt-4': ['openai', 'gpt', 'chatbot', 'llm'],
   'gpt-4o': ['openai', 'gpt', 'chatbot', 'llm', 'multimodal'],
   'o1': ['openai', 'reasoning', 'llm'],
   'dall-e': ['openai', 'imagem', 'geracao'],
   'whisper': ['openai', 'audio', 'transcricao'],
-  
-  // Modelos Anthropic
   'claude': ['anthropic', 'chatbot', 'llm'],
   'claude-3': ['anthropic', 'chatbot', 'llm'],
   'sonnet': ['anthropic', 'chatbot', 'llm'],
   'opus': ['anthropic', 'chatbot', 'llm'],
   'haiku': ['anthropic', 'chatbot', 'llm'],
-  
-  // Modelos Google
   'gemini': ['google', 'multimodal', 'llm'],
   'gemini-2': ['google', 'multimodal', 'llm'],
   'bard': ['google', 'chatbot', 'llm'],
   'palm': ['google', 'llm'],
-  
-  // Modelos Meta
   'llama': ['meta', 'opensource', 'llm'],
   'llama-3': ['meta', 'opensource', 'llm'],
-  
-  // Modelos Mistral
   'mistral': ['mistral', 'opensource', 'llm'],
   'mixtral': ['mistral', 'opensource', 'llm', 'moe'],
-  
-  // Capacidades
   'código': ['programacao', 'dev', 'codigo'],
   'programação': ['programacao', 'dev', 'codigo'],
   'imagem': ['visao', 'multimodal', 'geracao'],
   'áudio': ['voz', 'multimodal', 'audio'],
   'vídeo': ['video', 'multimodal'],
   'visão': ['visao', 'multimodal'],
-  
-  // Conceitos técnicos
   'tokens': ['pricing', 'contexto', 'tecnico'],
   'contexto': ['contexto', 'tecnico'],
   'temperatura': ['parametros', 'config', 'tecnico'],
@@ -57,8 +44,6 @@ const DOMAIN_VOCABULARY: Record<string, string[]> = {
   'agent': ['agentes', 'tecnico', 'automacao'],
   'agente': ['agentes', 'tecnico', 'automacao'],
   'api': ['api', 'integracao', 'tecnico'],
-  
-  // Aplicações
   'produtividade': ['aplicacao', 'produtividade'],
   'marketing': ['aplicacao', 'negocio', 'marketing'],
   'vendas': ['aplicacao', 'negocio', 'vendas'],
@@ -68,8 +53,6 @@ const DOMAIN_VOCABULARY: Record<string, string[]> = {
   'saúde': ['aplicacao', 'saude'],
   'jurídico': ['aplicacao', 'juridico'],
   'financeiro': ['aplicacao', 'financeiro'],
-  
-  // Conceitos gerais
   'inteligência artificial': ['ia', 'conceito'],
   'machine learning': ['ml', 'conceito', 'tecnico'],
   'deep learning': ['dl', 'conceito', 'tecnico'],
@@ -86,54 +69,7 @@ function parseFrontmatter(content: string): { metadata: Record<string, unknown>;
     return { metadata: {}, body: content };
   }
   
-  const yamlContent = match[1];
-  const body = match[2];
-  
-  // Simple YAML parser for basic frontmatter
-  const metadata: Record<string, unknown> = {};
-  const lines = yamlContent.split('\n');
-  
-  for (const line of lines) {
-    const colonIndex = line.indexOf(':');
-    if (colonIndex === -1) continue;
-    
-    const key = line.substring(0, colonIndex).trim();
-    let value: string | string[] | number = line.substring(colonIndex + 1).trim();
-    
-    // Handle arrays like ["tag1", "tag2"]
-    if (value.startsWith('[') && value.endsWith(']')) {
-      const arrayContent = value.slice(1, -1);
-      value = arrayContent.split(',').map(item => 
-        item.trim().replace(/^["']|["']$/g, '')
-      ).filter(Boolean);
-    } 
-    // Handle quoted strings
-    else if ((value.startsWith('"') && value.endsWith('"')) || 
-             (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    // Handle numbers
-    else if (!isNaN(Number(value))) {
-      value = Number(value);
-    }
-    
-    metadata[key] = value;
-  }
-  
-  return { metadata, body };
-}
-
-// Generate slug from title
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove accents
-    .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-') // Remove duplicate hyphens
-    .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
-    .substring(0, 80);
+  return { metadata: {}, body: match[2] };
 }
 
 // Extract auto-tags from content based on domain vocabulary
@@ -148,6 +84,69 @@ function extractAutoTags(content: string): string[] {
   }
   
   return Array.from(tags);
+}
+
+// Split content into chunks with overlap
+function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): string[] {
+  // Approximate: 1 token ≈ 4 characters for Portuguese
+  const charsPerToken = 4;
+  const maxChars = maxTokens * charsPerToken;
+  const overlapChars = overlapTokens * charsPerToken;
+  
+  const chunks: string[] = [];
+  
+  // Split by paragraphs first
+  const paragraphs = content.split(/\n\n+/);
+  let currentChunk = '';
+  
+  for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim();
+    if (!trimmedParagraph) continue;
+    
+    // If paragraph alone exceeds max, split it by sentences
+    if (trimmedParagraph.length > maxChars) {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+      }
+      
+      // Split by sentences
+      const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/);
+      for (const sentence of sentences) {
+        if ((currentChunk + ' ' + sentence).length > maxChars) {
+          if (currentChunk) {
+            chunks.push(currentChunk.trim());
+            // Keep overlap
+            const words = currentChunk.split(/\s+/);
+            const overlapWords = Math.floor(overlapChars / 6); // Avg word length
+            currentChunk = words.slice(-overlapWords).join(' ');
+          }
+        }
+        currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
+      }
+    } 
+    // Check if adding paragraph exceeds max
+    else if ((currentChunk + '\n\n' + trimmedParagraph).length > maxChars) {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+        // Keep some overlap from previous chunk
+        const words = currentChunk.split(/\s+/);
+        const overlapWords = Math.floor(overlapChars / 6);
+        currentChunk = words.slice(-overlapWords).join(' ') + '\n\n' + trimmedParagraph;
+      } else {
+        currentChunk = trimmedParagraph;
+      }
+    } else {
+      currentChunk = currentChunk ? currentChunk + '\n\n' + trimmedParagraph : trimmedParagraph;
+    }
+  }
+  
+  // Don't forget the last chunk
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
 }
 
 serve(async (req) => {
@@ -172,7 +171,7 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user is admin
+    // Verify user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -203,72 +202,114 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { content } = await req.json();
+    const { documentId } = await req.json();
     
-    if (!content) {
+    if (!documentId) {
       return new Response(
-        JSON.stringify({ error: "Conteúdo é obrigatório" }),
+        JSON.stringify({ error: "ID do documento é obrigatório" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Parse frontmatter from content
-    const { metadata, body } = parseFrontmatter(content);
-    
-    const title = String(metadata.title || "Documento sem título");
-    const layer = String(metadata.layer || "biblioteca");
-    const priority = Number(metadata.priority) || 50;
-    const manualTags = Array.isArray(metadata.tags) ? metadata.tags : [];
-    
-    // Validate layer
-    if (!["constituicao", "nucleo", "biblioteca"].includes(layer)) {
-      return new Response(
-        JSON.stringify({ error: "Layer inválido. Use: constituicao, nucleo ou biblioteca" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Generate slug
-    const slug = generateSlug(title) + "-" + Date.now();
-
-    // Extract auto-tags from body content
-    const autoTags = extractAutoTags(body);
-    const allTags = [...new Set([...manualTags, ...autoTags])];
-
-    // Insert document with PENDING status (NO automatic chunking)
-    const { data: newDoc, error: insertError } = await supabaseAdmin
+    // Fetch document
+    const { data: document, error: fetchError } = await supabaseAdmin
       .from("rag_documents")
-      .insert({
-        title,
-        slug,
-        layer,
-        priority,
-        source_content: content,
-        status: "pending", // Status pending - chunks serão gerados manualmente
-        tags: allTags,
-        created_by: userId,
-      })
-      .select()
+      .select("*")
+      .eq("id", documentId)
       .single();
 
-    if (insertError) {
-      console.error("Insert error:", insertError);
+    if (fetchError || !document) {
       return new Response(
-        JSON.stringify({ error: "Erro ao salvar documento" }),
+        JSON.stringify({ error: "Documento não encontrado" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Generating chunks for document: ${document.id} (${document.title})`);
+
+    // Update status to processing
+    await supabaseAdmin
+      .from("rag_documents")
+      .update({ status: "processing", error_message: null })
+      .eq("id", documentId);
+
+    // Delete existing chunks for this document
+    const { error: deleteError } = await supabaseAdmin
+      .from("rag_chunks")
+      .delete()
+      .eq("document_id", documentId);
+
+    if (deleteError) {
+      console.error("Error deleting existing chunks:", deleteError);
+    }
+
+    // Parse content and generate chunks
+    const { body } = parseFrontmatter(document.source_content);
+    const chunks = chunkContent(body);
+    
+    console.log(`Generated ${chunks.length} chunks for document ${documentId}`);
+
+    if (chunks.length === 0) {
+      await supabaseAdmin
+        .from("rag_documents")
+        .update({ status: "error", error_message: "Conteúdo vazio após processamento" })
+        .eq("id", documentId);
+
+      return new Response(
+        JSON.stringify({ error: "Conteúdo vazio", documentId }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Build chunk records (lexical mode - no embeddings)
+    const chunkRecords = chunks.map((chunkText, i) => {
+      const chunkTags = extractAutoTags(chunkText);
+      const tokenCount = Math.ceil(chunkText.length / 4);
+
+      return {
+        document_id: documentId,
+        chunk_index: i,
+        content: chunkText,
+        embedding: null, // Lexical mode - no embeddings
+        token_count: tokenCount,
+        tags: chunkTags,
+        priority: document.priority || 50,
+      };
+    });
+
+    // Insert all chunks
+    const { data: insertedChunks, error: chunksError } = await supabaseAdmin
+      .from("rag_chunks")
+      .insert(chunkRecords)
+      .select("id");
+
+    if (chunksError) {
+      console.error("Chunks insert error:", JSON.stringify(chunksError));
+      await supabaseAdmin
+        .from("rag_documents")
+        .update({ status: "error", error_message: chunksError.message })
+        .eq("id", documentId);
+
+      return new Response(
+        JSON.stringify({ error: "Erro ao salvar chunks", details: chunksError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
 
-    console.log(`Document saved with ID: ${newDoc.id}, status: pending (awaiting manual chunk generation)`);
+    // Update document status to indexed
+    await supabaseAdmin
+      .from("rag_documents")
+      .update({ status: "indexed", updated_at: new Date().toISOString() })
+      .eq("id", documentId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        documentId: newDoc.id,
-        title: newDoc.title,
-        layer: newDoc.layer,
-        status: "pending",
-        message: "Documento salvo. Use 'Gerar Chunks' para criar os fragmentos.",
+        documentId,
+        chunksCreated: chunkRecords.length,
+        message: `${chunkRecords.length} chunks gerados com sucesso`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
