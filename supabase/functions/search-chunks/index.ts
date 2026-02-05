@@ -6,38 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Generate embedding using Lovable AI Gateway
-async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
-  try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/text-embedding-3-small", // MUST use provider prefix
-        input: text,
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Embedding API error:", response.status, errorText);
-      return null;
-    }
-    
-    const data = await response.json();
-    return data.data?.[0]?.embedding || null;
-  } catch (error) {
-    console.error("Error generating embedding:", error);
-    return null;
-  }
-}
-
 interface SearchParams {
   query: string;
-  matchThreshold?: number;
   matchCount?: number;
   filterTags?: string[];
   filterLayer?: string;
@@ -85,37 +55,17 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "API key não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Generate query embedding
-    const queryEmbedding = await generateEmbedding(params.query, LOVABLE_API_KEY);
-    
-    if (!queryEmbedding) {
-      return new Response(
-        JSON.stringify({ error: "Erro ao gerar embedding da query" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Use service role for RPC call
+    // Use service role for database query
     const supabaseAdmin = createClient(
       supabaseUrl,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Call the search RPC function
-    // Format embedding correctly for pgvector: [1,2,3,...] instead of JSON.stringify
+    // Call the lexical search RPC function
     const { data: chunks, error: searchError } = await supabaseAdmin.rpc(
-      "search_rag_chunks",
+      "search_rag_chunks_lexical",
       {
-        query_embedding: `[${queryEmbedding.join(',')}]`,
-        match_threshold: params.matchThreshold ?? 0.5,
+        query_text: params.query,
         match_count: params.matchCount ?? 10,
         filter_tags: params.filterTags ?? null,
         filter_layer: params.filterLayer ?? null,
@@ -126,7 +76,7 @@ serve(async (req) => {
     if (searchError) {
       console.error("Search error:", searchError);
       return new Response(
-        JSON.stringify({ error: "Erro na busca vetorial" }),
+        JSON.stringify({ error: "Erro na busca textual", details: searchError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -136,6 +86,7 @@ serve(async (req) => {
         chunks: chunks || [],
         query: params.query,
         count: chunks?.length || 0,
+        mode: "lexical",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
