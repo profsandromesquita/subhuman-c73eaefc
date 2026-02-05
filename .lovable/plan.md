@@ -1,133 +1,251 @@
 
-# Plano de Correções: Painel de Assinaturas e Notificações
+# Plano de Implementação: Assistente IA Especialista em Modelos de IA
 
-## Problema 1: Plano exibido incorretamente no painel
+## Visão Geral
 
-### Diagnóstico
-Na tabela do painel `/admin/subscriptions`, o código na linha 199-203 exibe:
-```typescript
-{item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
-```
+Criar um assistente de chat integrado à plataforma Subhumano, especializado em comparar, recomendar e informar sobre modelos de IA. O sistema terá:
 
-Isso significa que QUALQUER plano que não seja `monthly` é exibido como "Anual", incluindo `trial` e `promo`. Por isso "MINDZ DIGITAL" (trial) aparece erroneamente como "Anual".
+1. **Interface de chat para assinantes** - Acesso via navegação principal
+2. **Painel admin** - Configurar prompts, instruções e base de conhecimento
+3. **Backend (Edge Function)** - Processar conversas com Lovable AI Gateway
 
-### Solução
-Modificar a renderização para incluir todos os tipos de plano:
+---
 
-**Arquivo:** `src/pages/admin/Subscriptions.tsx`
+## Arquitetura do Sistema
 
 ```text
-Linha 199-203 - Alterar de:
-{item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
-
-Para:
-{item.plan_type === 'monthly' ? 'Mensal' : 
- item.plan_type === 'yearly' ? 'Anual' : 
- item.plan_type === 'trial' ? 'Trial' :
- item.plan_type === 'promo' ? 'Promo' :
- item.plan_type}
++------------------+       +-------------------+       +--------------------+
+|                  |       |                   |       |                    |
+|  Assinante       | ----> |  Edge Function    | ----> |  Lovable AI        |
+|  (Chat UI)       |       |  /ai-assistant    |       |  Gateway (GPT-5)   |
+|                  |       |                   |       |                    |
++------------------+       +-------------------+       +--------------------+
+                                   |
+                                   v
+                           +-------------------+
+                           |  Tabela           |
+                           |  ai_assistant_    |
+                           |  config           |
+                           +-------------------+
+                                   ^
+                                   |
+                           +-------------------+
+                           |                   |
+                           |  Admin Panel      |
+                           |  (Configuração)   |
+                           |                   |
+                           +-------------------+
 ```
 
 ---
 
-## Problema 2: Separação de notificações lidas/não lidas
+## FASE 1: Infraestrutura e Painel Administrativo
 
-### Diagnóstico
-A UI de separação JÁ ESTÁ IMPLEMENTADA no código (linhas 151-242 de Notifications.tsx). O problema está na lógica de marcar como lida:
+### 1.1 Banco de Dados
 
-1. Notificações globais (`user_id = null`) são buscadas mas não podem ser marcadas como lidas
-2. O hook `useMarkNotificationRead` na linha 120 usa `.eq("user_id", user.id)` que falha para notificações globais
-3. Isso impede que certas notificações saiam da seção "Não lidas"
+**Nova tabela:** `ai_assistant_config`
 
-### Solução
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | Primary key |
+| system_prompt | text | Prompt do sistema (personalidade) |
+| system_instruction | text | Instruções específicas |
+| knowledge_base | jsonb | Base de conhecimento (documentos, comparações) |
+| model | text | Modelo a usar (default: openai/gpt-5) |
+| temperature | numeric | Temperatura (0.1-1.0) |
+| max_tokens | integer | Limite de tokens por resposta |
+| is_active | boolean | Habilitar/desabilitar assistente |
+| created_at | timestamptz | Data de criação |
+| updated_at | timestamptz | Data de atualização |
 
-**Arquivo:** `src/hooks/useNotifications.ts`
+**RLS:** Apenas admins podem ler/modificar.
 
-Modificar a lógica para permitir marcar notificações globais como lidas por usuário específico. Isso requer uma abordagem diferente:
+### 1.2 Painel Admin
 
-1. **Opção escolhida:** Criar uma tabela auxiliar `notification_read_status` para rastrear quais notificações globais cada usuário já leu OU
-2. **Opção mais simples:** Ajustar a query para ignorar notificações globais no filtro de lidas/não lidas ou tratar diferente
+**Novo arquivo:** `src/pages/admin/settings/AIAssistant.tsx`
 
-Para solução imediata, podemos:
-- Modificar o hook para tentar atualizar notificações do próprio usuário
-- E para notificações globais, manter um estado local ou criar uma tabela auxiliar
+Funcionalidades:
+- Editor de System Prompt (textarea grande com formatação)
+- Editor de System Instructions
+- Área para adicionar/editar base de conhecimento em JSON ou formulário estruturado:
+  - Modelos de IA (nome, empresa, tipo, preço, contexto, uso recomendado)
+  - Comparações pré-definidas
+  - FAQs
+- Seletor de modelo (dropdown)
+- Slider para temperatura
+- Campo para max tokens
+- Toggle para ativar/desativar
+- Botão de salvar
+- Preview do prompt formatado
+
+**Atualizar:** `src/components/admin/AdminSidebar.tsx`
+- Adicionar item "Assistente IA" na seção Configurações
+
+### 1.3 Rota Admin
+
+**Atualizar:** `src/App.tsx`
+- Adicionar rota `/admin/settings/ai-assistant`
 
 ---
 
-## Resumo das Alterações
+## FASE 2: Interface do Assinante e Backend
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/pages/admin/Subscriptions.tsx` | Corrigir exibição do tipo de plano na tabela |
-| `src/hooks/useNotifications.ts` | Ajustar lógica para notificações globais |
+### 2.1 Edge Function
+
+**Novo arquivo:** `supabase/functions/ai-assistant/index.ts`
+
+Funcionalidades:
+- Autenticação do usuário (verificar assinatura ativa)
+- Buscar configuração do assistente da tabela `ai_assistant_config`
+- Montar prompt com:
+  - System prompt configurado
+  - System instructions
+  - Base de conhecimento (injetada como contexto)
+- Streaming de resposta via SSE
+- Rate limiting por usuário
+- Logging de conversas (opcional, para análise)
+
+### 2.2 Interface de Chat
+
+**Novo arquivo:** `src/pages/AIAssistant.tsx`
+
+Layout:
+- Header com título "Assistente IA" e descrição
+- Área de chat scrollável
+- Input de mensagem com botão enviar
+- Indicador de "digitando..." durante streaming
+- Renderização de markdown nas respostas
+- Sugestões iniciais de perguntas (chips clicáveis)
+
+Sugestões de perguntas:
+- "Qual IA é melhor para escrever código?"
+- "Compare GPT-5 vs Claude 4"
+- "Qual IA tem mais contexto?"
+- "Gere um prompt para análise de dados"
+
+### 2.3 Hook de Chat
+
+**Novo arquivo:** `src/hooks/useAIAssistant.ts`
+
+Funcionalidades:
+- Gerenciar estado de mensagens
+- Streaming de respostas
+- Persistência local (opcional, sessionStorage)
+- Tratamento de erros (429, 402)
+
+### 2.4 Navegação
+
+**Atualizar:** `src/components/BottomNav.tsx`
+- Adicionar item "IA" com ícone Robot ou Brain
+- Posicionar entre "Podcast" e "Canais"
+
+**Atualizar:** `src/App.tsx`
+- Adicionar rota `/ai-assistant` protegida com SubscriptionGuard
+
+---
+
+## Resumo das Fases
+
+| Fase | Componentes | Descrição |
+|------|-------------|-----------|
+| **Fase 1** | Banco de dados + Admin | Infraestrutura para configurar o assistente |
+| **Fase 2** | Chat UI + Edge Function | Interface para assinantes e backend de IA |
 
 ---
 
 ## Resultado Esperado
 
-1. Painel de assinaturas mostrará corretamente:
-   - "MINDZ DIGITAL" → **Trial** (não mais "Anual")
-   - "Sandro Costa" → **Trial**
-   - "Arduino Ceará" → **Mensal**
-   - "Sandro Costa Mesquita" → **Mensal**
+### Após Fase 1:
+- Admin poderá configurar em `/admin/settings/ai-assistant`:
+  - System prompt personalizado
+  - Base de conhecimento estruturada
+  - Parâmetros do modelo
 
-2. Notificações funcionarão corretamente com as seções "Não lidas" e "Lidas"
+### Após Fase 2:
+- Assinantes terão acesso a um chat inteligente em `/ai-assistant`
+- Poderão fazer perguntas como:
+  - "Qual IA é gratuita e boa para código?"
+  - "Compare Gemini 2.5 Pro vs GPT-5"
+  - "Qual modelo usar para analisar uma planilha de 50MB?"
+  - "Gere um prompt para criar um vídeo explicativo"
 
 ---
 
 ## Seção Técnica
 
-### Dados atuais do banco
+### Estrutura da Base de Conhecimento (JSON)
 
-```
-Assinaturas confirmadas:
-- Sandro Costa Mesquita (monthly) - PAGANTE
-- Arduino Ceará (monthly) - PAGANTE
-- MINDZ DIGITAL (trial) - incorretamente exibido como "Anual"
-- Sandro Costa (trial) - incorretamente exibido como "Anual"
-```
-
-### Correção do render de plano
-
-```typescript
-// Antes (incorreto)
-render: (item: Subscription) => (
-  <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
-    {item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
-  </span>
-)
-
-// Depois (correto)
-render: (item: Subscription) => {
-  const planLabels: Record<string, string> = {
-    monthly: 'Mensal',
-    yearly: 'Anual',
-    trial: 'Trial',
-    promo: 'Promo'
-  };
-  
-  return (
-    <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
-      {planLabels[item.plan_type] || item.plan_type}
-    </span>
-  );
+```json
+{
+  "models": [
+    {
+      "name": "GPT-5",
+      "company": "OpenAI",
+      "type": "text/multimodal",
+      "pricing": "Pago ($20/mês Plus, API variável)",
+      "context_window": "128k tokens",
+      "best_for": ["código", "raciocínio complexo", "análise"],
+      "limitations": ["sem geração de imagem nativa"],
+      "updated_at": "2025-01"
+    },
+    {
+      "name": "Claude 3.5 Sonnet",
+      "company": "Anthropic",
+      "type": "text/multimodal",
+      "pricing": "Pago ($20/mês Pro)",
+      "context_window": "200k tokens",
+      "best_for": ["contexto longo", "livros", "documentos"],
+      "limitations": ["sem geração de mídia"],
+      "updated_at": "2025-01"
+    }
+  ],
+  "categories": {
+    "code": ["GPT-5", "Claude 3.5", "Gemini 2.5 Pro"],
+    "images": ["Midjourney", "DALL-E 3", "Stable Diffusion"],
+    "video": ["Runway Gen-3", "Sora", "Pika"],
+    "audio": ["ElevenLabs", "OpenAI TTS", "Suno"]
+  },
+  "comparisons": [
+    {
+      "models": ["GPT-5", "Claude 3.5"],
+      "summary": "GPT-5 melhor para código, Claude melhor para documentos longos"
+    }
+  ]
 }
 ```
 
-### Problema com notificações globais
+### System Prompt Sugerido (Inicial)
 
-Notificações com `user_id = null` são broadcast para todos os usuários. O problema é que cada usuário precisa de um registro próprio de "leitura". Soluções:
+```text
+Você é o Assistente IA do Subhumano, especialista em inteligência artificial.
 
-1. **Tabela auxiliar** (recomendado para produção):
-```sql
-CREATE TABLE notification_reads (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  notification_id uuid REFERENCES notifications(id),
-  user_id uuid REFERENCES auth.users(id),
-  read_at timestamptz DEFAULT now(),
-  UNIQUE(notification_id, user_id)
-);
+Sua função é:
+1. Comparar modelos de IA (gratuitos e pagos)
+2. Recomendar ferramentas para tarefas específicas
+3. Explicar diferenças técnicas de forma simples
+4. Gerar prompts otimizados para diferentes necessidades
+
+Use a base de conhecimento fornecida para informações atualizadas.
+
+Diretrizes:
+- Seja objetivo e direto
+- Cite preços quando relevante
+- Mencione limitações importantes
+- Sugira alternativas gratuitas quando possível
+- Use linguagem acessível (PT-BR)
 ```
 
-2. **Solução simplificada** (mais rápida):
-Usar localStorage para rastrear IDs de notificações globais lidas pelo usuário
+### Arquivos a Criar/Modificar
+
+| Fase | Arquivo | Ação |
+|------|---------|------|
+| 1 | Migração SQL | Criar tabela ai_assistant_config |
+| 1 | `src/pages/admin/settings/AIAssistant.tsx` | Criar |
+| 1 | `src/components/admin/AdminSidebar.tsx` | Modificar |
+| 1 | `src/App.tsx` | Modificar (rota admin) |
+| 2 | `supabase/functions/ai-assistant/index.ts` | Criar |
+| 2 | `supabase/config.toml` | Modificar |
+| 2 | `src/pages/AIAssistant.tsx` | Criar |
+| 2 | `src/hooks/useAIAssistant.ts` | Criar |
+| 2 | `src/components/BottomNav.tsx` | Modificar |
+| 2 | `src/App.tsx` | Modificar (rota assinante) |
