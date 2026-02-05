@@ -18,12 +18,19 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
     const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
+      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text }), // MUST use provider prefix
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Embedding API error:", res.status, errText);
+      return null;
+    }
     const data = await res.json();
     return data.data?.[0]?.embedding || null;
-  } catch { return null; }
+  } catch (e) { 
+    console.error("Embedding error:", e);
+    return null; 
+  }
 }
 
 // Fetch channels catalog

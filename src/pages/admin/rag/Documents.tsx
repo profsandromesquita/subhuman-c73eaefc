@@ -102,9 +102,15 @@ export default function RAGDocuments() {
   });
 
   const handleSubmit = async () => {
-    await ingestMutation.mutateAsync(content);
-    setIsDialogOpen(false);
-    setContent(DOCUMENT_TEMPLATE);
+    try {
+      await ingestMutation.mutateAsync(content);
+      setIsDialogOpen(false);
+      setContent(DOCUMENT_TEMPLATE);
+    } catch (error) {
+      // Error is already handled by the mutation's onError callback in the hook
+      // Keep dialog open so user can retry
+      console.error("Ingest error:", error);
+    }
   };
 
   const handleReindex = (id: string) => {
