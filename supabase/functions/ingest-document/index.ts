@@ -466,6 +466,24 @@ serve(async (req) => {
       console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
     } else {
       console.warn("No chunks were created - embedding generation may have failed");
+      
+      // If no chunks were created, mark as error
+      await supabaseAdmin
+        .from("rag_documents")
+        .update({ 
+          status: "error", 
+          error_message: "Nenhum chunk foi criado. Verifique se o conteúdo é válido e tente novamente." 
+        })
+        .eq("id", docId);
+
+      return new Response(
+        JSON.stringify({ 
+          error: "Nenhum chunk criado - geração de embeddings pode ter falhado",
+          documentId: docId,
+          chunksCreated: 0
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Update document status to indexed

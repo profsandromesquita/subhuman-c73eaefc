@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,15 +11,19 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Cube,
   FileText,
   Hash,
   MagnifyingGlass,
   Spinner,
+  ArrowClockwise,
+  Warning,
 } from "@phosphor-icons/react";
 import { useRAGChunks, useRAGChunkStats } from "@/hooks/useRAGChunks";
-import { useRAGDocuments } from "@/hooks/useRAGDocuments";
+import { useRAGDocuments, useReindexDocument } from "@/hooks/useRAGDocuments";
+import { toast } from "sonner";
 
 const LAYER_COLORS: Record<string, string> = {
   constituicao: "bg-amber-500/20 text-amber-500",
@@ -29,12 +34,54 @@ const LAYER_COLORS: Record<string, string> = {
 export default function RAGChunks() {
   const [search, setSearch] = useState("");
   const [documentFilter, setDocumentFilter] = useState<string>("all");
+  const [isReindexingAll, setIsReindexingAll] = useState(false);
 
   const { data: chunks, isLoading } = useRAGChunks(
     documentFilter !== "all" ? documentFilter : undefined
   );
   const { data: stats } = useRAGChunkStats();
   const { data: documents } = useRAGDocuments();
+  const reindexMutation = useReindexDocument();
+
+  // Find documents that are "indexed" but have no chunks
+  const documentsWithoutChunks = documents?.filter((doc) => {
+    const hasChunks = chunks?.some((chunk) => chunk.document_id === doc.id);
+    return doc.status === "indexed" && !hasChunks;
+  }) || [];
+
+  // Find pending or error documents
+  const pendingOrErrorDocs = documents?.filter(
+    (doc) => doc.status === "pending" || doc.status === "error"
+  ) || [];
+
+  const problemDocs = [...documentsWithoutChunks, ...pendingOrErrorDocs];
+
+  const handleReindexAll = async () => {
+    if (problemDocs.length === 0) return;
+    
+    setIsReindexingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const doc of problemDocs) {
+      try {
+        await reindexMutation.mutateAsync(doc.id);
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsReindexingAll(false);
+
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`${successCount} documento(s) reindexado(s) com sucesso!`);
+    } else if (successCount > 0) {
+      toast.warning(`${successCount} sucesso, ${errorCount} erro(s)`);
+    } else {
+      toast.error("Erro ao reindexar documentos");
+    }
+  };
 
   const filteredChunks = chunks?.filter((chunk) => {
     if (search && !chunk.content.toLowerCase().includes(search.toLowerCase())) {
@@ -46,7 +93,79 @@ export default function RAGChunks() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Chunks da Base de Conhecimento</h1>
+        {/* Header with Reindex Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-bold">Chunks da Base de Conhecimento</h1>
+          {problemDocs.length > 0 && (
+            <Button
+              onClick={handleReindexAll}
+              disabled={isReindexingAll || reindexMutation.isPending}
+            >
+              {isReindexingAll ? (
+                <Spinner className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <ArrowClockwise className="w-4 h-4 mr-2" />
+              )}
+              Reindexar {problemDocs.length} Documento(s)
+            </Button>
+          )}
+        </div>
+
+        {/* Alert for documents without chunks */}
+        {problemDocs.length > 0 && (
+          <Alert className="border-yellow-500/50 bg-yellow-500/10">
+            <Warning className="w-4 h-4 text-yellow-500" />
+            <AlertTitle className="text-yellow-400">
+              Documentos precisam de atenção
+            </AlertTitle>
+            <AlertDescription className="text-yellow-200/80">
+              {documentsWithoutChunks.length > 0 && (
+                <div className="mb-2">
+                  <strong>{documentsWithoutChunks.length} documento(s)</strong> marcados
+                  como indexados mas sem chunks gerados.
+                </div>
+              )}
+              {pendingOrErrorDocs.length > 0 && (
+                <div className="mb-2">
+                  <strong>{pendingOrErrorDocs.length} documento(s)</strong> pendentes ou
+                  com erro de indexação.
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {problemDocs.slice(0, 5).map((doc) => (
+                  <Button
+                    key={doc.id}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => reindexMutation.mutate(doc.id)}
+                    disabled={reindexMutation.isPending}
+                    className="border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/20"
+                  >
+                    {reindexMutation.isPending ? (
+                      <Spinner className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <ArrowClockwise className="w-3 h-3 mr-1" />
+                    )}
+                    {doc.title.substring(0, 25)}
+                    {doc.title.length > 25 ? "..." : ""}
+                    <Badge
+                      variant="outline"
+                      className="ml-2 text-xs border-yellow-500/30"
+                    >
+                      {doc.status}
+                    </Badge>
+                  </Button>
+                ))}
+                {problemDocs.length > 5 && (
+                  <span className="text-sm text-yellow-300/60 self-center">
+                    +{problemDocs.length - 5} mais
+                  </span>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>

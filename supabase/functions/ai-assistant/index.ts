@@ -56,8 +56,42 @@ interface ChannelPost {
   title: string | null;
   content: string;
   created_at: string;
+  author_id: string | null;
   channels: { name: string; slug: string };
-  profiles: { full_name: string } | null;
+  author_name?: string;
+}
+
+interface Channel {
+  id: string;
+  name: string;
+  description: string | null;
+  access_type: "open" | "subscribers" | "premium";
+  required_plan: string | null;
+  slug: string | null;
+}
+
+// Fetch all active channels (catalog)
+async function fetchChannelsCatalog(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any
+): Promise<Channel[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("channels")
+      .select("id, name, description, access_type, required_plan, slug")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching channels catalog:", error);
+      return [];
+    }
+
+    return (data || []) as Channel[];
+  } catch (error) {
+    console.error("Exception fetching channels:", error);
+    return [];
+  }
 }
 
 // Search for relevant RAG chunks
@@ -131,7 +165,7 @@ async function fetchRecentPosts(
   }
 }
 
-// Fetch recent channel discussions
+// Fetch recent channel discussions (FIXED: 2-step query without invalid join)
 async function fetchRecentChannelPosts(
   // deno-lint-ignore no-explicit-any
   supabaseAdmin: any,
@@ -141,20 +175,51 @@ async function fetchRecentChannelPosts(
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const { data, error } = await supabaseAdmin
+    // Step 1: Fetch posts with channel info (no profile join)
+    const { data: posts, error: postsError } = await supabaseAdmin
       .from("channel_posts")
-      .select("id, title, content, created_at, channels!inner(name, slug), profiles:author_id(full_name)")
+      .select("id, title, content, created_at, author_id, channel_id, channels!inner(name, slug)")
       .eq("is_moderated", false)
       .gte("created_at", sevenDaysAgo.toISOString())
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) {
-      console.error("Error fetching channel posts:", error);
+    if (postsError || !posts) {
+      console.error("Error fetching channel posts:", postsError);
       return [];
     }
 
-    return (data || []) as ChannelPost[];
+    if (posts.length === 0) {
+      return [];
+    }
+
+    // Step 2: Fetch author profiles separately
+    const authorIds = [...new Set(posts.map((p: { author_id: string | null }) => p.author_id).filter(Boolean))] as string[];
+    let profilesMap: Record<string, string> = {};
+    
+    if (authorIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", authorIds);
+      
+      if (!profilesError && profiles) {
+        profiles.forEach((p: { id: string; full_name: string | null }) => {
+          profilesMap[p.id] = p.full_name || "Usuário";
+        });
+      }
+    }
+
+    // Step 3: Map results with author names
+    return posts.map((post: { id: string; title: string | null; content: string; created_at: string; author_id: string | null; channels: { name: string; slug: string } }) => ({
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      created_at: post.created_at,
+      author_id: post.author_id,
+      channels: post.channels,
+      author_name: post.author_id ? (profilesMap[post.author_id] || "Usuário") : "Usuário",
+    }));
   } catch (error) {
     console.error("Exception fetching channel posts:", error);
     return [];
@@ -192,12 +257,42 @@ function buildRAGContext(chunks: RAGChunk[]): string {
   return context.trim();
 }
 
+// Build context from channels catalog
+function buildChannelsCatalogContext(channels: Channel[]): string {
+  if (!channels || channels.length === 0) {
+    return "";
+  }
+
+  const accessTypeLabels: Record<string, string> = {
+    open: "aberto a todos",
+    subscribers: "exclusivo para assinantes",
+    premium: "exclusivo para assinantes premium/anuais",
+  };
+
+  let context = "\n\n=== CANAIS (FÓRUNS) DA COMUNIDADE ===\n";
+  context += "Estes são os canais de discussão reais da plataforma (página /channels):\n\n";
+
+  for (const channel of channels) {
+    const accessLabel = accessTypeLabels[channel.access_type] || channel.access_type;
+    context += `- **${channel.name}** (${accessLabel})`;
+    if (channel.description) {
+      context += `: ${channel.description}`;
+    }
+    context += "\n";
+  }
+
+  context += "\nIMPORTANTE: Os canais são internos à plataforma Subhumano.\n";
+  context += "NÃO invente canais externos como Discord, Telegram ou LinkedIn.\n";
+
+  return context;
+}
+
 // Build context from recent platform content
 function buildPlatformContext(posts: SpaceUpdate[], channelPosts: ChannelPost[]): string {
   let context = "";
 
   if (posts.length > 0) {
-    context += "\n\n=== POSTS RECENTES NA PLATAFORMA ===\n\n";
+    context += "\n\n=== POSTS RECENTES NA PLATAFORMA (ESPAÇOS) ===\n\n";
     for (const post of posts.slice(0, 10)) {
       const date = new Date(post.published_at).toLocaleDateString("pt-BR");
       const spaceName = post.spaces?.name || "Espaço";
@@ -213,7 +308,7 @@ function buildPlatformContext(posts: SpaceUpdate[], channelPosts: ChannelPost[])
     for (const post of channelPosts.slice(0, 10)) {
       const date = new Date(post.created_at).toLocaleDateString("pt-BR");
       const channelName = post.channels?.name || "Canal";
-      const authorName = post.profiles?.full_name || "Usuário";
+      const authorName = post.author_name || "Usuário";
       // Summarize content (first 200 chars)
       const summary = post.content?.replace(/<[^>]*>/g, '').substring(0, 200) || "";
       context += `[${channelName}] @${authorName} - ${date}\n`;
@@ -235,6 +330,53 @@ function getCurrentDateBR(): string {
     timeZone: 'America/Sao_Paulo'
   };
   return now.toLocaleDateString('pt-BR', options);
+}
+
+// Build platform structure definitions
+function buildPlatformStructureDefinitions(): string {
+  return `
+=== ESTRUTURA DA PLATAFORMA SUBHUMANO ===
+
+1. ESPAÇOS (/spaces): Conteúdo editorial publicado pelos administradores
+   - Artigos, tutoriais, análises de ferramentas de IA
+   - Os usuários podem comentar, mas NÃO publicar diretamente
+   - Categorias: Produtividade, Marketing, Programação, Audiovisual, Estilo de Vida
+
+2. CANAIS (/channels): Fóruns de discussão da comunidade
+   - Onde USUÁRIOS publicam dúvidas, compartilham experiências e interagem
+   - Discussões em tempo real entre membros da comunidade
+   - Cada canal tem um tema específico e nível de acesso
+
+REGRA DE DISTINÇÃO:
+- Quando perguntarem "onde usuários postam", "fóruns", "dúvidas" → responda sobre CANAIS (/channels)
+- Quando perguntarem "artigos", "publicações oficiais", "tutoriais" → responda sobre ESPAÇOS (/spaces)
+`;
+}
+
+// Build anti-hallucination rules
+function buildAntiHallucinationRules(): string {
+  return `
+=== REGRAS ANTI-ALUCINAÇÃO ===
+
+1. NUNCA mencione Discord, LinkedIn, Telegram, WhatsApp ou redes externas como canais oficiais da comunidade
+   - A menos que exista documentação explícita na base RAG
+   
+2. Se o usuário perguntar sobre canais/fóruns da comunidade:
+   - Use APENAS a lista de canais fornecida neste contexto (seção "CANAIS DA COMUNIDADE")
+   - Não invente categorias, subcategorias ou canais adicionais
+   
+3. Se não encontrar informação sobre algo:
+   - Diga claramente: "Não encontrei informações sobre isso na base de conhecimento"
+   - Sugira verificar em /channels (fóruns) ou /spaces (artigos)
+
+4. Ao mencionar discussões nos canais:
+   - Cite apenas discussões reais do contexto fornecido
+   - Não invente nomes de usuários, tópicos ou datas
+
+5. Sobre a estrutura da plataforma:
+   - Use as definições exatas fornecidas na seção "ESTRUTURA DA PLATAFORMA"
+   - Não misture Espaços (conteúdo editorial) com Canais (fóruns de usuários)
+`;
 }
 
 serve(async (req) => {
@@ -333,22 +475,26 @@ serve(async (req) => {
 
     console.log(`RAG search returned ${ragChunks.length} chunks for query: "${userQuery.substring(0, 50)}..."`);
 
-    // Fetch platform content in parallel
-    const [recentPosts, channelPosts] = await Promise.all([
+    // Fetch platform content in parallel (including channels catalog)
+    const [recentPosts, channelPosts, channelsCatalog] = await Promise.all([
       fetchRecentPosts(supabaseAdmin, 15),
       fetchRecentChannelPosts(supabaseAdmin, 20),
+      fetchChannelsCatalog(supabaseAdmin),
     ]);
 
-    console.log(`Platform content: ${recentPosts.length} posts, ${channelPosts.length} channel discussions`);
+    console.log(`Platform content: ${recentPosts.length} posts, ${channelPosts.length} channel discussions, ${channelsCatalog.length} channels`);
 
     // Build RAG context
     const ragContext = buildRAGContext(ragChunks);
     
     // Build platform context
     const platformContext = buildPlatformContext(recentPosts, channelPosts);
+    
+    // Build channels catalog context
+    const channelsCatalogContext = buildChannelsCatalogContext(channelsCatalog);
 
     // Build system message with knowledge base and RAG context
-    // Priority: Current Date > RAG Constitution > System Prompt > RAG Knowledge > Platform Content
+    // Priority: Current Date > Platform Structure > RAG Constitution > Channels Catalog > System Prompt > RAG Knowledge > Platform Content > Anti-Hallucination
     let systemMessage = "";
     
     // 0. Current date (always first for temporal awareness)
@@ -359,32 +505,43 @@ serve(async (req) => {
     systemMessage += `- Sempre verifique a data das informações antes de citá-las\n`;
     systemMessage += `- Se não souber algo atual, admita que precisa de informações mais recentes\n\n`;
 
-    // 1. System prompt (personality/instructions)
+    // 1. Platform structure definitions (CRITICAL - prevents confusion between Spaces and Channels)
+    systemMessage += buildPlatformStructureDefinitions() + "\n\n";
+
+    // 2. System prompt (personality/instructions)
     if (config.system_prompt) {
       systemMessage += config.system_prompt + "\n\n";
     }
 
-    // 2. System instruction (operational guidelines)
+    // 3. System instruction (operational guidelines)
     if (config.system_instruction) {
       systemMessage += config.system_instruction + "\n\n";
     }
 
-    // 3. RAG Context (Constitution + relevant knowledge) - PRIORITY SOURCE
+    // 4. RAG Context (Constitution + relevant knowledge) - PRIORITY SOURCE
     if (ragContext) {
       systemMessage += "---\n\n" + ragContext + "\n\n---\n\n";
     }
+
+    // 5. Channels catalog (real channels from database)
+    if (channelsCatalogContext) {
+      systemMessage += channelsCatalogContext + "\n\n";
+    }
     
-    // 4. Platform content (published posts + channel discussions)
+    // 6. Platform content (published posts + channel discussions)
     if (platformContext) {
       systemMessage += platformContext + "\n\n";
     }
 
-    // 5. Legacy knowledge base (fallback if no RAG - should be phased out)
+    // 7. Legacy knowledge base (fallback if no RAG - should be phased out)
     if (config.knowledge_base && Object.keys(config.knowledge_base).length > 0 && ragChunks.length === 0) {
       systemMessage += "INFORMAÇÕES ADICIONAIS (base legada):\n" + JSON.stringify(config.knowledge_base, null, 2) + "\n\n";
     }
 
-    // 6. Response guidelines - CRITICAL RULES
+    // 8. Anti-hallucination rules (CRITICAL)
+    systemMessage += buildAntiHallucinationRules() + "\n\n";
+
+    // 9. Response guidelines - CRITICAL RULES
     systemMessage += `
 DIRETRIZES DE RESPOSTA:
 - Responda sempre em português brasileiro
