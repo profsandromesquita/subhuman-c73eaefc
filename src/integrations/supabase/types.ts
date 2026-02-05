@@ -805,6 +805,137 @@ export type Database = {
         }
         Relationships: []
       }
+      rag_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string | null
+          document_id: string
+          embedding: string | null
+          id: string
+          metadata: Json | null
+          priority: number
+          tags: string[] | null
+          token_count: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string | null
+          document_id: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          priority?: number
+          tags?: string[] | null
+          token_count?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string | null
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          priority?: number
+          tags?: string[] | null
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "rag_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rag_documents: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          layer: string
+          metadata: Json | null
+          priority: number
+          slug: string
+          source_content: string
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          layer: string
+          metadata?: Json | null
+          priority?: number
+          slug: string
+          source_content: string
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          layer?: string
+          metadata?: Json | null
+          priority?: number
+          slug?: string
+          source_content?: string
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      rag_query_logs: {
+        Row: {
+          chunks_count: number | null
+          chunks_retrieved: string[] | null
+          created_at: string | null
+          id: string
+          intent: string | null
+          latency_ms: number | null
+          query: string
+          response_tokens: number | null
+          user_id: string | null
+        }
+        Insert: {
+          chunks_count?: number | null
+          chunks_retrieved?: string[] | null
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          latency_ms?: number | null
+          query: string
+          response_tokens?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          chunks_count?: number | null
+          chunks_retrieved?: string[] | null
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          latency_ms?: number | null
+          query?: string
+          response_tokens?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       saved_podcasts: {
         Row: {
           created_at: string | null
@@ -1200,6 +1331,26 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_moderator: { Args: { _user_id: string }; Returns: boolean }
+      search_rag_chunks: {
+        Args: {
+          filter_layer?: string
+          filter_tags?: string[]
+          include_constitution?: boolean
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          document_title: string
+          id: string
+          layer: string
+          priority: number
+          similarity: number
+          tags: string[]
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

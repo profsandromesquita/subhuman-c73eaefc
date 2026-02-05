@@ -13,8 +13,12 @@ import {
   SignOut,
   House,
   Microphone,
-   Ticket,
-   Robot
+  Ticket,
+  Robot,
+  Brain,
+  FileText,
+  Cube,
+  MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -47,12 +51,18 @@ const contentNavItems = [
   { title: 'Moderação', url: '/admin/moderation', icon: Shield },
 ];
 
+const ragNavItems = [
+  { title: 'Documentos', url: '/admin/rag/documents', icon: FileText },
+  { title: 'Chunks', url: '/admin/rag/chunks', icon: Cube },
+  { title: 'Teste RAG', url: '/admin/rag/test', icon: MagnifyingGlass },
+];
+
 const settingsNavItems = [
   { title: 'Gerais', url: '/admin/settings/general', icon: Gear },
   { title: 'Usuários do Sistema', url: '/admin/settings/users', icon: UserCircleGear },
   { title: 'Notificações', url: '/admin/settings/notifications', icon: Bell },
   { title: 'Pagamentos', url: '/admin/settings/payments', icon: Wallet },
-   { title: 'Assistente IA', url: '/admin/settings/ai-assistant', icon: Robot },
+  { title: 'Assistente IA', url: '/admin/settings/ai-assistant', icon: Robot },
 ];
 
 export function AdminSidebar() {
@@ -125,6 +135,20 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {contentNavItems.map(renderNavItem)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-6">
+          {!collapsed && (
+            <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              <Brain className="w-4 h-4 inline mr-1" />
+              Base de Conhecimento
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {ragNavItems.map(renderNavItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

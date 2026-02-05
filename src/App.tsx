@@ -56,7 +56,10 @@ const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
 const SystemUsers = lazy(() => import("./pages/admin/settings/SystemUsers"));
 const NotificationSettings = lazy(() => import("./pages/admin/settings/Notifications"));
 const PaymentSettings = lazy(() => import("./pages/admin/settings/Payments"));
- const AIAssistantSettings = lazy(() => import("./pages/admin/settings/AIAssistant"));
+const AIAssistantSettings = lazy(() => import("./pages/admin/settings/AIAssistant"));
+const RAGDocuments = lazy(() => import("./pages/admin/rag/Documents"));
+const RAGChunks = lazy(() => import("./pages/admin/rag/Chunks"));
+const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
 
 const App = () => (
   <ErrorBoundary>
@@ -113,7 +116,10 @@ const App = () => (
               <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
               <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
               <Route path="/admin/settings/payments" element={<AdminGuard requireAdmin><PaymentSettings /></AdminGuard>} />
-               <Route path="/admin/settings/ai-assistant" element={<AdminGuard requireAdmin><AIAssistantSettings /></AdminGuard>} />
+              <Route path="/admin/settings/ai-assistant" element={<AdminGuard requireAdmin><AIAssistantSettings /></AdminGuard>} />
+              <Route path="/admin/rag/documents" element={<AdminGuard><RAGDocuments /></AdminGuard>} />
+              <Route path="/admin/rag/chunks" element={<AdminGuard><RAGChunks /></AdminGuard>} />
+              <Route path="/admin/rag/test" element={<AdminGuard><RAGTest /></AdminGuard>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
