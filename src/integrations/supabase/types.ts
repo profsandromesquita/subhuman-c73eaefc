@@ -1351,6 +1351,25 @@ export type Database = {
           tags: string[]
         }[]
       }
+      search_rag_chunks_lexical: {
+        Args: {
+          filter_layer?: string
+          filter_tags?: string[]
+          include_constitution?: boolean
+          match_count?: number
+          query_text: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          document_title: string
+          id: string
+          layer: string
+          priority: number
+          rank: number
+          tags: string[]
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
