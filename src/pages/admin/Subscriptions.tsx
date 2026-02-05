@@ -196,11 +196,19 @@ export default function Subscriptions() {
     {
       key: 'plan_type',
       header: 'Plano',
-      render: (item: Subscription) => (
-        <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
-          {item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
-        </span>
-      )
+       render: (item: Subscription) => {
+         const planLabels: Record<string, string> = {
+           monthly: 'Mensal',
+           yearly: 'Anual',
+           trial: 'Trial',
+           promo: 'Promo'
+         };
+         return (
+           <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
+             {planLabels[item.plan_type] || item.plan_type}
+           </span>
+         );
+       }
     },
     {
       key: 'status',
