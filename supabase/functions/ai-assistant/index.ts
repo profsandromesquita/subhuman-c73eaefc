@@ -7,31 +7,10 @@ const corsHeaders = {
 };
 
 // Types
-interface RAGChunk { id: string; content: string; document_title: string; layer: string; priority: number; similarity: number; }
+interface RAGChunk { id: string; content: string; document_title: string; layer: string; priority: number; rank?: number; }
 interface SpaceUpdate { id: string; title: string; content: string; published_at: string; spaces: { name: string; slug: string }; }
 interface ChannelPost { id: string; title: string | null; content: string; created_at: string; author_id: string | null; channels: { name: string; slug: string }; author_name?: string; }
 interface Channel { id: string; name: string; description: string | null; access_type: string; slug: string | null; }
-
-// Generate embedding using Lovable AI Gateway
-async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text }), // MUST use provider prefix
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("Embedding API error:", res.status, errText);
-      return null;
-    }
-    const data = await res.json();
-    return data.data?.[0]?.embedding || null;
-  } catch (e) { 
-    console.error("Embedding error:", e);
-    return null; 
-  }
-}
 
 // Fetch channels catalog
 // deno-lint-ignore no-explicit-any
@@ -40,18 +19,22 @@ async function fetchChannelsCatalog(db: any): Promise<Channel[]> {
   return (data || []) as Channel[];
 }
 
-// Search RAG chunks
+// Search RAG chunks using LEXICAL search (no embeddings)
 // deno-lint-ignore no-explicit-any
-async function searchRAGChunks(query: string, apiKey: string, db: any, cfg: { rag_threshold?: number; rag_top_k?: number; rag_enabled?: boolean }): Promise<RAGChunk[]> {
+async function searchRAGChunks(query: string, db: any, cfg: { rag_top_k?: number; rag_enabled?: boolean }): Promise<RAGChunk[]> {
   if (cfg.rag_enabled === false) return [];
-  const emb = await generateEmbedding(query, apiKey);
-  if (!emb) return [];
-  const { data } = await db.rpc("search_rag_chunks", {
-    query_embedding: `[${emb.join(',')}]`,
-    match_threshold: cfg.rag_threshold ?? 0.5,
+  
+  const { data, error } = await db.rpc("search_rag_chunks_lexical", {
+    query_text: query,
     match_count: cfg.rag_top_k ?? 8,
     include_constitution: true,
   });
+  
+  if (error) {
+    console.error("RAG search error:", error);
+    return [];
+  }
+  
   return (data || []) as RAGChunk[];
 }
 
@@ -165,17 +148,17 @@ serve(async (req) => {
     }
 
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
-    const ragCfg = (config.metadata || {}) as { rag_threshold?: number; rag_top_k?: number; rag_enabled?: boolean };
+    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean };
 
-    // Parallel fetches
+    // Parallel fetches (using lexical search now)
     const [ragChunks, recentPosts, channelPosts, channels] = await Promise.all([
-      searchRAGChunks(userQuery, API_KEY, db, ragCfg),
+      searchRAGChunks(userQuery, db, ragCfg),
       fetchRecentPosts(db),
       fetchRecentChannelPosts(db),
       fetchChannelsCatalog(db),
     ]);
 
-    console.log(`Context: ${ragChunks.length} RAG, ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels`);
+    console.log(`Context: ${ragChunks.length} RAG (lexical), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels`);
 
     // Build system message
     const now = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });

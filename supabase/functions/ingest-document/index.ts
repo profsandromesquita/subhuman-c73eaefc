@@ -213,73 +213,6 @@ function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): st
   return chunks;
 }
 
-// Result type for embedding generation with detailed error info
-interface EmbeddingResult {
-  embedding: number[] | null;
-  error?: {
-    status: number;
-    message: string;
-    model: string;
-  };
-}
-
-// Generate embedding using Lovable AI Gateway
-async function generateEmbedding(text: string, apiKey: string): Promise<EmbeddingResult> {
-  const model = "openai/text-embedding-3-small"; // MUST use provider prefix
-  try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: text,
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Embedding API error:", response.status, errorText);
-      return { 
-        embedding: null, 
-        error: { 
-          status: response.status, 
-          message: errorText.substring(0, 500), 
-          model 
-        } 
-      };
-    }
-    
-    const data = await response.json();
-    const embedding = data.data?.[0]?.embedding || null;
-    return { embedding };
-  } catch (error) {
-    console.error("Error generating embedding:", error);
-    return { 
-      embedding: null, 
-      error: { 
-        status: 0, 
-        message: error instanceof Error ? error.message : "Erro desconhecido", 
-        model 
-      } 
-    };
-  }
-}
-
-// Preflight check: test if embedding API is working before destructive operations
-async function preflightEmbeddingCheck(apiKey: string): Promise<{ ok: boolean; error?: string }> {
-  const testResult = await generateEmbedding("test", apiKey);
-  if (testResult.embedding) {
-    return { ok: true };
-  }
-  const errMsg = testResult.error 
-    ? `Status ${testResult.error.status}: ${testResult.error.message}` 
-    : "Embedding API não respondeu";
-  return { ok: false, error: errMsg };
-}
-
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -342,30 +275,6 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "API key não configurada" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // PREFLIGHT CHECK: Test embedding API before any destructive operations
-    console.log("Running preflight embedding check...");
-    const preflight = await preflightEmbeddingCheck(LOVABLE_API_KEY);
-    if (!preflight.ok) {
-      console.error("Preflight check failed:", preflight.error);
-      return new Response(
-        JSON.stringify({ 
-          error: "Serviço de embeddings indisponível", 
-          details: preflight.error,
-          hint: "O gateway de IA pode estar temporariamente fora ou o modelo de embedding não é suportado."
-        }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    console.log("Preflight check passed - embedding API is working");
-
     let docId: string;
     let docContent: string;
     let docMetadata: Record<string, unknown>;
@@ -400,7 +309,7 @@ serve(async (req) => {
         .update({ status: "processing", error_message: null })
         .eq("id", docId);
 
-      // Delete existing chunks ONLY after preflight passed
+      // Delete existing chunks
       await supabaseAdmin
         .from("rag_chunks")
         .delete()
@@ -429,7 +338,7 @@ serve(async (req) => {
       const autoTags = extractAutoTags(body);
       const allTags = [...new Set([...manualTags, ...autoTags])];
 
-      // Insert document with pending status
+      // Insert document with processing status
       const { data: newDoc, error: insertError } = await supabaseAdmin
         .from("rag_documents")
         .insert({
@@ -458,99 +367,63 @@ serve(async (req) => {
       docMetadata = { title, layer, priority, tags: allTags };
     }
 
-    // Chunk the content
+    // Chunk the content (NO EMBEDDINGS - pure lexical indexing)
     const { body: parsedBody } = parseFrontmatter(docContent);
     const chunks = chunkContent(parsedBody);
     
-    console.log(`Processing document ${docId}: ${chunks.length} chunks to create`);
+    console.log(`Processing document ${docId}: ${chunks.length} chunks to create (lexical mode)`);
     console.log(`Document layer: ${docMetadata.layer}, priority: ${docMetadata.priority}`);
 
-    // Process chunks and generate embeddings
-    const chunkRecords = [];
-    let lastEmbeddingError: { status: number; message: string; model: string } | undefined;
-    
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkText = chunks[i];
-      const result = await generateEmbedding(chunkText, LOVABLE_API_KEY);
-      
-      if (!result.embedding) {
-        console.warn(`Failed to generate embedding for chunk ${i}`);
-        if (result.error) {
-          lastEmbeddingError = result.error;
-        }
-        continue;
-      }
-
-      // Extract tags specific to this chunk
-      const chunkTags = extractAutoTags(chunkText);
-      const tokenCount = Math.ceil(chunkText.length / 4);
-
-      console.log(`Chunk ${i}: Generated embedding with ${result.embedding.length} dimensions`);
-
-      chunkRecords.push({
-        document_id: docId,
-        chunk_index: i,
-        content: chunkText,
-        embedding: `[${result.embedding.join(',')}]`, // Format correctly for pgvector
-        token_count: tokenCount,
-        tags: chunkTags,
-        priority: Number(docMetadata.priority) || 50,
-      });
-    }
-
-    // Insert chunks
-    console.log(`Attempting to insert ${chunkRecords.length} chunks for document ${docId}`);
-    
-    if (chunkRecords.length > 0) {
-      const { data: insertedChunks, error: chunksError } = await supabaseAdmin
-        .from("rag_chunks")
-        .insert(chunkRecords)
-        .select("id");
-
-      if (chunksError) {
-        console.error("Chunks insert error:", JSON.stringify(chunksError));
-        await supabaseAdmin
-          .from("rag_documents")
-          .update({ status: "error", error_message: chunksError.message })
-          .eq("id", docId);
-
-        return new Response(
-          JSON.stringify({ error: "Erro ao salvar chunks", details: chunksError.message }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
-    } else {
-      console.warn("No chunks were created - embedding generation may have failed");
-      console.warn("Last embedding error:", lastEmbeddingError);
-      
-      // Build detailed error message
-      const errorDetails = lastEmbeddingError 
-        ? `Erro da API (status ${lastEmbeddingError.status}): ${lastEmbeddingError.message.substring(0, 200)}`
-        : "Nenhum chunk gerado - verifique se o conteúdo é válido.";
-      
-      // If no chunks were created, mark as error
+    if (chunks.length === 0) {
       await supabaseAdmin
         .from("rag_documents")
-        .update({ 
-          status: "error", 
-          error_message: errorDetails
-        })
+        .update({ status: "error", error_message: "Conteúdo vazio após processamento" })
         .eq("id", docId);
 
       return new Response(
-        JSON.stringify({ 
-          error: "Falha ao gerar embeddings",
-          details: errorDetails,
-          embeddingError: lastEmbeddingError,
-          documentId: docId,
-          chunksCreated: 0,
-          totalChunksAttempted: chunks.length
-        }),
+        JSON.stringify({ error: "Conteúdo vazio", documentId: docId }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Build chunk records WITHOUT embeddings (lexical search mode)
+    const chunkRecords = chunks.map((chunkText, i) => {
+      const chunkTags = extractAutoTags(chunkText);
+      const tokenCount = Math.ceil(chunkText.length / 4);
+
+      return {
+        document_id: docId,
+        chunk_index: i,
+        content: chunkText,
+        embedding: null, // NO embedding - lexical mode
+        token_count: tokenCount,
+        tags: chunkTags,
+        priority: Number(docMetadata.priority) || 50,
+      };
+    });
+
+    // Insert all chunks
+    console.log(`Inserting ${chunkRecords.length} chunks (lexical mode, no embeddings)`);
+    
+    const { data: insertedChunks, error: chunksError } = await supabaseAdmin
+      .from("rag_chunks")
+      .insert(chunkRecords)
+      .select("id");
+
+    if (chunksError) {
+      console.error("Chunks insert error:", JSON.stringify(chunksError));
+      await supabaseAdmin
+        .from("rag_documents")
+        .update({ status: "error", error_message: chunksError.message })
+        .eq("id", docId);
+
+      return new Response(
+        JSON.stringify({ error: "Erro ao salvar chunks", details: chunksError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    console.log(`Successfully inserted ${insertedChunks?.length || 0} chunks`);
 
     // Update document status to indexed
     await supabaseAdmin
@@ -563,7 +436,8 @@ serve(async (req) => {
         success: true,
         documentId: docId,
         chunksCreated: chunkRecords.length,
-        message: `Documento indexado com ${chunkRecords.length} chunks`,
+        mode: "lexical",
+        message: `Documento indexado com ${chunkRecords.length} chunks (busca textual)`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
