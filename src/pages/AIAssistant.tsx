@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Robot, PaperPlaneRight, Trash } from "@phosphor-icons/react";
+import { Logo } from "@/components/Logo";
 import ReactMarkdown from "react-markdown";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -36,19 +37,22 @@ export default function AIAssistant() {
     await sendMessage(suggestion);
   };
   return <AppLayout>
-       <div className="flex flex-col h-[calc(100vh-80px)] max-w-lg mx-auto">
+       <div className="flex flex-col h-[calc(100dvh-64px)] max-w-lg mx-auto pb-safe">
          {/* Header */}
          <div className="px-4 py-4 border-b border-border">
            <div className="flex items-center justify-between">
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center">
-                 <Robot className="w-5 h-5 text-foreground" weight="fill" />
-               </div>
-               <div>
-                 <h1 className="text-lg font-semibold text-foreground">Subhumano IA</h1>
-                 <p className="text-xs text-muted-foreground">Especialista em modelos de IA</p>
-               </div>
-             </div>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-1">
+                  <Logo size="sm" />
+                  <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center">
+                    <Robot className="w-5 h-5 text-foreground" weight="fill" />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold text-foreground">Subhumano IA</h1>
+                  <p className="text-xs text-muted-foreground">Especialista em modelos de IA</p>
+                </div>
+              </div>
              {messages.length > 0 && <Button variant="ghost" size="icon" onClick={clearMessages} className="text-muted-foreground hover:text-foreground">
                  <Trash className="w-5 h-5" />
                </Button>}
@@ -139,8 +143,8 @@ export default function AIAssistant() {
              </>}
          </div>
  
-         {/* Input Area */}
-         <div className="px-4 py-3 border-t border-border bg-background">
+          {/* Input Area */}
+          <div className="px-4 py-3 pb-20 border-t border-border bg-background">
            <form onSubmit={handleSubmit} className="flex gap-2">
              <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoading} className="flex-1" />
              <Button type="submit" disabled={!input.trim() || isLoading} size="icon" className="shrink-0">
