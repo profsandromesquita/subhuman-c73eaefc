@@ -1,114 +1,119 @@
 
-## O que eu encontrei (causa raiz)
+# Plano de Correção: Layout do Chat IA
 
-O erro 500 não está vindo do frontend em si — ele é um “mascaramento” de um erro 400 do provedor de IA.
+## Problemas Identificados
 
-Nos logs da função `ai-assistant`, o Lovable AI Gateway está retornando:
+### 1. Input escondido pela barra de navegação
+O container do chat usa `h-[calc(100vh-80px)]` e não considera a altura real da BottomNav (64px + safe-area-bottom). A área de input fica "colada" na parte inferior do container, sendo coberta pela navegação fixa.
 
-- `Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.`
-- Isso acontece porque a configuração ativa no banco está com:
-  - `model = openai/gpt-5`
-  - `temperature = 0.70`
-
-Ou seja: para `openai/gpt-5`, a temperatura **não aceita 0.7** (e aparentemente só aceita o valor padrão 1).
-
-Observação: a mensagem “Unable to post message…” vista no console (imagem 1) é de `postMessage`/origem e não explica o 500 do endpoint; é ruído paralelo e não é o bloqueio principal do chat.
+### 2. Logo ausente no header
+O header mostra apenas o ícone do robô. O usuário deseja ver a logo do Subhumano posicionada acima do ícone.
 
 ---
 
-## Objetivo da correção
+## Solução Proposta
 
-1) Fazer o chat funcionar com `openai/gpt-5` mesmo com configurações inválidas no banco (resiliência).
-2) Impedir que o painel admin salve combinações inválidas (prevenção).
-3) Melhorar o erro exibido ao usuário quando o provedor rejeitar parâmetros (diagnóstico mais rápido).
+### Arquivo a Modificar
+`src/pages/AIAssistant.tsx`
 
----
+### Mudanças
 
-## Plano de correção (mudanças de código)
+**1. Ajustar altura do container principal**
+- Alterar de `h-[calc(100vh-80px)]` para uma altura que considere a safe-area
+- Usar `h-[calc(100dvh-64px-env(safe-area-inset-bottom))]` ou simplificar com classes flex
 
-### 1) Corrigir a função backend `ai-assistant` (principal)
-Arquivo: `supabase/functions/ai-assistant/index.ts`
+**2. Adicionar padding inferior na área de input**
+- Aplicar `pb-safe` ou padding fixo para garantir que o input fique visível acima da BottomNav
 
-**Mudanças:**
-- Hoje sempre enviamos `temperature: Number(config.temperature) || 0.7` no `requestBody`.
-- Para `openai/gpt-5`, isso quebra quando temperatura ≠ 1.
-
-**Implementação planejada:**
-- Detectar se o modelo é OpenAI (`modelName.startsWith("openai/")`).
-- Para OpenAI:
-  - Não enviar `temperature` quando o valor configurado for diferente de `1`.
-  - Opcionalmente (mais seguro): sempre omitir `temperature` para OpenAI e deixar o default do modelo atuar.
-- Manter `max_completion_tokens` para OpenAI e `max_tokens` para os demais (já está corrigido).
-
-**Também ajustar o retorno de erro:**
-- Hoje, qualquer erro (exceto 429/402) vira `500 { error: "Erro ao processar sua mensagem" }`.
-- Isso esconde o motivo real.
-- Passar adiante a mensagem do Gateway quando houver JSON de erro (ex.: `error.message`), retornando status 400/500 coerente.
-  - Exemplo: se o Gateway retornar 400, a função deve devolver 400 com a mensagem do Gateway (sanitizada).
-
-Resultado esperado:
-- O endpoint deixa de devolver 500 genérico nesse cenário e o chat passa a responder normalmente.
+**3. Adicionar a logo do Subhumano no header**
+- Importar o componente `Logo`
+- Posicionar a logo (tamanho "sm") acima ou ao lado do ícone do robô no header
 
 ---
 
-### 2) Ajustar o painel Admin para evitar configurações inválidas
-Arquivo: `src/pages/admin/settings/AIAssistant.tsx`
+## Implementação Detalhada
 
-**Mudanças:**
-- Quando `config.model` começar com `openai/`:
-  - Travar a temperatura em `1.0` (desabilitar o Slider ou forçar o valor automaticamente).
-  - Mostrar um texto de ajuda: “Para este modelo, a temperatura é fixa em 1.”
-- Ao salvar configurações:
-  - Se `model` for OpenAI, salvar `temperature = 1`.
+### Header Atualizado
 
-Resultado esperado:
-- Mesmo se alguém tentar mexer no slider, a configuração salva ficará sempre compatível com GPT-5.
+```text
+┌─────────────────────────────────────┐
+│  [Logo sm]                          │
+│  [Robot Icon] Subhumano IA    [🗑️]  │
+│              Especialista em...     │
+└─────────────────────────────────────┘
+```
 
----
+### Layout do Container
 
-### 3) Corrigir o dado atual (config ativa) para evitar regressão imediata
-Sem depender do usuário “lembrar de mudar”:
-
-Opção A (recomendada): após a correção do Admin, abrir `/admin/settings/ai-assistant` e clicar em “Salvar Configurações” para persistir `temperature=1`.
-
-Opção B (automática): criar uma migração simples que atualize a configuração ativa:
-- Se `model LIKE 'openai/%'` e `temperature <> 1`, então setar para 1.
-
-Resultado esperado:
-- O sistema fica “limpo” (configuração consistente) e não volta a quebrar.
-
----
-
-## Plano de validação (testes)
-
-1) Teste funcional do chat:
-   - Abrir `/ai-assistant`
-   - Enviar: “Qual IA é melhor para código?”
-   - Verificar:
-     - não aparece 500 no Network
-     - streaming chega e a UI vai renderizando a resposta
-
-2) Teste de regressão de provider:
-   - No admin, trocar modelo para `google/gemini-3-flash-preview`
-   - Ajustar temperatura para 0.7
-   - Salvar
-   - Voltar ao chat e testar novamente
-
-3) Teste de feedback de erro:
-   - Forçar uma configuração inválida (quando possível) e confirmar que o app exibe a mensagem real do erro (não “Erro ao processar…” genérico).
+```text
+┌─────────────────────────────────────┐
+│ Header (fixo no topo)               │
+├─────────────────────────────────────┤
+│                                     │
+│ Área de mensagens (flex-1 scroll)   │
+│                                     │
+├─────────────────────────────────────┤
+│ Input Area                          │
+│ ┌─────────────────────┐ ┌──┐        │
+│ │ Digite sua pergunta │ │➤ │        │
+│ └─────────────────────┘ └──┘        │
+│ ← pb-safe ou pb-20 →                │
+├─────────────────────────────────────┤
+│ [BottomNav - fora do container]     │
+└─────────────────────────────────────┘
+```
 
 ---
 
-## Riscos e mitigação
+## Código das Mudanças
 
-- Alguns modelos OpenAI podem ter restrições adicionais além de `temperature`.
-  - Mitigação: manter o backend “tolerante”, omitindo parâmetros incompatíveis e sempre propagando o erro real do Gateway quando ocorrer.
+### 1. Importar Logo
+```typescript
+import { Logo } from "@/components/Logo";
+```
+
+### 2. Ajustar container principal (linha 39)
+```typescript
+// De:
+<div className="flex flex-col h-[calc(100vh-80px)] max-w-lg mx-auto">
+
+// Para:
+<div className="flex flex-col h-[calc(100dvh-64px)] max-w-lg mx-auto pb-safe">
+```
+- `100dvh` considera a viewport dinâmica (melhor em mobile)
+- `64px` é a altura da BottomNav
+- `pb-safe` adiciona padding para safe-area-bottom
+
+### 3. Ajustar área de input (linha 143)
+```typescript
+// De:
+<div className="px-4 py-3 border-t border-border bg-background">
+
+// Para:
+<div className="px-4 py-3 pb-20 border-t border-border bg-background">
+```
+- `pb-20` garante espaço suficiente acima da navegação
+
+### 4. Adicionar logo no header (linhas 43-50)
+```typescript
+<div className="flex items-center gap-3">
+  <div className="flex flex-col items-center gap-1">
+    <Logo size="sm" />
+    <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center">
+      <Robot className="w-5 h-5 text-foreground" weight="fill" />
+    </div>
+  </div>
+  <div>
+    <h1 className="text-lg font-semibold text-foreground">Subhumano IA</h1>
+    <p className="text-xs text-muted-foreground">Especialista em modelos de IA</p>
+  </div>
+</div>
+```
 
 ---
 
-## Entregáveis (arquivos a alterar)
+## Resultado Esperado
 
-- `supabase/functions/ai-assistant/index.ts` (corrigir envio de `temperature` para OpenAI + melhorar respostas de erro)
-- `src/pages/admin/settings/AIAssistant.tsx` (travar/forçar temperatura = 1 quando OpenAI)
-- (Opcional) nova migração SQL para normalizar `temperature` da config ativa
-
+- O campo de input ficará totalmente visível acima da barra de navegação inferior
+- A logo do Subhumano aparecerá no header, acima do ícone do robô
+- O layout respeitará as safe-areas em dispositivos com notch/Dynamic Island
