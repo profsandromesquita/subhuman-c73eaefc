@@ -72,7 +72,11 @@
        );
      }
  
-     console.log("Using model:", config.model, "temperature:", config.temperature);
+     // Build request body with correct token parameter based on model
+     const modelName = config.model || "google/gemini-3-flash-preview";
+     const isOpenAIModel = modelName.startsWith("openai/");
+     
+     console.log("Using model:", modelName, "isOpenAI:", isOpenAIModel);
  
      // Build system message with knowledge base
      const systemMessage = `${config.system_prompt}
@@ -82,10 +86,6 @@
  BASE DE CONHECIMENTO:
  ${JSON.stringify(config.knowledge_base, null, 2)}`;
  
-      // Build request body with correct token parameter based on model
-      const modelName = config.model || "google/gemini-3-flash-preview";
-      const isOpenAIModel = modelName.startsWith("openai/");
-
      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
      if (!LOVABLE_API_KEY) {
        console.error("LOVABLE_API_KEY not configured");
@@ -95,37 +95,52 @@
        );
      }
  
-      // Build request body
-      const requestBody: Record<string, unknown> = {
-        model: modelName,
-        messages: [
-          { role: "system", content: systemMessage },
-          ...messages,
-        ],
-        stream: true,
-        temperature: Number(config.temperature) || 0.7,
-      };
-
-      // Add correct token parameter based on model provider
-      if (isOpenAIModel) {
-        requestBody.max_completion_tokens = config.max_tokens || 2048;
-      } else {
-        requestBody.max_tokens = config.max_tokens || 2048;
-      }
-
-      // Call Lovable AI Gateway with streaming
+     // Build request body
+     const requestBody: Record<string, unknown> = {
+       model: modelName,
+       messages: [
+         { role: "system", content: systemMessage },
+         ...messages,
+       ],
+       stream: true,
+     };
+ 
+     // Add temperature only for non-OpenAI models (GPT-5 doesn't support custom temperature)
+     if (!isOpenAIModel) {
+       requestBody.temperature = Number(config.temperature) || 0.7;
+     }
+ 
+     // Add correct token parameter based on model provider
+     if (isOpenAIModel) {
+       requestBody.max_completion_tokens = config.max_tokens || 2048;
+     } else {
+       requestBody.max_tokens = config.max_tokens || 2048;
+     }
+ 
+     // Call Lovable AI Gateway with streaming
      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
        method: "POST",
        headers: {
          Authorization: `Bearer ${LOVABLE_API_KEY}`,
          "Content-Type": "application/json",
        },
-        body: JSON.stringify(requestBody),
+       body: JSON.stringify(requestBody),
      });
  
      if (!aiResponse.ok) {
        const errorText = await aiResponse.text();
        console.error("AI Gateway error:", aiResponse.status, errorText);
+ 
+       // Try to parse error message from Gateway
+       let errorMessage = "Erro ao processar sua mensagem";
+       try {
+         const errorJson = JSON.parse(errorText);
+         if (errorJson.error?.message) {
+           errorMessage = errorJson.error.message;
+         }
+       } catch {
+         // Use default error message
+       }
  
        if (aiResponse.status === 429) {
          return new Response(
@@ -141,9 +156,10 @@
          );
        }
  
+       // Return the actual error status and message from Gateway
        return new Response(
-         JSON.stringify({ error: "Erro ao processar sua mensagem" }),
-         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+         JSON.stringify({ error: errorMessage }),
+         { status: aiResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
        );
      }
  
