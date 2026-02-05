@@ -87,23 +87,49 @@ export function useRAGChunkStats() {
   });
 }
 
-// Excluir um chunk individual
+// Delete individual chunk and update document status if needed
 export function useDeleteChunk() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (chunkId: string) => {
+    mutationFn: async ({ chunkId, documentId }: { chunkId: string; documentId: string }) => {
+      // Delete the chunk
       const { error } = await supabase
         .from("rag_chunks")
         .delete()
         .eq("id", chunkId);
 
       if (error) throw error;
+
+      // Check if document still has chunks
+      const { count, error: countError } = await supabase
+        .from("rag_chunks")
+        .select("*", { count: "exact", head: true })
+        .eq("document_id", documentId);
+
+      if (countError) throw countError;
+
+      // If no more chunks, set document to pending
+      if (count === 0) {
+        const { error: updateError } = await supabase
+          .from("rag_documents")
+          .update({ status: "pending" })
+          .eq("id", documentId);
+
+        if (updateError) throw updateError;
+      }
+
+      return { remainingChunks: count };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
       queryClient.invalidateQueries({ queryKey: ["rag-chunk-stats"] });
-      toast.success("Chunk excluído!");
+      if (data.remainingChunks === 0) {
+        queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+        toast.success("Chunk excluído! Documento voltou ao status Pendente.");
+      } else {
+        toast.success("Chunk excluído!");
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -111,7 +137,7 @@ export function useDeleteChunk() {
   });
 }
 
-// Excluir todos os chunks de um documento
+// Delete all chunks from a document
 export function useDeleteAllChunks() {
   const queryClient = useQueryClient();
 

@@ -52,7 +52,7 @@ export function useRAGDocument(id: string | undefined) {
   });
 }
 
-// Adicionar documento (sem gerar chunks automaticamente)
+// Add document (without generating chunks automatically)
 export function useIngestDocument() {
   const queryClient = useQueryClient();
 
@@ -84,9 +84,9 @@ export function useIngestDocument() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
-      toast.success("Documento salvo! Use 'Gerar Chunks' para criar os fragmentos.");
+      toast.success(`Documento "${data.title}" salvo! Use 'Gerar Chunks' para criar os fragmentos.`);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -94,7 +94,7 @@ export function useIngestDocument() {
   });
 }
 
-// Gerar chunks manualmente (nova função)
+// Generate chunks manually
 export function useGenerateChunks() {
   const queryClient = useQueryClient();
 
@@ -138,7 +138,7 @@ export function useGenerateChunks() {
   });
 }
 
-// Reindexar documento (agora chama generate-chunks em vez de ingest-document)
+// Reindex document (calls generate-chunks)
 export function useReindexDocument() {
   const queryClient = useQueryClient();
 
@@ -180,6 +180,146 @@ export function useReindexDocument() {
       toast.error(error.message);
     },
   });
+}
+
+// Fix document metadata by re-parsing frontmatter
+export function useFixDocumentMetadata() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      // Fetch the document
+      const { data: doc, error: fetchError } = await supabase
+        .from("rag_documents")
+        .select("source_content")
+        .eq("id", documentId)
+        .single();
+
+      if (fetchError || !doc) {
+        throw new Error("Documento não encontrado");
+      }
+
+      // Parse frontmatter locally
+      const content = doc.source_content;
+      const parsed = parseFrontmatter(content);
+
+      if (!parsed.hasFrontmatter) {
+        throw new Error("Documento não possui frontmatter válido");
+      }
+
+      // Extract values
+      const title = parsed.metadata.title && String(parsed.metadata.title).trim()
+        ? String(parsed.metadata.title).trim()
+        : "Documento sem título";
+
+      let layer = String(parsed.metadata.layer || "biblioteca").toLowerCase();
+      if (!["constituicao", "nucleo", "biblioteca"].includes(layer)) {
+        layer = "biblioteca";
+      }
+
+      const priority = Number(parsed.metadata.priority) || 50;
+
+      const manualTags = Array.isArray(parsed.metadata.tags)
+        ? parsed.metadata.tags.map((t: unknown) => String(t).trim()).filter(Boolean)
+        : [];
+
+      // Update document
+      const { error: updateError } = await supabase
+        .from("rag_documents")
+        .update({
+          title,
+          layer,
+          priority,
+          tags: manualTags.length > 0 ? manualTags : undefined, // Keep existing if no manual tags
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId);
+
+      if (updateError) throw updateError;
+
+      return { title, layer, priority, tags: manualTags };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+      toast.success(`Metadados corrigidos: "${data.title}" (${data.layer})`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Local frontmatter parser (same logic as backend)
+function parseFrontmatter(content: string): {
+  metadata: Record<string, unknown>;
+  body: string;
+  hasFrontmatter: boolean;
+} {
+  let cleanContent = content.replace(/^\uFEFF/, '');
+  cleanContent = cleanContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  const lines = cleanContent.split('\n');
+
+  let startIndex = -1;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    if (lines[i].trim() === '---') {
+      startIndex = i;
+      break;
+    }
+  }
+
+  if (startIndex === -1) {
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
+
+  let endIndex = -1;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      endIndex = i;
+      break;
+    }
+  }
+
+  if (endIndex === -1) {
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
+
+  const yamlLines = lines.slice(startIndex + 1, endIndex);
+  const body = lines.slice(endIndex + 1).join('\n').trim();
+
+  const metadata: Record<string, unknown> = {};
+
+  for (const line of yamlLines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#')) continue;
+
+    const colonIndex = trimmedLine.indexOf(':');
+    if (colonIndex === -1) continue;
+
+    const key = trimmedLine.substring(0, colonIndex).trim();
+    let value: string | string[] | number = trimmedLine.substring(colonIndex + 1).trim();
+
+    if (!key || value === '') continue;
+
+    if (value.startsWith('[') && value.endsWith(']')) {
+      const arrayContent = value.slice(1, -1);
+      value = arrayContent
+        .split(',')
+        .map(item => item.trim().replace(/^["']|["']$/g, ''))
+        .filter(Boolean);
+    } else if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    } else if (!isNaN(Number(value)) && value !== '') {
+      value = Number(value);
+    }
+
+    metadata[key] = value;
+  }
+
+  return { metadata, body, hasFrontmatter: true };
 }
 
 export function useDeleteRAGDocument() {
