@@ -111,10 +111,11 @@ serve(async (req) => {
     );
 
     // Call the search RPC function
+    // Format embedding correctly for pgvector: [1,2,3,...] instead of JSON.stringify
     const { data: chunks, error: searchError } = await supabaseAdmin.rpc(
       "search_rag_chunks",
       {
-        query_embedding: JSON.stringify(queryEmbedding),
+        query_embedding: `[${queryEmbedding.join(',')}]`,
         match_threshold: params.matchThreshold ?? 0.5,
         match_count: params.matchCount ?? 10,
         filter_tags: params.filterTags ?? null,
