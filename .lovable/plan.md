@@ -1,251 +1,262 @@
 
-# Plano de Implementação: Assistente IA Especialista em Modelos de IA
 
-## Visão Geral
+# Fase 2: Interface de Chat e Edge Function do Assistente IA
 
-Criar um assistente de chat integrado à plataforma Subhumano, especializado em comparar, recomendar e informar sobre modelos de IA. O sistema terá:
+## Resumo
 
-1. **Interface de chat para assinantes** - Acesso via navegação principal
-2. **Painel admin** - Configurar prompts, instruções e base de conhecimento
-3. **Backend (Edge Function)** - Processar conversas com Lovable AI Gateway
+Esta fase implementa a interface de chat para assinantes e a Edge Function que processa as conversas utilizando o Lovable AI Gateway (modelo GPT-5 configurável via admin).
 
 ---
 
-## Arquitetura do Sistema
+## Componentes a Implementar
 
-```text
-+------------------+       +-------------------+       +--------------------+
-|                  |       |                   |       |                    |
-|  Assinante       | ----> |  Edge Function    | ----> |  Lovable AI        |
-|  (Chat UI)       |       |  /ai-assistant    |       |  Gateway (GPT-5)   |
-|                  |       |                   |       |                    |
-+------------------+       +-------------------+       +--------------------+
-                                   |
-                                   v
-                           +-------------------+
-                           |  Tabela           |
-                           |  ai_assistant_    |
-                           |  config           |
-                           +-------------------+
-                                   ^
-                                   |
-                           +-------------------+
-                           |                   |
-                           |  Admin Panel      |
-                           |  (Configuração)   |
-                           |                   |
-                           +-------------------+
-```
-
----
-
-## FASE 1: Infraestrutura e Painel Administrativo
-
-### 1.1 Banco de Dados
-
-**Nova tabela:** `ai_assistant_config`
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | uuid | Primary key |
-| system_prompt | text | Prompt do sistema (personalidade) |
-| system_instruction | text | Instruções específicas |
-| knowledge_base | jsonb | Base de conhecimento (documentos, comparações) |
-| model | text | Modelo a usar (default: openai/gpt-5) |
-| temperature | numeric | Temperatura (0.1-1.0) |
-| max_tokens | integer | Limite de tokens por resposta |
-| is_active | boolean | Habilitar/desabilitar assistente |
-| created_at | timestamptz | Data de criação |
-| updated_at | timestamptz | Data de atualização |
-
-**RLS:** Apenas admins podem ler/modificar.
-
-### 1.2 Painel Admin
-
-**Novo arquivo:** `src/pages/admin/settings/AIAssistant.tsx`
-
-Funcionalidades:
-- Editor de System Prompt (textarea grande com formatação)
-- Editor de System Instructions
-- Área para adicionar/editar base de conhecimento em JSON ou formulário estruturado:
-  - Modelos de IA (nome, empresa, tipo, preço, contexto, uso recomendado)
-  - Comparações pré-definidas
-  - FAQs
-- Seletor de modelo (dropdown)
-- Slider para temperatura
-- Campo para max tokens
-- Toggle para ativar/desativar
-- Botão de salvar
-- Preview do prompt formatado
-
-**Atualizar:** `src/components/admin/AdminSidebar.tsx`
-- Adicionar item "Assistente IA" na seção Configurações
-
-### 1.3 Rota Admin
-
-**Atualizar:** `src/App.tsx`
-- Adicionar rota `/admin/settings/ai-assistant`
-
----
-
-## FASE 2: Interface do Assinante e Backend
-
-### 2.1 Edge Function
+### 1. Edge Function: `ai-assistant`
 
 **Novo arquivo:** `supabase/functions/ai-assistant/index.ts`
 
-Funcionalidades:
-- Autenticação do usuário (verificar assinatura ativa)
+Responsabilidades:
+- Autenticação do usuário via JWT
 - Buscar configuração do assistente da tabela `ai_assistant_config`
-- Montar prompt com:
-  - System prompt configurado
-  - System instructions
-  - Base de conhecimento (injetada como contexto)
-- Streaming de resposta via SSE
-- Rate limiting por usuário
-- Logging de conversas (opcional, para análise)
+- Montar contexto com system prompt + knowledge base
+- Streaming de resposta via SSE usando Lovable AI Gateway
+- Tratamento de erros (429, 402)
 
-### 2.2 Interface de Chat
+Fluxo:
+```text
+1. Receber mensagens do usuário
+2. Validar autenticação
+3. Buscar config do banco (system_prompt, knowledge_base, model, temperature)
+4. Chamar Lovable AI Gateway com streaming
+5. Retornar stream SSE para o frontend
+```
 
-**Novo arquivo:** `src/pages/AIAssistant.tsx`
+**Atualização:** `supabase/config.toml`
+- Adicionar configuração da nova function com `verify_jwt = false`
 
-Layout:
-- Header com título "Assistente IA" e descrição
-- Área de chat scrollável
-- Input de mensagem com botão enviar
-- Indicador de "digitando..." durante streaming
-- Renderização de markdown nas respostas
-- Sugestões iniciais de perguntas (chips clicáveis)
-
-Sugestões de perguntas:
-- "Qual IA é melhor para escrever código?"
-- "Compare GPT-5 vs Claude 4"
-- "Qual IA tem mais contexto?"
-- "Gere um prompt para análise de dados"
-
-### 2.3 Hook de Chat
+### 2. Hook de Chat
 
 **Novo arquivo:** `src/hooks/useAIAssistant.ts`
 
 Funcionalidades:
-- Gerenciar estado de mensagens
-- Streaming de respostas
-- Persistência local (opcional, sessionStorage)
-- Tratamento de erros (429, 402)
+- Estado de mensagens (array de `{ role, content }`)
+- Função `sendMessage` com streaming token-by-token
+- Estado de loading durante resposta
+- Tratamento de erros (rate limit, pagamento)
+- Limpar conversa
 
-### 2.4 Navegação
+Estrutura:
+```typescript
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
-**Atualizar:** `src/components/BottomNav.tsx`
-- Adicionar item "IA" com ícone Robot ou Brain
-- Posicionar entre "Podcast" e "Canais"
+interface UseAIAssistantReturn {
+  messages: Message[];
+  isLoading: boolean;
+  error: string | null;
+  sendMessage: (content: string) => Promise<void>;
+  clearMessages: () => void;
+}
+```
 
-**Atualizar:** `src/App.tsx`
-- Adicionar rota `/ai-assistant` protegida com SubscriptionGuard
+### 3. Página de Chat
+
+**Novo arquivo:** `src/pages/AIAssistant.tsx`
+
+Layout mobile-first:
+- Header com título "Assistente IA" e descrição
+- Área de mensagens scrollável (flex-grow)
+- Sugestões iniciais (chips clicáveis quando sem mensagens)
+- Input fixo no fundo com botão de enviar
+- Renderização de markdown nas respostas
+- Indicador de "digitando..." durante streaming
+
+Sugestões iniciais:
+- "Qual IA é melhor para código?"
+- "Compare GPT-5 vs Claude 4"
+- "Qual IA tem mais contexto?"
+- "Gere um prompt para análise de dados"
+
+Design:
+- Fundo `bg-background`
+- Mensagens do usuário: alinhadas à direita, `bg-card`
+- Mensagens da IA: alinhadas à esquerda, `bg-secondary`
+- Input na parte inferior antes do BottomNav
+
+### 4. Navegação
+
+**Modificar:** `src/components/BottomNav.tsx`
+
+Adicionar novo item entre "Podcast" e "Canais":
+```typescript
+{ icon: Robot, label: "IA", path: "/ai-assistant" }
+```
+
+Ícone: `Robot` do `@phosphor-icons/react`
+
+Resultado: 6 itens na navegação
+- Início | Espaços | Podcast | **IA** | Canais | Perfil
+
+### 5. Roteamento
+
+**Modificar:** `src/App.tsx`
+
+Adicionar rota protegida:
+```typescript
+<Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
+```
 
 ---
 
-## Resumo das Fases
+## Arquivos a Criar/Modificar
 
-| Fase | Componentes | Descrição |
-|------|-------------|-----------|
-| **Fase 1** | Banco de dados + Admin | Infraestrutura para configurar o assistente |
-| **Fase 2** | Chat UI + Edge Function | Interface para assinantes e backend de IA |
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/ai-assistant/index.ts` | Criar |
+| `supabase/config.toml` | Modificar (adicionar function) |
+| `src/hooks/useAIAssistant.ts` | Criar |
+| `src/pages/AIAssistant.tsx` | Criar |
+| `src/components/BottomNav.tsx` | Modificar (adicionar ícone IA) |
+| `src/App.tsx` | Modificar (adicionar rota) |
 
 ---
 
-## Resultado Esperado
+## Fluxo de Uso
 
-### Após Fase 1:
-- Admin poderá configurar em `/admin/settings/ai-assistant`:
-  - System prompt personalizado
-  - Base de conhecimento estruturada
-  - Parâmetros do modelo
-
-### Após Fase 2:
-- Assinantes terão acesso a um chat inteligente em `/ai-assistant`
-- Poderão fazer perguntas como:
-  - "Qual IA é gratuita e boa para código?"
-  - "Compare Gemini 2.5 Pro vs GPT-5"
-  - "Qual modelo usar para analisar uma planilha de 50MB?"
-  - "Gere um prompt para criar um vídeo explicativo"
+1. Assinante acessa `/ai-assistant` via BottomNav
+2. Vê tela com sugestões de perguntas
+3. Clica em uma sugestão ou digita pergunta
+4. Frontend envia mensagens para edge function
+5. Edge function busca config e chama Lovable AI Gateway
+6. Resposta é streamada token-by-token
+7. Markdown é renderizado em tempo real
 
 ---
 
 ## Seção Técnica
 
-### Estrutura da Base de Conhecimento (JSON)
+### Edge Function - Estrutura
 
-```json
-{
-  "models": [
-    {
-      "name": "GPT-5",
-      "company": "OpenAI",
-      "type": "text/multimodal",
-      "pricing": "Pago ($20/mês Plus, API variável)",
-      "context_window": "128k tokens",
-      "best_for": ["código", "raciocínio complexo", "análise"],
-      "limitations": ["sem geração de imagem nativa"],
-      "updated_at": "2025-01"
-    },
-    {
-      "name": "Claude 3.5 Sonnet",
-      "company": "Anthropic",
-      "type": "text/multimodal",
-      "pricing": "Pago ($20/mês Pro)",
-      "context_window": "200k tokens",
-      "best_for": ["contexto longo", "livros", "documentos"],
-      "limitations": ["sem geração de mídia"],
-      "updated_at": "2025-01"
-    }
-  ],
-  "categories": {
-    "code": ["GPT-5", "Claude 3.5", "Gemini 2.5 Pro"],
-    "images": ["Midjourney", "DALL-E 3", "Stable Diffusion"],
-    "video": ["Runway Gen-3", "Sora", "Pika"],
-    "audio": ["ElevenLabs", "OpenAI TTS", "Suno"]
+```typescript
+// Buscar configuração
+const { data: config } = await supabaseAdmin
+  .from('ai_assistant_config')
+  .select('*')
+  .eq('is_active', true)
+  .single();
+
+// Montar system message
+const systemMessage = `${config.system_prompt}
+
+${config.system_instruction}
+
+BASE DE CONHECIMENTO:
+${JSON.stringify(config.knowledge_base)}`;
+
+// Chamar Lovable AI Gateway com streaming
+const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "Content-Type": "application/json",
   },
-  "comparisons": [
-    {
-      "models": ["GPT-5", "Claude 3.5"],
-      "summary": "GPT-5 melhor para código, Claude melhor para documentos longos"
+  body: JSON.stringify({
+    model: config.model, // openai/gpt-5 ou outro configurado
+    messages: [
+      { role: "system", content: systemMessage },
+      ...userMessages,
+    ],
+    stream: true,
+    temperature: config.temperature,
+    max_tokens: config.max_tokens,
+  }),
+});
+
+// Retornar stream SSE
+return new Response(response.body, {
+  headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+});
+```
+
+### Frontend - Streaming Pattern
+
+```typescript
+const streamChat = async (messages, onDelta, onDone) => {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({ messages }),
+  });
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    buffer += decoder.decode(value, { stream: true });
+    
+    // Parse SSE line-by-line
+    let newlineIdx;
+    while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, newlineIdx);
+      buffer = buffer.slice(newlineIdx + 1);
+      
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === "[DONE]") break;
+      
+      const parsed = JSON.parse(jsonStr);
+      const content = parsed.choices?.[0]?.delta?.content;
+      if (content) onDelta(content);
     }
-  ]
-}
+  }
+  
+  onDone();
+};
 ```
 
-### System Prompt Sugerido (Inicial)
+### Markdown Rendering
 
-```text
-Você é o Assistente IA do Subhumano, especialista em inteligência artificial.
+A página usará componente para renderizar markdown nas respostas:
+- Instalar/usar biblioteca de markdown (projeto já pode ter)
+- Suportar: headings, listas, code blocks, bold, italic
+- Styling consistente com design system
 
-Sua função é:
-1. Comparar modelos de IA (gratuitos e pagos)
-2. Recomendar ferramentas para tarefas específicas
-3. Explicar diferenças técnicas de forma simples
-4. Gerar prompts otimizados para diferentes necessidades
+### Dependências
 
-Use a base de conhecimento fornecida para informações atualizadas.
+O projeto já possui as dependências necessárias:
+- `@phosphor-icons/react` (para ícone Robot)
+- `@tanstack/react-query` (para gerenciamento de estado)
+- Supabase client configurado
 
-Diretrizes:
-- Seja objetivo e direto
-- Cite preços quando relevante
-- Mencione limitações importantes
-- Sugira alternativas gratuitas quando possível
-- Use linguagem acessível (PT-BR)
-```
+Pode ser necessário adicionar:
+- `react-markdown` para renderização de markdown (verificar se já existe)
 
-### Arquivos a Criar/Modificar
+---
 
-| Fase | Arquivo | Ação |
-|------|---------|------|
-| 1 | Migração SQL | Criar tabela ai_assistant_config |
-| 1 | `src/pages/admin/settings/AIAssistant.tsx` | Criar |
-| 1 | `src/components/admin/AdminSidebar.tsx` | Modificar |
-| 1 | `src/App.tsx` | Modificar (rota admin) |
-| 2 | `supabase/functions/ai-assistant/index.ts` | Criar |
-| 2 | `supabase/config.toml` | Modificar |
-| 2 | `src/pages/AIAssistant.tsx` | Criar |
-| 2 | `src/hooks/useAIAssistant.ts` | Criar |
-| 2 | `src/components/BottomNav.tsx` | Modificar |
-| 2 | `src/App.tsx` | Modificar (rota assinante) |
+## Resultado Esperado
+
+Após implementação:
+
+1. **BottomNav** terá 6 itens com "IA" entre Podcast e Canais
+2. **Assinantes** poderão acessar `/ai-assistant`
+3. **Chat** funcionará com streaming em tempo real
+4. **Respostas** serão renderizadas em markdown
+5. **Configurações** do admin serão aplicadas (prompt, modelo, temperatura)
+
+---
+
+## Segurança
+
+- Edge function valida autenticação via JWT
+- Apenas assinantes ativos acessam (SubscriptionGuard)
+- Rate limiting tratado com feedback ao usuário
+- LOVABLE_API_KEY nunca exposta no frontend
+
