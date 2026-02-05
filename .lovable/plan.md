@@ -1,145 +1,56 @@
 
-# Plano de Correções: Notificações e Painéis Administrativos
+# Plano de Correções: Painel de Assinaturas e Notificações
 
-## Diagnóstico Completo
+## Problema 1: Plano exibido incorretamente no painel
 
-### 1. Notificação "Testando Subhumano"
-- **ID:** `e29d20fb-1e21-406e-be39-a7002551c78a`
-- **Problema:** Esta notificação foi criada com `user_id = null` (global), então o `UPDATE` para marcar como lida falha pois a condição `.eq("user_id", user.id)` nunca é satisfeita
-- **Solução:** Deletar via SQL
-
-### 2. Separação de notificações lidas/não lidas
-- Atualmente todas aparecem em uma única lista
-- Precisa criar duas seções na UI: "Não lidas" e "Lidas"
-
-### 3. Assinaturas incorretas
-As únicas assinaturas pagas confirmadas são:
-| Usuário | Email | Plano |
-|---------|-------|-------|
-| Sandro Costa Mesquita | sandro.mesquita@itia.org.br | monthly |
-| Arduino Ceará | contato@arduinoceara.cc | monthly |
-
-Todas as outras são trials ou bugs. Precisa:
-- Garantir que apenas essas 2 contam como "Assinaturas Ativas" (pagas)
-- Recalcular MRR apenas com planos `monthly` e `yearly`
-- Total deve incluir trials + pagantes
-
-### 4. Botões não funcionais (Subscriptions)
-Os itens do menu dropdown não têm `onClick`:
+### Diagnóstico
+Na tabela do painel `/admin/subscriptions`, o código na linha 199-203 exibe:
 ```typescript
-// Linha 172-176 - SEM FUNCIONALIDADE
-<DropdownMenuItem>Ver detalhes</DropdownMenuItem>
-<DropdownMenuItem>Alterar plano</DropdownMenuItem>
-<DropdownMenuItem className="text-destructive">Cancelar</DropdownMenuItem>
+{item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
 ```
 
-### 5. Botões não funcionais (Users)
-Mesma situação:
-```typescript
-// Linha 168-172 - SEM FUNCIONALIDADE
-<DropdownMenuItem>Ver perfil</DropdownMenuItem>
-<DropdownMenuItem>Editar</DropdownMenuItem>
-<DropdownMenuItem className="text-destructive">Desativar</DropdownMenuItem>
+Isso significa que QUALQUER plano que não seja `monthly` é exibido como "Anual", incluindo `trial` e `promo`. Por isso "MINDZ DIGITAL" (trial) aparece erroneamente como "Anual".
+
+### Solução
+Modificar a renderização para incluir todos os tipos de plano:
+
+**Arquivo:** `src/pages/admin/Subscriptions.tsx`
+
+```text
+Linha 199-203 - Alterar de:
+{item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
+
+Para:
+{item.plan_type === 'monthly' ? 'Mensal' : 
+ item.plan_type === 'yearly' ? 'Anual' : 
+ item.plan_type === 'trial' ? 'Trial' :
+ item.plan_type === 'promo' ? 'Promo' :
+ item.plan_type}
 ```
 
 ---
 
-## Plano de Implementação
+## Problema 2: Separação de notificações lidas/não lidas
 
-### Correção 1: Deletar notificação "Testando Subhumano"
+### Diagnóstico
+A UI de separação JÁ ESTÁ IMPLEMENTADA no código (linhas 151-242 de Notifications.tsx). O problema está na lógica de marcar como lida:
 
-**Ação:** Executar SQL para deletar a notificação com ID específico
+1. Notificações globais (`user_id = null`) são buscadas mas não podem ser marcadas como lidas
+2. O hook `useMarkNotificationRead` na linha 120 usa `.eq("user_id", user.id)` que falha para notificações globais
+3. Isso impede que certas notificações saiam da seção "Não lidas"
 
-```sql
-DELETE FROM notifications 
-WHERE id = 'e29d20fb-1e21-406e-be39-a7002551c78a';
-```
+### Solução
 
-### Correção 2: Separar notificações lidas/não lidas
+**Arquivo:** `src/hooks/useNotifications.ts`
 
-**Arquivo:** `src/pages/Notifications.tsx`
+Modificar a lógica para permitir marcar notificações globais como lidas por usuário específico. Isso requer uma abordagem diferente:
 
-Modificar a renderização da lista para agrupar:
+1. **Opção escolhida:** Criar uma tabela auxiliar `notification_read_status` para rastrear quais notificações globais cada usuário já leu OU
+2. **Opção mais simples:** Ajustar a query para ignorar notificações globais no filtro de lidas/não lidas ou tratar diferente
 
-```text
-1. Criar variáveis separadas:
-   - unreadNotifications = notifications.filter(n => !n.is_read)
-   - readNotifications = notifications.filter(n => n.is_read)
-
-2. Adicionar duas seções na UI:
-   - Seção "Não lidas" (se houver)
-   - Seção "Lidas" (se houver)
-
-3. Cada seção terá seu próprio cabeçalho visual
-```
-
-### Correção 3: Ajustar estatísticas de assinaturas
-
-**Arquivo:** `src/pages/admin/Subscriptions.tsx`
-
-Modificar cálculo de stats (linhas 72-86):
-
-```text
-1. "Assinaturas Ativas" = contar apenas plan_type IN ('monthly', 'yearly')
-2. MRR = somar apenas de plan_type IN ('monthly', 'yearly')
-3. "Total" = contar todas (trial + pagantes)
-
-Fórmula MRR corrigida:
-- Monthly: R$ 29,90
-- Yearly: R$ 299,90 / 12 = R$ 24,99/mês
-```
-
-### Correção 4: Implementar funcionalidades do dropdown (Subscriptions)
-
-**Arquivo:** `src/pages/admin/Subscriptions.tsx`
-
-Adicionar:
-
-```text
-1. Estado para modais:
-   - selectedSubscription (para ações)
-   - showDetailsDialog
-   - showChangePlanDialog
-   - showCancelDialog
-
-2. Funções:
-   - handleViewDetails(subscription) - abre modal com detalhes
-   - handleChangePlan(subscription) - abre modal para alterar plano
-   - handleCancelSubscription(subscription) - confirma e cancela
-
-3. Componentes de modal:
-   - Dialog para ver detalhes (informações completas)
-   - Dialog para alterar plano (select com opções)
-   - AlertDialog para cancelar (confirmação)
-
-4. Atualizar DropdownMenuItems com onClick
-```
-
-### Correção 5: Implementar funcionalidades do dropdown (Users)
-
-**Arquivo:** `src/pages/admin/Users.tsx`
-
-Adicionar:
-
-```text
-1. Estado para modais:
-   - selectedUser
-   - showProfileDialog
-   - showEditDialog
-   - showDeactivateDialog
-
-2. Funções:
-   - handleViewProfile(user) - abre modal com perfil completo
-   - handleEditUser(user) - abre modal para editar dados
-   - handleDeactivateUser(user) - confirma e cancela assinatura
-
-3. Componentes de modal:
-   - Dialog para ver perfil (avatar, dados, roles, assinatura)
-   - Dialog para editar (form com nome, roles)
-   - AlertDialog para desativar (confirmação)
-
-4. Atualizar DropdownMenuItems com onClick
-```
+Para solução imediata, podemos:
+- Modificar o hook para tentar atualizar notificações do próprio usuário
+- E para notificações globais, manter um estado local ou criar uma tabela auxiliar
 
 ---
 
@@ -147,63 +58,76 @@ Adicionar:
 
 | Arquivo | Mudança |
 |---------|---------|
-| **SQL** | Deletar notificação "Testando Subhumano" |
-| `src/pages/Notifications.tsx` | Separar lista em lidas/não lidas |
-| `src/pages/admin/Subscriptions.tsx` | Corrigir stats + implementar modais funcionais |
-| `src/pages/admin/Users.tsx` | Implementar modais funcionais |
+| `src/pages/admin/Subscriptions.tsx` | Corrigir exibição do tipo de plano na tabela |
+| `src/hooks/useNotifications.ts` | Ajustar lógica para notificações globais |
 
 ---
 
 ## Resultado Esperado
 
-1. Notificação "Testando Subhumano" removida
-2. Notificações organizadas em duas seções visuais
-3. Dashboard mostrando:
-   - Total: 12 (todas assinaturas)
-   - Ativas: 2 (apenas pagantes)
-   - MRR: R$ 59,80 (2 x R$ 29,90)
-4. Botões "Ver detalhes", "Alterar plano" e "Cancelar" funcionando com modais
-5. Botões "Ver perfil", "Editar" e "Desativar" funcionando com modais
+1. Painel de assinaturas mostrará corretamente:
+   - "MINDZ DIGITAL" → **Trial** (não mais "Anual")
+   - "Sandro Costa" → **Trial**
+   - "Arduino Ceará" → **Mensal**
+   - "Sandro Costa Mesquita" → **Mensal**
+
+2. Notificações funcionarão corretamente com as seções "Não lidas" e "Lidas"
 
 ---
 
 ## Seção Técnica
 
-### Estrutura de dados das assinaturas
+### Dados atuais do banco
 
-As duas assinaturas pagas confirmadas:
 ```
-ID: c3d56db4-f6b4-480d-a9b7-a0ee200d8117
-User: Sandro Costa Mesquita (sandro.mesquita@itia.org.br)
-Plan: monthly
-Expira: 03/03/2026
-
-ID: 3f5eb3a6-7586-41ba-bea8-e6d96a9887fb
-User: Arduino Ceará (contato@arduinoceara.cc)
-Plan: monthly
-Expira: 05/03/2026
+Assinaturas confirmadas:
+- Sandro Costa Mesquita (monthly) - PAGANTE
+- Arduino Ceará (monthly) - PAGANTE
+- MINDZ DIGITAL (trial) - incorretamente exibido como "Anual"
+- Sandro Costa (trial) - incorretamente exibido como "Anual"
 ```
 
-### Lógica de cálculo MRR
+### Correção do render de plano
 
 ```typescript
-const paidPlans = ['monthly', 'yearly'];
-const activeCount = data.filter(s => 
-  s.status === 'active' && paidPlans.includes(s.plan_type)
-).length;
+// Antes (incorreto)
+render: (item: Subscription) => (
+  <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
+    {item.plan_type === 'monthly' ? 'Mensal' : 'Anual'}
+  </span>
+)
 
-const mrr = data
-  .filter(s => s.status === 'active' && paidPlans.includes(s.plan_type))
-  .reduce((acc, s) => {
-    return acc + (s.plan_type === 'monthly' ? 29.90 : 299.90 / 12);
-  }, 0);
+// Depois (correto)
+render: (item: Subscription) => {
+  const planLabels: Record<string, string> = {
+    monthly: 'Mensal',
+    yearly: 'Anual',
+    trial: 'Trial',
+    promo: 'Promo'
+  };
+  
+  return (
+    <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
+      {planLabels[item.plan_type] || item.plan_type}
+    </span>
+  );
+}
 ```
 
-### Imports necessários para modais
+### Problema com notificações globais
 
-```typescript
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
+Notificações com `user_id = null` são broadcast para todos os usuários. O problema é que cada usuário precisa de um registro próprio de "leitura". Soluções:
+
+1. **Tabela auxiliar** (recomendado para produção):
+```sql
+CREATE TABLE notification_reads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  notification_id uuid REFERENCES notifications(id),
+  user_id uuid REFERENCES auth.users(id),
+  read_at timestamptz DEFAULT now(),
+  UNIQUE(notification_id, user_id)
+);
 ```
+
+2. **Solução simplificada** (mais rápida):
+Usar localStorage para rastrear IDs de notificações globais lidas pelo usuário
