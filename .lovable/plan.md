@@ -1,262 +1,126 @@
 
 
-# Fase 2: Interface de Chat e Edge Function do Assistente IA
+# Plano de Correção: Erro 500 no Assistente IA
 
-## Resumo
+## Diagnóstico
 
-Esta fase implementa a interface de chat para assinantes e a Edge Function que processa as conversas utilizando o Lovable AI Gateway (modelo GPT-5 configurável via admin).
+O erro ocorre porque o modelo **openai/gpt-5** não aceita o parâmetro `max_tokens`. A API retorna erro 400 indicando que deve ser usado `max_completion_tokens` em seu lugar.
 
----
-
-## Componentes a Implementar
-
-### 1. Edge Function: `ai-assistant`
-
-**Novo arquivo:** `supabase/functions/ai-assistant/index.ts`
-
-Responsabilidades:
-- Autenticação do usuário via JWT
-- Buscar configuração do assistente da tabela `ai_assistant_config`
-- Montar contexto com system prompt + knowledge base
-- Streaming de resposta via SSE usando Lovable AI Gateway
-- Tratamento de erros (429, 402)
-
-Fluxo:
-```text
-1. Receber mensagens do usuário
-2. Validar autenticação
-3. Buscar config do banco (system_prompt, knowledge_base, model, temperature)
-4. Chamar Lovable AI Gateway com streaming
-5. Retornar stream SSE para o frontend
+**Causa raiz:**
 ```
-
-**Atualização:** `supabase/config.toml`
-- Adicionar configuração da nova function com `verify_jwt = false`
-
-### 2. Hook de Chat
-
-**Novo arquivo:** `src/hooks/useAIAssistant.ts`
-
-Funcionalidades:
-- Estado de mensagens (array de `{ role, content }`)
-- Função `sendMessage` com streaming token-by-token
-- Estado de loading durante resposta
-- Tratamento de erros (rate limit, pagamento)
-- Limpar conversa
-
-Estrutura:
-```typescript
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-interface UseAIAssistantReturn {
-  messages: Message[];
-  isLoading: boolean;
-  error: string | null;
-  sendMessage: (content: string) => Promise<void>;
-  clearMessages: () => void;
-}
-```
-
-### 3. Página de Chat
-
-**Novo arquivo:** `src/pages/AIAssistant.tsx`
-
-Layout mobile-first:
-- Header com título "Assistente IA" e descrição
-- Área de mensagens scrollável (flex-grow)
-- Sugestões iniciais (chips clicáveis quando sem mensagens)
-- Input fixo no fundo com botão de enviar
-- Renderização de markdown nas respostas
-- Indicador de "digitando..." durante streaming
-
-Sugestões iniciais:
-- "Qual IA é melhor para código?"
-- "Compare GPT-5 vs Claude 4"
-- "Qual IA tem mais contexto?"
-- "Gere um prompt para análise de dados"
-
-Design:
-- Fundo `bg-background`
-- Mensagens do usuário: alinhadas à direita, `bg-card`
-- Mensagens da IA: alinhadas à esquerda, `bg-secondary`
-- Input na parte inferior antes do BottomNav
-
-### 4. Navegação
-
-**Modificar:** `src/components/BottomNav.tsx`
-
-Adicionar novo item entre "Podcast" e "Canais":
-```typescript
-{ icon: Robot, label: "IA", path: "/ai-assistant" }
-```
-
-Ícone: `Robot` do `@phosphor-icons/react`
-
-Resultado: 6 itens na navegação
-- Início | Espaços | Podcast | **IA** | Canais | Perfil
-
-### 5. Roteamento
-
-**Modificar:** `src/App.tsx`
-
-Adicionar rota protegida:
-```typescript
-<Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
+"Unsupported parameter: 'max_tokens' is not supported with this model. 
+Use 'max_completion_tokens' instead."
 ```
 
 ---
 
-## Arquivos a Criar/Modificar
+## Solução
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/ai-assistant/index.ts` | Criar |
-| `supabase/config.toml` | Modificar (adicionar function) |
-| `src/hooks/useAIAssistant.ts` | Criar |
-| `src/pages/AIAssistant.tsx` | Criar |
-| `src/components/BottomNav.tsx` | Modificar (adicionar ícone IA) |
-| `src/App.tsx` | Modificar (adicionar rota) |
+Modificar a Edge Function para usar o parâmetro correto dependendo do modelo selecionado. Modelos OpenAI mais recentes (como GPT-5) usam `max_completion_tokens`, enquanto outros modelos (Google, Anthropic) usam `max_tokens`.
 
 ---
 
-## Fluxo de Uso
+## Implementação
 
-1. Assinante acessa `/ai-assistant` via BottomNav
-2. Vê tela com sugestões de perguntas
-3. Clica em uma sugestão ou digita pergunta
-4. Frontend envia mensagens para edge function
-5. Edge function busca config e chama Lovable AI Gateway
-6. Resposta é streamada token-by-token
-7. Markdown é renderizado em tempo real
+### Arquivo a Modificar
+
+`supabase/functions/ai-assistant/index.ts`
+
+### Mudança Necessária
+
+Na linha 101-110, alterar a construção do body da requisição:
+
+**Antes:**
+```typescript
+body: JSON.stringify({
+  model: config.model || "google/gemini-3-flash-preview",
+  messages: [...],
+  stream: true,
+  temperature: Number(config.temperature) || 0.7,
+  max_tokens: config.max_tokens || 2048,  // ❌ Não funciona com GPT-5
+}),
+```
+
+**Depois:**
+```typescript
+// Detectar se é modelo OpenAI (usa max_completion_tokens)
+const isOpenAIModel = config.model?.startsWith("openai/");
+const maxTokensParam = isOpenAIModel 
+  ? { max_completion_tokens: config.max_tokens || 2048 }
+  : { max_tokens: config.max_tokens || 2048 };
+
+body: JSON.stringify({
+  model: config.model || "google/gemini-3-flash-preview",
+  messages: [...],
+  stream: true,
+  temperature: Number(config.temperature) || 0.7,
+  ...maxTokensParam,  // ✅ Parâmetro correto por modelo
+}),
+```
 
 ---
 
-## Seção Técnica
+## Arquivo Completo da Correção
 
-### Edge Function - Estrutura
+A Edge Function será atualizada com lógica condicional para:
 
-```typescript
-// Buscar configuração
-const { data: config } = await supabaseAdmin
-  .from('ai_assistant_config')
-  .select('*')
-  .eq('is_active', true)
-  .single();
-
-// Montar system message
-const systemMessage = `${config.system_prompt}
-
-${config.system_instruction}
-
-BASE DE CONHECIMENTO:
-${JSON.stringify(config.knowledge_base)}`;
-
-// Chamar Lovable AI Gateway com streaming
-const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${LOVABLE_API_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: config.model, // openai/gpt-5 ou outro configurado
-    messages: [
-      { role: "system", content: systemMessage },
-      ...userMessages,
-    ],
-    stream: true,
-    temperature: config.temperature,
-    max_tokens: config.max_tokens,
-  }),
-});
-
-// Retornar stream SSE
-return new Response(response.body, {
-  headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-});
-```
-
-### Frontend - Streaming Pattern
-
-```typescript
-const streamChat = async (messages, onDelta, onDone) => {
-  const resp = await fetch(CHAT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-    },
-    body: JSON.stringify({ messages }),
-  });
-
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    buffer += decoder.decode(value, { stream: true });
-    
-    // Parse SSE line-by-line
-    let newlineIdx;
-    while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, newlineIdx);
-      buffer = buffer.slice(newlineIdx + 1);
-      
-      if (!line.startsWith("data: ")) continue;
-      const jsonStr = line.slice(6).trim();
-      if (jsonStr === "[DONE]") break;
-      
-      const parsed = JSON.parse(jsonStr);
-      const content = parsed.choices?.[0]?.delta?.content;
-      if (content) onDelta(content);
-    }
-  }
-  
-  onDone();
-};
-```
-
-### Markdown Rendering
-
-A página usará componente para renderizar markdown nas respostas:
-- Instalar/usar biblioteca de markdown (projeto já pode ter)
-- Suportar: headings, listas, code blocks, bold, italic
-- Styling consistente com design system
-
-### Dependências
-
-O projeto já possui as dependências necessárias:
-- `@phosphor-icons/react` (para ícone Robot)
-- `@tanstack/react-query` (para gerenciamento de estado)
-- Supabase client configurado
-
-Pode ser necessário adicionar:
-- `react-markdown` para renderização de markdown (verificar se já existe)
+1. **Verificar o prefixo do modelo** - Se começa com `openai/`, usar `max_completion_tokens`
+2. **Para outros modelos** - Manter `max_tokens` (Google, Anthropic, etc.)
 
 ---
 
 ## Resultado Esperado
 
-Após implementação:
-
-1. **BottomNav** terá 6 itens com "IA" entre Podcast e Canais
-2. **Assinantes** poderão acessar `/ai-assistant`
-3. **Chat** funcionará com streaming em tempo real
-4. **Respostas** serão renderizadas em markdown
-5. **Configurações** do admin serão aplicadas (prompt, modelo, temperatura)
+Após a correção:
+- Modelo `openai/gpt-5` funcionará corretamente
+- Outros modelos (Gemini, Claude) continuarão funcionando
+- O chat do assinante responderá normalmente
 
 ---
 
-## Segurança
+## Seção Técnica
 
-- Edge function valida autenticação via JWT
-- Apenas assinantes ativos acessam (SubscriptionGuard)
-- Rate limiting tratado com feedback ao usuário
-- LOVABLE_API_KEY nunca exposta no frontend
+### Mapeamento de Parâmetros por Provider
+
+| Provider | Parâmetro de Tokens |
+|----------|---------------------|
+| openai/* | `max_completion_tokens` |
+| google/* | `max_tokens` |
+| anthropic/* | `max_tokens` |
+
+### Código da Correção
+
+```typescript
+// Antes da chamada ao AI Gateway (linhas 95-111)
+
+// Construir parâmetros de tokens baseado no modelo
+const modelName = config.model || "google/gemini-3-flash-preview";
+const isOpenAIModel = modelName.startsWith("openai/");
+
+const requestBody: Record<string, unknown> = {
+  model: modelName,
+  messages: [
+    { role: "system", content: systemMessage },
+    ...messages,
+  ],
+  stream: true,
+  temperature: Number(config.temperature) || 0.7,
+};
+
+// Adicionar parâmetro correto de tokens
+if (isOpenAIModel) {
+  requestBody.max_completion_tokens = config.max_tokens || 2048;
+} else {
+  requestBody.max_tokens = config.max_tokens || 2048;
+}
+
+const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(requestBody),
+});
+```
 
