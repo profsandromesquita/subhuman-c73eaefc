@@ -1,4 +1,4 @@
-import { House, SquaresFour, Microphone, ChatCircle, User } from "@phosphor-icons/react";
+ import { House, SquaresFour, Microphone, Robot, ChatCircle, User } from "@phosphor-icons/react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -7,6 +7,7 @@ const navItems = [
   { icon: House, label: "Início", path: "/home" },
   { icon: SquaresFour, label: "Espaços", path: "/spaces" },
   { icon: Microphone, label: "Podcast", path: "/podcasts" },
+   { icon: Robot, label: "IA", path: "/ai-assistant" },
   { icon: ChatCircle, label: "Canais", path: "/channels" },
   { icon: User, label: "Perfil", path: "/profile" },
 ];
