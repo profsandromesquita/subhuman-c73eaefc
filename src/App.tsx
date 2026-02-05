@@ -39,6 +39,7 @@ const NotificationPreferences = lazy(() => import("./pages/profile/NotificationP
 const Settings = lazy(() => import("./pages/profile/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+ const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
               <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
               <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
+               <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
 
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
