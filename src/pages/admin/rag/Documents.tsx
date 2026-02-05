@@ -24,6 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -34,13 +41,18 @@ import {
   Clock,
   Spinner,
   Lightning,
+  DotsThreeVertical,
+  TrashSimple,
+  Wrench,
 } from "@phosphor-icons/react";
 import {
   useRAGDocuments,
   useIngestDocument,
   useGenerateChunks,
   useDeleteRAGDocument,
+  useFixDocumentMetadata,
 } from "@/hooks/useRAGDocuments";
+import { useDeleteAllChunks } from "@/hooks/useRAGChunks";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -93,6 +105,8 @@ export default function RAGDocuments() {
   const ingestMutation = useIngestDocument();
   const generateChunksMutation = useGenerateChunks();
   const deleteMutation = useDeleteRAGDocument();
+  const deleteChunksMutation = useDeleteAllChunks();
+  const fixMetadataMutation = useFixDocumentMetadata();
 
   const filteredDocuments = documents?.filter((doc) => {
     if (layerFilter !== "all" && doc.layer !== layerFilter) return false;
@@ -118,6 +132,16 @@ export default function RAGDocuments() {
     if (confirm("Tem certeza que deseja excluir este documento e todos os seus chunks?")) {
       deleteMutation.mutate(id);
     }
+  };
+
+  const handleDeleteChunks = (id: string, title: string) => {
+    if (confirm(`Excluir todos os chunks de "${title}"? O documento permanecerá salvo.`)) {
+      deleteChunksMutation.mutate(id);
+    }
+  };
+
+  const handleFixMetadata = (id: string) => {
+    fixMetadataMutation.mutate(id);
   };
 
   return (
@@ -315,15 +339,43 @@ export default function RAGDocuments() {
                               Regenerar
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(doc.id)}
-                            disabled={deleteMutation.isPending}
-                            title="Excluir"
-                          >
-                            <Trash className="w-4 h-4 text-red-400" />
-                          </Button>
+                          
+                          {/* More Actions Dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <DotsThreeVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleFixMetadata(doc.id)}
+                                disabled={fixMetadataMutation.isPending}
+                              >
+                                <Wrench className="w-4 h-4 mr-2" />
+                                Corrigir metadados
+                              </DropdownMenuItem>
+                              {doc.status === "indexed" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteChunks(doc.id, doc.title)}
+                                  disabled={deleteChunksMutation.isPending}
+                                  className="text-orange-400"
+                                >
+                                  <TrashSimple className="w-4 h-4 mr-2" />
+                                  Excluir chunks
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(doc.id)}
+                                disabled={deleteMutation.isPending}
+                                className="text-destructive"
+                              >
+                                <Trash className="w-4 h-4 mr-2" />
+                                Excluir documento
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

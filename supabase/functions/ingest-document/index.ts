@@ -6,106 +6,109 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Domain vocabulary for auto-tagging
+// Domain vocabulary for auto-tagging (only used when no manual tags provided)
 const DOMAIN_VOCABULARY: Record<string, string[]> = {
-  // Modelos OpenAI
-  'gpt-5': ['openai', 'gpt', 'chatbot', 'llm'],
-  'gpt-4': ['openai', 'gpt', 'chatbot', 'llm'],
-  'gpt-4o': ['openai', 'gpt', 'chatbot', 'llm', 'multimodal'],
-  'o1': ['openai', 'reasoning', 'llm'],
-  'dall-e': ['openai', 'imagem', 'geracao'],
-  'whisper': ['openai', 'audio', 'transcricao'],
-  
-  // Modelos Anthropic
-  'claude': ['anthropic', 'chatbot', 'llm'],
-  'claude-3': ['anthropic', 'chatbot', 'llm'],
-  'sonnet': ['anthropic', 'chatbot', 'llm'],
-  'opus': ['anthropic', 'chatbot', 'llm'],
-  'haiku': ['anthropic', 'chatbot', 'llm'],
-  
-  // Modelos Google
-  'gemini': ['google', 'multimodal', 'llm'],
-  'gemini-2': ['google', 'multimodal', 'llm'],
-  'bard': ['google', 'chatbot', 'llm'],
-  'palm': ['google', 'llm'],
-  
-  // Modelos Meta
+  'gpt-5': ['openai', 'gpt', 'llm'],
+  'gpt-4': ['openai', 'gpt', 'llm'],
+  'claude': ['anthropic', 'llm'],
+  'gemini': ['google', 'llm'],
   'llama': ['meta', 'opensource', 'llm'],
-  'llama-3': ['meta', 'opensource', 'llm'],
-  
-  // Modelos Mistral
   'mistral': ['mistral', 'opensource', 'llm'],
-  'mixtral': ['mistral', 'opensource', 'llm', 'moe'],
-  
-  // Capacidades
-  'código': ['programacao', 'dev', 'codigo'],
-  'programação': ['programacao', 'dev', 'codigo'],
-  'imagem': ['visao', 'multimodal', 'geracao'],
-  'áudio': ['voz', 'multimodal', 'audio'],
+  'código': ['programacao', 'dev'],
+  'programação': ['programacao', 'dev'],
+  'imagem': ['visao', 'multimodal'],
+  'áudio': ['audio', 'multimodal'],
   'vídeo': ['video', 'multimodal'],
-  'visão': ['visao', 'multimodal'],
-  
-  // Conceitos técnicos
-  'tokens': ['pricing', 'contexto', 'tecnico'],
-  'contexto': ['contexto', 'tecnico'],
-  'temperatura': ['parametros', 'config', 'tecnico'],
-  'fine-tuning': ['treinamento', 'customizacao', 'tecnico'],
-  'fine tuning': ['treinamento', 'customizacao', 'tecnico'],
-  'embedding': ['embedding', 'rag', 'tecnico'],
-  'rag': ['rag', 'tecnico', 'retrieval'],
-  'prompt': ['prompting', 'tecnico'],
-  'agent': ['agentes', 'tecnico', 'automacao'],
-  'agente': ['agentes', 'tecnico', 'automacao'],
-  'api': ['api', 'integracao', 'tecnico'],
-  
-  // Aplicações
-  'produtividade': ['aplicacao', 'produtividade'],
-  'marketing': ['aplicacao', 'negocio', 'marketing'],
-  'vendas': ['aplicacao', 'negocio', 'vendas'],
-  'automação': ['aplicacao', 'dev', 'automacao'],
-  'atendimento': ['aplicacao', 'negocio', 'atendimento'],
-  'educação': ['aplicacao', 'educacao'],
-  'saúde': ['aplicacao', 'saude'],
-  'jurídico': ['aplicacao', 'juridico'],
-  'financeiro': ['aplicacao', 'financeiro'],
-  
-  // Conceitos gerais
-  'inteligência artificial': ['ia', 'conceito'],
-  'machine learning': ['ml', 'conceito', 'tecnico'],
-  'deep learning': ['dl', 'conceito', 'tecnico'],
-  'neural': ['neural', 'conceito', 'tecnico'],
-  'transformer': ['transformer', 'arquitetura', 'tecnico'],
+  'tokens': ['pricing', 'tecnico'],
+  'embedding': ['embedding', 'rag'],
+  'rag': ['rag', 'retrieval'],
+  'prompt': ['prompting'],
+  'agent': ['agentes', 'automacao'],
+  'api': ['api', 'integracao'],
+  'produtividade': ['produtividade'],
+  'marketing': ['marketing'],
+  'automação': ['automacao'],
 };
 
-// Parse YAML frontmatter from markdown content
-function parseFrontmatter(content: string): { metadata: Record<string, unknown>; body: string } {
-  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
-  const match = content.match(frontmatterRegex);
+/**
+ * ROBUST Frontmatter Parser
+ * Handles:
+ * - BOM characters at start
+ * - Whitespace before/after ---
+ * - Different line endings (\r\n, \n)
+ * - Blank lines in frontmatter
+ */
+function parseFrontmatter(content: string): { 
+  metadata: Record<string, unknown>; 
+  body: string;
+  hasFrontmatter: boolean;
+} {
+  // Remove BOM if present
+  let cleanContent = content.replace(/^\uFEFF/, '');
   
-  if (!match) {
-    return { metadata: {}, body: content };
+  // Normalize line endings
+  cleanContent = cleanContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Split into lines
+  const lines = cleanContent.split('\n');
+  
+  // Find opening --- (allow leading whitespace)
+  let startIndex = -1;
+  for (let i = 0; i < Math.min(5, lines.length); i++) { // Only check first 5 lines
+    if (lines[i].trim() === '---') {
+      startIndex = i;
+      break;
+    }
   }
   
-  const yamlContent = match[1];
-  const body = match[2];
+  if (startIndex === -1) {
+    console.log("No frontmatter opening --- found");
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
   
-  // Simple YAML parser for basic frontmatter
+  // Find closing ---
+  let endIndex = -1;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      endIndex = i;
+      break;
+    }
+  }
+  
+  if (endIndex === -1) {
+    console.log("No frontmatter closing --- found");
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
+  
+  // Extract YAML content
+  const yamlLines = lines.slice(startIndex + 1, endIndex);
+  const body = lines.slice(endIndex + 1).join('\n').trim();
+  
+  console.log(`Frontmatter found: lines ${startIndex + 1} to ${endIndex + 1}`);
+  console.log("YAML lines:", yamlLines);
+  
+  // Parse YAML (simple key: value parser)
   const metadata: Record<string, unknown> = {};
-  const lines = yamlContent.split('\n');
   
-  for (const line of lines) {
-    const colonIndex = line.indexOf(':');
+  for (const line of yamlLines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#')) continue; // Skip empty/comments
+    
+    const colonIndex = trimmedLine.indexOf(':');
     if (colonIndex === -1) continue;
     
-    const key = line.substring(0, colonIndex).trim();
-    let value: string | string[] | number = line.substring(colonIndex + 1).trim();
+    const key = trimmedLine.substring(0, colonIndex).trim();
+    let value: string | string[] | number = trimmedLine.substring(colonIndex + 1).trim();
     
-    // Handle arrays like ["tag1", "tag2"]
+    if (!key || value === '') continue;
+    
+    // Handle arrays like ["tag1", "tag2"] or ['tag1', 'tag2']
     if (value.startsWith('[') && value.endsWith(']')) {
       const arrayContent = value.slice(1, -1);
-      value = arrayContent.split(',').map(item => 
-        item.trim().replace(/^["']|["']$/g, '')
-      ).filter(Boolean);
+      value = arrayContent
+        .split(',')
+        .map(item => item.trim().replace(/^["']|["']$/g, ''))
+        .filter(Boolean);
     } 
     // Handle quoted strings
     else if ((value.startsWith('"') && value.endsWith('"')) || 
@@ -113,14 +116,15 @@ function parseFrontmatter(content: string): { metadata: Record<string, unknown>;
       value = value.slice(1, -1);
     }
     // Handle numbers
-    else if (!isNaN(Number(value))) {
+    else if (!isNaN(Number(value)) && value !== '') {
       value = Number(value);
     }
     
     metadata[key] = value;
+    console.log(`Parsed: ${key} = ${JSON.stringify(value)}`);
   }
   
-  return { metadata, body };
+  return { metadata, body, hasFrontmatter: true };
 }
 
 // Generate slug from title
@@ -136,15 +140,18 @@ function generateSlug(title: string): string {
     .substring(0, 80);
 }
 
-// Extract auto-tags from content based on domain vocabulary
-function extractAutoTags(content: string): string[] {
+// Extract auto-tags from content (only when no manual tags)
+function extractAutoTags(content: string, limit = 12): string[] {
   const contentLower = content.toLowerCase();
   const tags = new Set<string>();
   
   for (const [keyword, relatedTags] of Object.entries(DOMAIN_VOCABULARY)) {
     if (contentLower.includes(keyword.toLowerCase())) {
-      relatedTags.forEach(tag => tags.add(tag));
+      relatedTags.forEach(tag => {
+        if (tags.size < limit) tags.add(tag);
+      });
     }
+    if (tags.size >= limit) break;
   }
   
   return Array.from(tags);
@@ -212,28 +219,48 @@ serve(async (req) => {
       );
     }
 
-    // Parse frontmatter from content
-    const { metadata, body } = parseFrontmatter(content);
+    console.log("Received content length:", content.length);
+    console.log("First 200 chars:", content.substring(0, 200));
+
+    // Parse frontmatter from content (ROBUST parser)
+    const { metadata, body, hasFrontmatter } = parseFrontmatter(content);
     
-    const title = String(metadata.title || "Documento sem título");
-    const layer = String(metadata.layer || "biblioteca");
-    const priority = Number(metadata.priority) || 50;
-    const manualTags = Array.isArray(metadata.tags) ? metadata.tags : [];
+    console.log("Has frontmatter:", hasFrontmatter);
+    console.log("Parsed metadata:", JSON.stringify(metadata));
+    
+    // Extract values with STRICT fallbacks
+    const title = metadata.title && String(metadata.title).trim() 
+      ? String(metadata.title).trim() 
+      : "Documento sem título";
+    
+    let layer = String(metadata.layer || "biblioteca").toLowerCase();
     
     // Validate layer
     if (!["constituicao", "nucleo", "biblioteca"].includes(layer)) {
-      return new Response(
-        JSON.stringify({ error: "Layer inválido. Use: constituicao, nucleo ou biblioteca" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`Invalid layer "${layer}", defaulting to biblioteca`);
+      layer = "biblioteca";
+    }
+    
+    const priority = Number(metadata.priority) || 50;
+    
+    // Tags: use MANUAL tags if provided, otherwise auto-generate
+    const manualTags = Array.isArray(metadata.tags) ? metadata.tags.map(t => String(t).trim()).filter(Boolean) : [];
+    
+    let finalTags: string[];
+    if (manualTags.length > 0) {
+      // Manual tags provided - use ONLY these
+      finalTags = manualTags;
+      console.log("Using manual tags only:", finalTags);
+    } else {
+      // No manual tags - auto-generate from body
+      finalTags = extractAutoTags(body);
+      console.log("Auto-generated tags:", finalTags);
     }
 
     // Generate slug
     const slug = generateSlug(title) + "-" + Date.now();
 
-    // Extract auto-tags from body content
-    const autoTags = extractAutoTags(body);
-    const allTags = [...new Set([...manualTags, ...autoTags])];
+    console.log(`Saving document: title="${title}", layer="${layer}", priority=${priority}, tags=[${finalTags.join(', ')}]`);
 
     // Insert document with PENDING status (NO automatic chunking)
     const { data: newDoc, error: insertError } = await supabaseAdmin
@@ -244,8 +271,8 @@ serve(async (req) => {
         layer,
         priority,
         source_content: content,
-        status: "pending", // Status pending - chunks serão gerados manualmente
-        tags: allTags,
+        status: "pending",
+        tags: finalTags,
         created_by: userId,
       })
       .select()
@@ -259,7 +286,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Document saved with ID: ${newDoc.id}, status: pending (awaiting manual chunk generation)`);
+    console.log(`Document saved with ID: ${newDoc.id}, title: ${newDoc.title}, layer: ${newDoc.layer}`);
 
     return new Response(
       JSON.stringify({
@@ -267,6 +294,8 @@ serve(async (req) => {
         documentId: newDoc.id,
         title: newDoc.title,
         layer: newDoc.layer,
+        priority: newDoc.priority,
+        tags: newDoc.tags,
         status: "pending",
         message: "Documento salvo. Use 'Gerar Chunks' para criar os fragmentos.",
       }),

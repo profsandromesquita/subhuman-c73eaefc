@@ -6,81 +6,94 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Domain vocabulary for auto-tagging
+// Domain vocabulary for auto-tagging chunks
 const DOMAIN_VOCABULARY: Record<string, string[]> = {
-  'gpt-5': ['openai', 'gpt', 'chatbot', 'llm'],
-  'gpt-4': ['openai', 'gpt', 'chatbot', 'llm'],
-  'gpt-4o': ['openai', 'gpt', 'chatbot', 'llm', 'multimodal'],
-  'o1': ['openai', 'reasoning', 'llm'],
-  'dall-e': ['openai', 'imagem', 'geracao'],
-  'whisper': ['openai', 'audio', 'transcricao'],
-  'claude': ['anthropic', 'chatbot', 'llm'],
-  'claude-3': ['anthropic', 'chatbot', 'llm'],
-  'sonnet': ['anthropic', 'chatbot', 'llm'],
-  'opus': ['anthropic', 'chatbot', 'llm'],
-  'haiku': ['anthropic', 'chatbot', 'llm'],
-  'gemini': ['google', 'multimodal', 'llm'],
-  'gemini-2': ['google', 'multimodal', 'llm'],
-  'bard': ['google', 'chatbot', 'llm'],
-  'palm': ['google', 'llm'],
+  'gpt-5': ['openai', 'gpt', 'llm'],
+  'gpt-4': ['openai', 'gpt', 'llm'],
+  'claude': ['anthropic', 'llm'],
+  'gemini': ['google', 'llm'],
   'llama': ['meta', 'opensource', 'llm'],
-  'llama-3': ['meta', 'opensource', 'llm'],
   'mistral': ['mistral', 'opensource', 'llm'],
-  'mixtral': ['mistral', 'opensource', 'llm', 'moe'],
-  'código': ['programacao', 'dev', 'codigo'],
-  'programação': ['programacao', 'dev', 'codigo'],
-  'imagem': ['visao', 'multimodal', 'geracao'],
-  'áudio': ['voz', 'multimodal', 'audio'],
+  'código': ['programacao', 'dev'],
+  'programação': ['programacao', 'dev'],
+  'imagem': ['visao', 'multimodal'],
+  'áudio': ['audio', 'multimodal'],
   'vídeo': ['video', 'multimodal'],
-  'visão': ['visao', 'multimodal'],
-  'tokens': ['pricing', 'contexto', 'tecnico'],
-  'contexto': ['contexto', 'tecnico'],
-  'temperatura': ['parametros', 'config', 'tecnico'],
-  'fine-tuning': ['treinamento', 'customizacao', 'tecnico'],
-  'fine tuning': ['treinamento', 'customizacao', 'tecnico'],
-  'embedding': ['embedding', 'rag', 'tecnico'],
-  'rag': ['rag', 'tecnico', 'retrieval'],
-  'prompt': ['prompting', 'tecnico'],
-  'agent': ['agentes', 'tecnico', 'automacao'],
-  'agente': ['agentes', 'tecnico', 'automacao'],
-  'api': ['api', 'integracao', 'tecnico'],
-  'produtividade': ['aplicacao', 'produtividade'],
-  'marketing': ['aplicacao', 'negocio', 'marketing'],
-  'vendas': ['aplicacao', 'negocio', 'vendas'],
-  'automação': ['aplicacao', 'dev', 'automacao'],
-  'atendimento': ['aplicacao', 'negocio', 'atendimento'],
-  'educação': ['aplicacao', 'educacao'],
-  'saúde': ['aplicacao', 'saude'],
-  'jurídico': ['aplicacao', 'juridico'],
-  'financeiro': ['aplicacao', 'financeiro'],
-  'inteligência artificial': ['ia', 'conceito'],
-  'machine learning': ['ml', 'conceito', 'tecnico'],
-  'deep learning': ['dl', 'conceito', 'tecnico'],
-  'neural': ['neural', 'conceito', 'tecnico'],
-  'transformer': ['transformer', 'arquitetura', 'tecnico'],
+  'embedding': ['embedding', 'rag'],
+  'rag': ['rag', 'retrieval'],
+  'prompt': ['prompting'],
+  'agent': ['agentes', 'automacao'],
+  'api': ['api', 'integracao'],
 };
 
-// Parse YAML frontmatter from markdown content
-function parseFrontmatter(content: string): { metadata: Record<string, unknown>; body: string } {
-  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
-  const match = content.match(frontmatterRegex);
+/**
+ * ROBUST Frontmatter Parser
+ * Handles:
+ * - BOM characters at start
+ * - Whitespace before/after ---
+ * - Different line endings (\r\n, \n)
+ * - Blank lines in frontmatter
+ */
+function parseFrontmatter(content: string): { 
+  metadata: Record<string, unknown>; 
+  body: string;
+  hasFrontmatter: boolean;
+} {
+  // Remove BOM if present
+  let cleanContent = content.replace(/^\uFEFF/, '');
   
-  if (!match) {
-    return { metadata: {}, body: content };
+  // Normalize line endings
+  cleanContent = cleanContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Split into lines
+  const lines = cleanContent.split('\n');
+  
+  // Find opening --- (allow leading whitespace)
+  let startIndex = -1;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    if (lines[i].trim() === '---') {
+      startIndex = i;
+      break;
+    }
   }
   
-  return { metadata: {}, body: match[2] };
+  if (startIndex === -1) {
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
+  
+  // Find closing ---
+  let endIndex = -1;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      endIndex = i;
+      break;
+    }
+  }
+  
+  if (endIndex === -1) {
+    return { metadata: {}, body: cleanContent, hasFrontmatter: false };
+  }
+  
+  // Extract body WITHOUT frontmatter
+  const body = lines.slice(endIndex + 1).join('\n').trim();
+  
+  console.log(`Frontmatter removed: body starts at line ${endIndex + 2}, length ${body.length}`);
+  
+  return { metadata: {}, body, hasFrontmatter: true };
 }
 
-// Extract auto-tags from content based on domain vocabulary
-function extractAutoTags(content: string): string[] {
+// Extract auto-tags from content
+function extractAutoTags(content: string, limit = 8): string[] {
   const contentLower = content.toLowerCase();
   const tags = new Set<string>();
   
   for (const [keyword, relatedTags] of Object.entries(DOMAIN_VOCABULARY)) {
     if (contentLower.includes(keyword.toLowerCase())) {
-      relatedTags.forEach(tag => tags.add(tag));
+      relatedTags.forEach(tag => {
+        if (tags.size < limit) tags.add(tag);
+      });
     }
+    if (tags.size >= limit) break;
   }
   
   return Array.from(tags);
@@ -88,14 +101,11 @@ function extractAutoTags(content: string): string[] {
 
 // Split content into chunks with overlap
 function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): string[] {
-  // Approximate: 1 token ≈ 4 characters for Portuguese
   const charsPerToken = 4;
   const maxChars = maxTokens * charsPerToken;
   const overlapChars = overlapTokens * charsPerToken;
   
   const chunks: string[] = [];
-  
-  // Split by paragraphs first
   const paragraphs = content.split(/\n\n+/);
   let currentChunk = '';
   
@@ -103,33 +113,28 @@ function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): st
     const trimmedParagraph = paragraph.trim();
     if (!trimmedParagraph) continue;
     
-    // If paragraph alone exceeds max, split it by sentences
     if (trimmedParagraph.length > maxChars) {
       if (currentChunk) {
         chunks.push(currentChunk.trim());
         currentChunk = '';
       }
       
-      // Split by sentences
       const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/);
       for (const sentence of sentences) {
         if ((currentChunk + ' ' + sentence).length > maxChars) {
           if (currentChunk) {
             chunks.push(currentChunk.trim());
-            // Keep overlap
             const words = currentChunk.split(/\s+/);
-            const overlapWords = Math.floor(overlapChars / 6); // Avg word length
+            const overlapWords = Math.floor(overlapChars / 6);
             currentChunk = words.slice(-overlapWords).join(' ');
           }
         }
         currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
       }
     } 
-    // Check if adding paragraph exceeds max
     else if ((currentChunk + '\n\n' + trimmedParagraph).length > maxChars) {
       if (currentChunk) {
         chunks.push(currentChunk.trim());
-        // Keep some overlap from previous chunk
         const words = currentChunk.split(/\s+/);
         const overlapWords = Math.floor(overlapChars / 6);
         currentChunk = words.slice(-overlapWords).join(' ') + '\n\n' + trimmedParagraph;
@@ -141,7 +146,6 @@ function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): st
     }
   }
   
-  // Don't forget the last chunk
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -150,13 +154,11 @@ function chunkContent(content: string, maxTokens = 600, overlapTokens = 100): st
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Verify admin authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -171,7 +173,6 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -182,7 +183,6 @@ serve(async (req) => {
 
     const userId = user.id;
 
-    // Check admin role using service role client
     const supabaseAdmin = createClient(
       supabaseUrl,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -201,7 +201,6 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
     const { documentId } = await req.json();
     
     if (!documentId) {
@@ -243,8 +242,12 @@ serve(async (req) => {
       console.error("Error deleting existing chunks:", deleteError);
     }
 
-    // Parse content and generate chunks
-    const { body } = parseFrontmatter(document.source_content);
+    // Parse content - REMOVE FRONTMATTER before chunking
+    const { body, hasFrontmatter } = parseFrontmatter(document.source_content);
+    
+    console.log(`Content parsed. Had frontmatter: ${hasFrontmatter}. Body length: ${body.length}`);
+    console.log(`Body first 200 chars: ${body.substring(0, 200)}`);
+    
     const chunks = chunkContent(body);
     
     console.log(`Generated ${chunks.length} chunks for document ${documentId}`);
@@ -261,18 +264,26 @@ serve(async (req) => {
       );
     }
 
-    // Build chunk records (lexical mode - no embeddings)
+    // Document tags (manual tags from frontmatter)
+    const documentTags: string[] = Array.isArray(document.tags) ? document.tags : [];
+
+    // Build chunk records
     const chunkRecords = chunks.map((chunkText, i) => {
-      const chunkTags = extractAutoTags(chunkText);
+      // Auto-tags for this specific chunk
+      const autoTags = extractAutoTags(chunkText);
+      
+      // Combine document tags + chunk auto-tags, dedupe, limit to 15
+      const combinedTags = [...new Set([...documentTags, ...autoTags])].slice(0, 15);
+      
       const tokenCount = Math.ceil(chunkText.length / 4);
 
       return {
         document_id: documentId,
         chunk_index: i,
         content: chunkText,
-        embedding: null, // Lexical mode - no embeddings
+        embedding: null, // Lexical mode
         token_count: tokenCount,
-        tags: chunkTags,
+        tags: combinedTags,
         priority: document.priority || 50,
       };
     });

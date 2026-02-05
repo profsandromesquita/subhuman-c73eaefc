@@ -72,8 +72,8 @@ export default function RAGChunks() {
   const selectedDocument = documents?.find((doc) => doc.id === documentFilter);
   const selectedDocumentChunksCount = chunks?.filter((c) => c.document_id === documentFilter).length || 0;
 
-  const handleDeleteChunk = (chunkId: string) => {
-    deleteChunkMutation.mutate(chunkId);
+  const handleDeleteChunk = (chunkId: string, documentId: string) => {
+    deleteChunkMutation.mutate({ chunkId, documentId });
   };
 
   const handleDeleteAllChunks = () => {
@@ -258,6 +258,13 @@ export default function RAGChunks() {
           )}
         </div>
 
+        {/* Help text when no document filter */}
+        {documentFilter === "all" && (
+          <p className="text-sm text-muted-foreground">
+            💡 Selecione um documento no filtro acima para habilitar a exclusão em massa.
+          </p>
+        )}
+
         {/* Chunks Grid */}
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -273,7 +280,7 @@ export default function RAGChunks() {
         ) : (
           <div className="grid gap-4">
             {filteredChunks?.map((chunk) => (
-              <Card key={chunk.id} className="overflow-hidden group">
+              <Card key={chunk.id} className="overflow-hidden">
                 <CardHeader className="pb-2 bg-card/50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -297,15 +304,16 @@ export default function RAGChunks() {
                         <span>Prioridade: {chunk.priority}</span>
                       </div>
                       
-                      {/* Delete button */}
+                      {/* DELETE BUTTON - ALWAYS VISIBLE */}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            aria-label="Excluir chunk"
                           >
-                            <Trash className="w-4 h-4 text-red-400" />
+                            <Trash className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -318,7 +326,7 @@ export default function RAGChunks() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleDeleteChunk(chunk.id)}
+                              onClick={() => handleDeleteChunk(chunk.id, chunk.document_id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Excluir
