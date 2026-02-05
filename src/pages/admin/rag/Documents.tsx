@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -28,18 +27,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
-  ArrowClockwise,
   Trash,
   FileText,
   Warning,
   CheckCircle,
   Clock,
   Spinner,
+  Lightning,
 } from "@phosphor-icons/react";
 import {
   useRAGDocuments,
   useIngestDocument,
-  useReindexDocument,
+  useGenerateChunks,
   useDeleteRAGDocument,
 } from "@/hooks/useRAGDocuments";
 import { formatDistanceToNow } from "date-fns";
@@ -92,7 +91,7 @@ export default function RAGDocuments() {
 
   const { data: documents, isLoading } = useRAGDocuments();
   const ingestMutation = useIngestDocument();
-  const reindexMutation = useReindexDocument();
+  const generateChunksMutation = useGenerateChunks();
   const deleteMutation = useDeleteRAGDocument();
 
   const filteredDocuments = documents?.filter((doc) => {
@@ -107,18 +106,16 @@ export default function RAGDocuments() {
       setIsDialogOpen(false);
       setContent(DOCUMENT_TEMPLATE);
     } catch (error) {
-      // Error is already handled by the mutation's onError callback in the hook
-      // Keep dialog open so user can retry
       console.error("Ingest error:", error);
     }
   };
 
-  const handleReindex = (id: string) => {
-    reindexMutation.mutate(id);
+  const handleGenerateChunks = (id: string) => {
+    generateChunksMutation.mutate(id);
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este documento?")) {
+    if (confirm("Tem certeza que deseja excluir este documento e todos os seus chunks?")) {
       deleteMutation.mutate(id);
     }
   };
@@ -127,6 +124,7 @@ export default function RAGDocuments() {
     <AdminLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Documentos RAG</h1>
+        
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div className="flex gap-2">
@@ -171,8 +169,8 @@ export default function RAGDocuments() {
               <div className="space-y-4 py-4">
                 <div className="text-sm text-muted-foreground">
                   Cole o conteúdo do documento em formato Markdown com frontmatter YAML.
-                  O frontmatter define título, camada (constituicao, nucleo, biblioteca),
-                  prioridade (0-100) e tags.
+                  O documento será salvo como <strong>Pendente</strong>. 
+                  Depois, clique em "Gerar Chunks" para criar os fragmentos.
                 </div>
 
                 <Textarea
@@ -196,10 +194,10 @@ export default function RAGDocuments() {
                     {ingestMutation.isPending ? (
                       <>
                         <Spinner className="w-4 h-4 mr-2 animate-spin" />
-                        Processando...
+                        Salvando...
                       </>
                     ) : (
-                      "Indexar Documento"
+                      "Salvar Documento"
                     )}
                   </Button>
                 </div>
@@ -239,6 +237,8 @@ export default function RAGDocuments() {
                   const StatusIcon = STATUS_CONFIG[doc.status]?.icon || Clock;
                   const statusColor = STATUS_CONFIG[doc.status]?.color || "text-muted-foreground";
                   const statusLabel = STATUS_CONFIG[doc.status]?.label || doc.status;
+                  const showGenerateButton = doc.status === "pending" || doc.status === "error";
+                  const showRegenerateButton = doc.status === "indexed";
 
                   return (
                     <TableRow key={doc.id}>
@@ -281,15 +281,40 @@ export default function RAGDocuments() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleReindex(doc.id)}
-                            disabled={reindexMutation.isPending}
-                            title="Reindexar"
-                          >
-                            <ArrowClockwise className="w-4 h-4" />
-                          </Button>
+                          {showGenerateButton && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleGenerateChunks(doc.id)}
+                              disabled={generateChunksMutation.isPending}
+                              title="Gerar Chunks"
+                              className="gap-1"
+                            >
+                              {generateChunksMutation.isPending ? (
+                                <Spinner className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Lightning className="w-4 h-4" weight="fill" />
+                              )}
+                              Gerar Chunks
+                            </Button>
+                          )}
+                          {showRegenerateButton && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleGenerateChunks(doc.id)}
+                              disabled={generateChunksMutation.isPending}
+                              title="Regenerar Chunks"
+                              className="gap-1"
+                            >
+                              {generateChunksMutation.isPending ? (
+                                <Spinner className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Lightning className="w-4 h-4" />
+                              )}
+                              Regenerar
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

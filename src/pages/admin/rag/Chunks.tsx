@@ -13,17 +13,29 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Cube,
   FileText,
   Hash,
   MagnifyingGlass,
   Spinner,
-  ArrowClockwise,
+  Trash,
+  TrashSimple,
   Warning,
+  Lightning,
 } from "@phosphor-icons/react";
-import { useRAGChunks, useRAGChunkStats } from "@/hooks/useRAGChunks";
-import { useRAGDocuments, useReindexDocument } from "@/hooks/useRAGDocuments";
-import { toast } from "sonner";
+import { useRAGChunks, useRAGChunkStats, useDeleteChunk, useDeleteAllChunks } from "@/hooks/useRAGChunks";
+import { useRAGDocuments, useGenerateChunks } from "@/hooks/useRAGDocuments";
 
 const LAYER_COLORS: Record<string, string> = {
   constituicao: "bg-amber-500/20 text-amber-500",
@@ -34,54 +46,20 @@ const LAYER_COLORS: Record<string, string> = {
 export default function RAGChunks() {
   const [search, setSearch] = useState("");
   const [documentFilter, setDocumentFilter] = useState<string>("all");
-  const [isReindexingAll, setIsReindexingAll] = useState(false);
 
   const { data: chunks, isLoading } = useRAGChunks(
     documentFilter !== "all" ? documentFilter : undefined
   );
   const { data: stats } = useRAGChunkStats();
   const { data: documents } = useRAGDocuments();
-  const reindexMutation = useReindexDocument();
+  const deleteChunkMutation = useDeleteChunk();
+  const deleteAllChunksMutation = useDeleteAllChunks();
+  const generateChunksMutation = useGenerateChunks();
 
-  // Find documents that are "indexed" but have no chunks
-  const documentsWithoutChunks = documents?.filter((doc) => {
-    const hasChunks = chunks?.some((chunk) => chunk.document_id === doc.id);
-    return doc.status === "indexed" && !hasChunks;
-  }) || [];
-
-  // Find pending or error documents
-  const pendingOrErrorDocs = documents?.filter(
+  // Find documents that need attention (pending or error)
+  const pendingDocs = documents?.filter(
     (doc) => doc.status === "pending" || doc.status === "error"
   ) || [];
-
-  const problemDocs = [...documentsWithoutChunks, ...pendingOrErrorDocs];
-
-  const handleReindexAll = async () => {
-    if (problemDocs.length === 0) return;
-    
-    setIsReindexingAll(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const doc of problemDocs) {
-      try {
-        await reindexMutation.mutateAsync(doc.id);
-        successCount++;
-      } catch {
-        errorCount++;
-      }
-    }
-
-    setIsReindexingAll(false);
-
-    if (successCount > 0 && errorCount === 0) {
-      toast.success(`${successCount} documento(s) reindexado(s) com sucesso!`);
-    } else if (successCount > 0) {
-      toast.warning(`${successCount} sucesso, ${errorCount} erro(s)`);
-    } else {
-      toast.error("Erro ao reindexar documentos");
-    }
-  };
 
   const filteredChunks = chunks?.filter((chunk) => {
     if (search && !chunk.content.toLowerCase().includes(search.toLowerCase())) {
@@ -90,75 +68,71 @@ export default function RAGChunks() {
     return true;
   });
 
+  // Get selected document for "Delete All" action
+  const selectedDocument = documents?.find((doc) => doc.id === documentFilter);
+  const selectedDocumentChunksCount = chunks?.filter((c) => c.document_id === documentFilter).length || 0;
+
+  const handleDeleteChunk = (chunkId: string) => {
+    deleteChunkMutation.mutate(chunkId);
+  };
+
+  const handleDeleteAllChunks = () => {
+    if (documentFilter !== "all") {
+      deleteAllChunksMutation.mutate(documentFilter);
+    }
+  };
+
+  const handleGenerateChunks = (docId: string) => {
+    generateChunksMutation.mutate(docId);
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* Header with Reindex Button */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-2xl font-bold">Chunks da Base de Conhecimento</h1>
-          {problemDocs.length > 0 && (
-            <Button
-              onClick={handleReindexAll}
-              disabled={isReindexingAll || reindexMutation.isPending}
-            >
-              {isReindexingAll ? (
-                <Spinner className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <ArrowClockwise className="w-4 h-4 mr-2" />
-              )}
-              Reindexar {problemDocs.length} Documento(s)
-            </Button>
-          )}
         </div>
 
-        {/* Alert for documents without chunks */}
-        {problemDocs.length > 0 && (
+        {/* Alert for pending documents */}
+        {pendingDocs.length > 0 && (
           <Alert className="border-yellow-500/50 bg-yellow-500/10">
             <Warning className="w-4 h-4 text-yellow-500" />
             <AlertTitle className="text-yellow-400">
-              Documentos precisam de atenção
+              Documentos aguardando geração de chunks
             </AlertTitle>
             <AlertDescription className="text-yellow-200/80">
-              {documentsWithoutChunks.length > 0 && (
-                <div className="mb-2">
-                  <strong>{documentsWithoutChunks.length} documento(s)</strong> marcados
-                  como indexados mas sem chunks gerados.
-                </div>
-              )}
-              {pendingOrErrorDocs.length > 0 && (
-                <div className="mb-2">
-                  <strong>{pendingOrErrorDocs.length} documento(s)</strong> pendentes ou
-                  com erro de indexação.
-                </div>
-              )}
+              <div className="mb-2">
+                <strong>{pendingDocs.length} documento(s)</strong> precisam ter seus chunks gerados manualmente.
+              </div>
               <div className="flex flex-wrap gap-2 mt-3">
-                {problemDocs.slice(0, 5).map((doc) => (
+                {pendingDocs.slice(0, 5).map((doc) => (
                   <Button
                     key={doc.id}
                     size="sm"
                     variant="outline"
-                    onClick={() => reindexMutation.mutate(doc.id)}
-                    disabled={reindexMutation.isPending}
-                    className="border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/20"
+                    onClick={() => handleGenerateChunks(doc.id)}
+                    disabled={generateChunksMutation.isPending}
+                    className="border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/20 gap-1"
                   >
-                    {reindexMutation.isPending ? (
-                      <Spinner className="w-3 h-3 mr-1 animate-spin" />
+                    {generateChunksMutation.isPending ? (
+                      <Spinner className="w-3 h-3 animate-spin" />
                     ) : (
-                      <ArrowClockwise className="w-3 h-3 mr-1" />
+                      <Lightning className="w-3 h-3" weight="fill" />
                     )}
                     {doc.title.substring(0, 25)}
                     {doc.title.length > 25 ? "..." : ""}
                     <Badge
                       variant="outline"
-                      className="ml-2 text-xs border-yellow-500/30"
+                      className="ml-1 text-xs border-yellow-500/30"
                     >
                       {doc.status}
                     </Badge>
                   </Button>
                 ))}
-                {problemDocs.length > 5 && (
+                {pendingDocs.length > 5 && (
                   <span className="text-sm text-yellow-300/60 self-center">
-                    +{problemDocs.length - 5} mais
+                    +{pendingDocs.length - 5} mais
                   </span>
                 )}
               </div>
@@ -214,13 +188,13 @@ export default function RAGChunks() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Com Erros
+                Pendentes
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-red-500">
-                  {stats?.byStatus?.error || 0}
+                <span className="text-2xl font-bold text-yellow-500">
+                  {stats?.byStatus?.pending || 0}
                 </span>
               </div>
             </CardContent>
@@ -252,6 +226,36 @@ export default function RAGChunks() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Delete All Chunks Button (only when document filter is active) */}
+          {documentFilter !== "all" && selectedDocumentChunksCount > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-1">
+                  <TrashSimple className="w-4 h-4" />
+                  Excluir Todos ({selectedDocumentChunksCount})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir todos os chunks?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Você está prestes a excluir <strong>{selectedDocumentChunksCount} chunks</strong> do documento "{selectedDocument?.title}".
+                    O documento voltará ao status "Pendente" e você precisará gerar os chunks novamente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteAllChunks}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Excluir Todos
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
 
         {/* Chunks Grid */}
@@ -261,12 +265,15 @@ export default function RAGChunks() {
           </div>
         ) : filteredChunks?.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            Nenhum chunk encontrado
+            {documentFilter !== "all" 
+              ? "Nenhum chunk encontrado. Use 'Gerar Chunks' na página de Documentos."
+              : "Nenhum chunk encontrado"
+            }
           </div>
         ) : (
           <div className="grid gap-4">
             {filteredChunks?.map((chunk) => (
-              <Card key={chunk.id} className="overflow-hidden">
+              <Card key={chunk.id} className="overflow-hidden group">
                 <CardHeader className="pb-2 bg-card/50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -282,11 +289,43 @@ export default function RAGChunks() {
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Hash className="w-3 h-3" />
-                      <span>{chunk.token_count || "?"} tokens</span>
-                      <span className="mx-1">•</span>
-                      <span>Prioridade: {chunk.priority}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Hash className="w-3 h-3" />
+                        <span>{chunk.token_count || "?"} tokens</span>
+                        <span className="mx-1">•</span>
+                        <span>Prioridade: {chunk.priority}</span>
+                      </div>
+                      
+                      {/* Delete button */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash className="w-4 h-4 text-red-400" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir chunk?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. O chunk #{chunk.chunk_index} será permanentemente excluído.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteChunk(chunk.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardHeader>
