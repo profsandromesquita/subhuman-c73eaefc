@@ -8,15 +8,64 @@ const corsHeaders = {
 
 // Types
 interface RAGChunk { id: string; content: string; document_title: string; layer: string; priority: number; rank?: number; }
-interface SpaceUpdate { id: string; title: string; content: string; published_at: string; spaces: { name: string; slug: string }; }
+interface SpaceUpdate { id: string; title: string; slug: string; content: string; published_at: string; spaces: { name: string; slug: string }; }
 interface ChannelPost { id: string; title: string | null; content: string; created_at: string; author_id: string | null; channels: { name: string; slug: string }; author_name?: string; }
 interface Channel { id: string; name: string; description: string | null; access_type: string; slug: string | null; }
+interface Podcast { id: string; title: string; slug: string; description: string | null; published_at: string; spaces: { name: string; slug: string } | null; }
+interface UserProfile { 
+  full_name: string | null; 
+  city: string | null; 
+  state: string | null; 
+  occupation_type: string | null; 
+  job_title: string | null; 
+  company_name: string | null; 
+  industry: string | null; 
+  ai_experience_level: string | null; 
+  goals: string | null; 
+}
 
 // Fetch channels catalog
 // deno-lint-ignore no-explicit-any
 async function fetchChannelsCatalog(db: any): Promise<Channel[]> {
   const { data } = await db.from("channels").select("id, name, description, access_type, slug").eq("is_active", true).order("sort_order");
   return (data || []) as Channel[];
+}
+
+// Fetch user profile for personalization
+// deno-lint-ignore no-explicit-any
+async function fetchUserProfile(db: any, userId: string): Promise<UserProfile | null> {
+  const { data, error } = await db
+    .from("profiles")
+    .select("full_name, city, state, occupation_type, job_title, company_name, industry, ai_experience_level, goals")
+    .eq("id", userId)
+    .single();
+  
+  if (error) {
+    console.error("Profile fetch error:", error);
+    return null;
+  }
+  return data as UserProfile;
+}
+
+// Fetch recent podcasts
+// deno-lint-ignore no-explicit-any
+async function fetchRecentPodcasts(db: any): Promise<Podcast[]> {
+  const ago = new Date(); 
+  ago.setDate(ago.getDate() - 60); // Last 60 days for podcasts
+  
+  const { data, error } = await db
+    .from("podcasts")
+    .select("id, title, slug, description, published_at, spaces(name, slug)")
+    .eq("is_published", true)
+    .gte("published_at", ago.toISOString())
+    .order("published_at", { ascending: false })
+    .limit(15);
+  
+  if (error) {
+    console.error("Podcasts fetch error:", error);
+    return [];
+  }
+  return (data || []) as Podcast[];
 }
 
 // Search RAG chunks using LEXICAL search (no embeddings)
@@ -42,8 +91,12 @@ async function searchRAGChunks(query: string, db: any, cfg: { rag_top_k?: number
 // deno-lint-ignore no-explicit-any
 async function fetchRecentPosts(db: any): Promise<SpaceUpdate[]> {
   const ago = new Date(); ago.setDate(ago.getDate() - 30);
-  const { data } = await db.from("space_updates").select("id, title, content, published_at, spaces!inner(name, slug)")
-    .eq("is_published", true).gte("published_at", ago.toISOString()).order("published_at", { ascending: false }).limit(15);
+  const { data } = await db.from("space_updates")
+    .select("id, title, slug, content, published_at, spaces!inner(name, slug)")
+    .eq("is_published", true)
+    .gte("published_at", ago.toISOString())
+    .order("published_at", { ascending: false })
+    .limit(15);
   return (data || []) as SpaceUpdate[];
 }
 
@@ -80,12 +133,64 @@ function buildChannelsContext(channels: Channel[]): string {
   return "\n=== CANAIS (FÓRUNS) DA COMUNIDADE ===\n" + channels.map(c => `- **${c.name}** (${labels[c.access_type] || c.access_type})${c.description ? `: ${c.description}` : ""}`).join("\n") + "\n\nIMPORTANTE: Canais são internos. NÃO invente Discord/LinkedIn.\n";
 }
 
+function buildUserContext(profile: UserProfile | null): string {
+  if (!profile?.full_name) return "";
+  
+  // Extract first name
+  const firstName = profile.full_name.split(" ")[0];
+  
+  let ctx = `\n=== CONTEXTO DO USUÁRIO ===\n`;
+  ctx += `Nome: ${profile.full_name}\n`;
+  ctx += `Primeiro nome: ${firstName}\n`;
+  
+  if (profile.city && profile.state) {
+    ctx += `Localização: ${profile.city}, ${profile.state}\n`;
+  }
+  
+  if (profile.job_title && profile.company_name) {
+    ctx += `Profissão: ${profile.job_title} na ${profile.company_name}\n`;
+  } else if (profile.job_title) {
+    ctx += `Cargo: ${profile.job_title}\n`;
+  } else if (profile.occupation_type) {
+    ctx += `Ocupação: ${profile.occupation_type}\n`;
+  }
+  
+  if (profile.industry) {
+    ctx += `Setor: ${profile.industry}\n`;
+  }
+  
+  if (profile.ai_experience_level) {
+    ctx += `Nível de experiência com IA: ${profile.ai_experience_level}\n`;
+  }
+  
+  if (profile.goals) {
+    ctx += `Objetivos: ${profile.goals}\n`;
+  }
+  
+  ctx += `\nIMPORTANTE: Chame o usuário pelo primeiro nome (${firstName}). Personalize recomendações com base no perfil.\n`;
+  
+  return ctx;
+}
+
+function buildPodcastContext(podcasts: Podcast[]): string {
+  if (!podcasts.length) return "";
+  
+  return "\n=== PODCASTS RECENTES ===\n" + podcasts.map(p => {
+    const date = new Date(p.published_at).toLocaleDateString("pt-BR");
+    const spaceInfo = p.spaces ? ` [${p.spaces.name}]` : "";
+    const desc = p.description ? `\nResumo: ${p.description.substring(0, 200)}...` : "";
+    return `🎙️ "${p.title}"${spaceInfo} - ${date}\nLink: /podcasts/${p.slug}${desc}`;
+  }).join("\n\n") + "\n";
+}
+
 function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): string {
   let ctx = "";
   if (posts.length) {
-    ctx += "\n=== POSTS RECENTES (ESPAÇOS) ===\n" + posts.slice(0, 10).map(p => {
+    ctx += "\n=== ARTIGOS RECENTES (ESPAÇOS) ===\n" + posts.slice(0, 10).map(p => {
       const d = new Date(p.published_at).toLocaleDateString("pt-BR");
-      return `[${p.spaces?.name}] "${p.title}" - ${d}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 200)}...`;
+      const spaceSlug = p.spaces?.slug || "geral";
+      const postSlug = p.slug || p.id;
+      return `[${p.spaces?.name}] "${p.title}" - ${d}\nLink: /spaces/${spaceSlug}/post/${postSlug}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 200)}...`;
     }).join("\n\n") + "\n";
   }
   if (chPosts.length) {
@@ -100,18 +205,29 @@ function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): str
 const PLATFORM_STRUCTURE = `
 === ESTRUTURA DA PLATAFORMA SUBHUMANO ===
 
-1. ESPAÇOS (/spaces): Conteúdo editorial dos administradores (artigos, tutoriais)
+1. ESPAÇOS (/spaces): Conteúdo editorial dos administradores (artigos, tutoriais, análises)
 2. CANAIS (/channels): Fóruns da comunidade onde USUÁRIOS postam dúvidas e experiências
+3. PODCASTS (/podcasts): Episódios de áudio com análises aprofundadas, debates e entrevistas sobre IA
+4. MENTORIAS: Sessões ao vivo e personalizadas com o Expert Prof. Sandro Mesquita, especialista em aplicações práticas de IA para negócios e produtividade
 
-REGRA: "fóruns/dúvidas" → CANAIS | "artigos/tutoriais" → ESPAÇOS
+REGRA DE NAVEGAÇÃO: 
+- "fóruns/dúvidas/discussões" → CANAIS 
+- "artigos/tutoriais/análises" → ESPAÇOS
+- "áudio/episódios/ouvir" → PODCASTS
+
+QUANDO O USUÁRIO PEDIR LINK DE CONTEÚDO:
+- Forneça o link completo no formato Markdown: [Título](URL)
+- Artigos: [Título do Artigo](/spaces/{space_slug}/post/{post_slug})
+- Podcasts: [Título do Podcast](/podcasts/{podcast_slug})
 `;
 
 const ANTI_HALLUCINATION = `
 === REGRAS ANTI-ALUCINAÇÃO ===
 1. NUNCA invente Discord/LinkedIn/Telegram como canais oficiais
 2. Use APENAS canais listados no contexto
-3. Se não souber, diga: "Não encontrei na base de conhecimento"
+3. Se não souber, diga: "Não encontrei essa informação na base de conhecimento"
 4. Não invente nomes de usuários, datas ou especificações
+5. Para links, use APENAS slugs que aparecem no contexto
 `;
 
 serve(async (req) => {
@@ -150,26 +266,33 @@ serve(async (req) => {
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
     const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean };
 
-    // Parallel fetches (using lexical search now)
-    const [ragChunks, recentPosts, channelPosts, channels] = await Promise.all([
+    // Parallel fetches (using lexical search now) - including podcasts and user profile
+    const [ragChunks, recentPosts, channelPosts, channels, podcasts, userProfile] = await Promise.all([
       searchRAGChunks(userQuery, db, ragCfg),
       fetchRecentPosts(db),
       fetchRecentChannelPosts(db),
       fetchChannelsCatalog(db),
+      fetchRecentPodcasts(db),
+      fetchUserProfile(db, user.id),
     ]);
 
-    console.log(`Context: ${ragChunks.length} RAG (lexical), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels`);
+    console.log(`Context: ${ragChunks.length} RAG, ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anonymous'}`);
 
     // Build system message
     const now = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
     let sysMsg = `Data: ${now}\n\n${PLATFORM_STRUCTURE}\n\n`;
+    
+    // Add user context first for personalization
+    sysMsg += buildUserContext(userProfile);
+    
     if (config.system_prompt) sysMsg += config.system_prompt + "\n\n";
     if (config.system_instruction) sysMsg += config.system_instruction + "\n\n";
     sysMsg += buildRAGContext(ragChunks);
     sysMsg += buildChannelsContext(channels);
+    sysMsg += buildPodcastContext(podcasts);
     sysMsg += buildPlatformContext(recentPosts, channelPosts);
     sysMsg += ANTI_HALLUCINATION;
-    sysMsg += "\n\nResponda em português brasileiro. Priorize a base RAG. Seja didático.";
+    sysMsg += "\n\nResponda em português brasileiro. Priorize a base RAG. Seja didático. Chame o usuário pelo nome.";
 
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
