@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Robot, PaperPlaneRight, Trash, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users } from "@phosphor-icons/react";
+import { Robot, PaperPlaneRight, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users, PlusCircle } from "@phosphor-icons/react";
 import { Logo } from "@/components/Logo";
 import ReactMarkdown from "react-markdown";
 import { AppLayout } from "@/components/AppLayout";
@@ -143,7 +143,7 @@ export default function AIAssistant() {
                 onClick={requestClearMessages}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <Trash className="w-5 h-5" />
+                <PlusCircle className="w-5 h-5" />
               </Button>
             )}
           </div>
