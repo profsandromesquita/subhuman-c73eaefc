@@ -120,9 +120,9 @@ export default function AIAssistant() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100dvh-64px)] max-w-lg mx-auto pb-safe">
+      <div className="flex flex-col h-[calc(100dvh-64px)] max-w-lg mx-auto overflow-hidden">
         {/* Header */}
-        <div className="px-4 py-4 border-b border-border">
+        <div className="px-4 py-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-center gap-1">
@@ -250,7 +250,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Input Area */}
-        <div className="px-4 py-3 pb-20 border-t border-border bg-background">
+        <div className="px-4 py-3 pb-20 border-t border-border bg-background shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               ref={inputRef}
