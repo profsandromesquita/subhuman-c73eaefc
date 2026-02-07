@@ -37,6 +37,7 @@ const PersonalData = lazy(() => import("./pages/profile/PersonalData"));
 const Security = lazy(() => import("./pages/profile/Security"));
 const NotificationPreferences = lazy(() => import("./pages/profile/NotificationPreferences"));
 const Settings = lazy(() => import("./pages/profile/Settings"));
+const SavedContent = lazy(() => import("./pages/profile/SavedContent"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
  const AIAssistant = lazy(() => import("./pages/AIAssistant"));
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/profile/security" element={<SubscriptionGuard><Security /></SubscriptionGuard>} />
               <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
               <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
+              <Route path="/profile/saved" element={<SubscriptionGuard><SavedContent /></SubscriptionGuard>} />
                <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
 
               {/* Admin Routes */}

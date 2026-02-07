@@ -14,7 +14,8 @@ import {
   Bell, 
   ShieldCheck,
   CaretRight,
-  SignOut
+  SignOut,
+  BookmarkSimple
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -28,6 +29,12 @@ interface Profile {
 }
 
 const menuItems = [
+  {
+    icon: BookmarkSimple,
+    label: "Conteúdos salvos",
+    description: "Artigos e podcasts",
+    path: "/profile/saved",
+  },
   {
     icon: UserIcon,
     label: "Dados pessoais",
