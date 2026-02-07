@@ -8,7 +8,7 @@ import { CommentInput } from "@/components/post/CommentInput";
 import { useAuth } from "@/hooks/useAuth";
 import { useLikeSpaceUpdate, useAddSpaceUpdateComment } from "@/hooks/usePosts";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -279,11 +279,7 @@ export default function PostDetail() {
 
   const handleLikeToggle = async () => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para curtir",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para curtir");
       return;
     }
 
@@ -304,11 +300,7 @@ export default function PostDetail() {
 
   const handleSaveToggle = async () => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para salvar",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para salvar");
       return;
     }
 
@@ -324,26 +316,17 @@ export default function PostDetail() {
           .eq("update_id", postId)
           .eq("user_id", user.id);
         
-        toast({
-          title: "Removido dos salvos",
-        });
+        toast.success("Removido dos salvos");
       } else {
         await supabase
           .from("saved_updates")
           .insert({ update_id: postId, user_id: user.id });
         
-        toast({
-          title: "Post salvo!",
-          description: "Você pode acessar seus posts salvos no perfil",
-        });
+        toast.success("Post salvo!");
       }
     } catch (error) {
       setIsSaved(wasSaved);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível salvar");
     }
   };
 
@@ -353,11 +336,7 @@ export default function PostDetail() {
 
   const handleLikeComment = async (commentId: string) => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para curtir",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para curtir");
       return;
     }
 
@@ -423,11 +402,7 @@ export default function PostDetail() {
 
   const handleSubmitComment = async (content: string, parentId?: string) => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para comentar",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para comentar");
       return;
     }
 
@@ -442,15 +417,9 @@ export default function PostDetail() {
       await fetchComments();
       setReplyTo(null);
 
-      toast({
-        title: "Comentário enviado!",
-      });
+      toast.success("Comentário enviado!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível enviar o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível enviar o comentário");
     }
   };
 
@@ -481,13 +450,9 @@ export default function PostDetail() {
         })
       );
 
-      toast({ title: "Comentário atualizado!" });
+      toast.success("Comentário atualizado!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível editar o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível editar o comentário");
     }
   };
 
@@ -513,13 +478,9 @@ export default function PostDetail() {
           }))
       );
 
-      toast({ title: "Comentário excluído!" });
+      toast.success("Comentário excluído!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível excluir o comentário");
     }
   };
 

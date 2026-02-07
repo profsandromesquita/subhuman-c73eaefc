@@ -17,8 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 import { useChannels } from "@/hooks/useChannels";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatTime } from "@/lib/formatTime";
 
 const iconMap: Record<string, React.ComponentType<any>> = {
   ChatCircle: ChatCircle,
@@ -36,22 +35,6 @@ const STAGGER_DELAY = 0.03;
 export default function Channels() {
   const { data: channels = [], isLoading: loading } = useChannels();
 
-  const formatTime = (dateString: string | null) => {
-    if (!dateString) return null;
-    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
-    return distance
-      .replace("cerca de ", "")
-      .replace(" horas", "h")
-      .replace(" hora", "h")
-      .replace(" minutos", "min")
-      .replace(" minuto", "min")
-      .replace(" dias", "d")
-      .replace(" dia", "d")
-      .replace(" semanas", "sem")
-      .replace(" semana", "sem")
-      .replace(" meses", "m")
-      .replace(" mês", "m");
-  };
 
   const getAccessBadge = (channel: { access_type: string }) => {
     if (channel.access_type === 'premium') {

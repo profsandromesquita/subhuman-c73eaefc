@@ -117,11 +117,11 @@ export default function AIAssistant() {
         return <button onClick={e => {
           e.preventDefault();
           navigate(href);
-        }} className="underline text-blue-400 hover:text-blue-300 cursor-pointer">
+        }} className="underline text-primary hover:text-primary/80 cursor-pointer">
             {children}
           </button>;
       }
-      return <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300">
+      return <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">
           {children}
         </a>;
     }

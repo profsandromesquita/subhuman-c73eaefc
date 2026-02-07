@@ -32,17 +32,10 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     }
   }, [authLoading, subLoading, user, status, navigate]);
 
-  // Show loading overlay but DON'T unmount children to preserve form state
   if (authLoading || subLoading) {
     return (
-      <div className="relative min-h-screen">
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Carregando...</div>
-        </div>
-        {/* Children stay hidden but mounted to preserve state */}
-        <div className="opacity-0 pointer-events-none">
-          {children}
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
       </div>
     );
   }

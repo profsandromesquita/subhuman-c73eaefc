@@ -123,7 +123,7 @@ export default function Landing() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: 0.4 + index * 0.1 }}
-              className="flex items-start gap-4 p-4 rounded-xl bg-card border border-border hover:border-muted-foreground/30 transition-all duration-200"
+              className="flex items-start gap-4 p-4 rounded-xl bg-card hover:bg-elevated transition-all duration-200"
             >
               <div className="p-2.5 rounded-lg bg-secondary">
                 <feature.icon className="w-5 h-5 text-foreground" weight="bold" />

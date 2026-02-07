@@ -12,8 +12,7 @@ import {
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatTime, estimateReadTime } from "@/lib/formatTime";
 import { useSpace } from "@/hooks/useSpaces";
 import { useSpaceUpdates } from "@/hooks/usePosts";
 
@@ -42,29 +41,6 @@ export default function SpaceDetail() {
     navigate(`/spaces/${spaceSlug}/post/${updateSlug}`);
   };
 
-  const formatTime = (dateString: string | null) => {
-    if (!dateString) return "";
-    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
-    return distance
-      .replace("cerca de ", "")
-      .replace(" horas", "h")
-      .replace(" hora", "h")
-      .replace(" minutos", "min")
-      .replace(" minuto", "min")
-      .replace(" dias", "d")
-      .replace(" dia", "d")
-      .replace(" semanas", "sem")
-      .replace(" semana", "sem")
-      .replace(" meses", "m")
-      .replace(" mês", "m");
-  };
-
-  const estimateReadTime = (content: string | null): string => {
-    if (!content) return "1min";
-    const words = content.split(/\s+/).length;
-    const minutes = Math.ceil(words / 200);
-    return `${minutes}min`;
-  };
 
   if (loading) {
     return (

@@ -13,29 +13,15 @@ import {
   Users,
   Lock,
   Crown,
-  ChatCircle as ChatIcon,
-  Question,
-  Rocket,
-  Wrench,
-  Handshake
 } from "@phosphor-icons/react";
 import { useAuth } from "@/hooks/useAuth";
 import { useChannelAccess } from "@/hooks/useChannelAccess";
 import { useChannel } from "@/hooks/useChannels";
 import { useChannelPosts, useLikeChannelPost } from "@/hooks/usePosts";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatTime } from "@/lib/formatTime";
 import { toast } from "sonner";
 import { useMemo } from "react";
-
-const iconMap: Record<string, React.ComponentType<any>> = {
-  ChatCircle: ChatIcon,
-  Question: Question,
-  Users: Users,
-  Rocket: Rocket,
-  Wrench: Wrench,
-  Handshake: Handshake,
-};
+import { getIconComponent } from "@/components/admin/IconPicker";
 
 export default function ChannelDetail() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -68,21 +54,6 @@ export default function ChannelDetail() {
     likeMutation.mutate({ postId, isLiked });
   };
 
-  const formatTime = (dateString: string) => {
-    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
-    return distance
-      .replace("cerca de ", "")
-      .replace(" horas", "h")
-      .replace(" hora", "h")
-      .replace(" minutos", "min")
-      .replace(" minuto", "min")
-      .replace(" dias", "d")
-      .replace(" dia", "d")
-      .replace(" semanas", "sem")
-      .replace(" semana", "sem")
-      .replace(" meses", "m")
-      .replace(" mês", "m");
-  };
 
   const getAccessIcon = () => {
     switch (accessType) {
@@ -95,7 +66,7 @@ export default function ChannelDetail() {
     }
   };
 
-  const IconComponent = channel?.icon ? iconMap[channel.icon] || ChatIcon : ChatIcon;
+  const IconComponent = getIconComponent(channel?.icon);
 
   if (loading && !channel) {
     return (
@@ -227,7 +198,7 @@ export default function ChannelDetail() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.05 }}
+                  transition={{ delay: Math.min(index, 4) * 0.03 }}
                 >
                   <Link to={`/channels/${channelId}/post/${post.id}`}>
                     <Card className="hover:border-muted-foreground/30 transition-all duration-200">

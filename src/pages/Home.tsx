@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatTime } from "@/lib/formatTime";
 import { 
   ArrowRight, 
   Heart, 
@@ -64,22 +63,6 @@ export default function Home() {
     sessionStorage.setItem('onboarding-dismissed', 'true');
   };
 
-  const formatTime = (dateString: string | null) => {
-    if (!dateString) return "";
-    const distance = formatDistanceToNow(new Date(dateString), { locale: ptBR });
-    return distance
-      .replace("cerca de ", "")
-      .replace(" horas", "h")
-      .replace(" hora", "h")
-      .replace(" minutos", "min")
-      .replace(" minuto", "min")
-      .replace(" dias", "d")
-      .replace(" dia", "d")
-      .replace(" semanas", "sem")
-      .replace(" semana", "sem")
-      .replace(" meses", "m")
-      .replace(" mês", "m");
-  };
 
   const handleHighlightClick = (highlight: { space_slug?: string; slug?: string; id: string }) => {
     navigate(`/spaces/${highlight.space_slug}/post/${highlight.slug || highlight.id}`);

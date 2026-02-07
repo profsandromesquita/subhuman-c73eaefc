@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
@@ -19,14 +18,9 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-
-interface Profile {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-}
+import { useProfile } from "@/hooks/useProfile";
+import { useState, useEffect } from "react";
 
 const menuItems = [
   {
@@ -64,38 +58,14 @@ const menuItems = [
 export default function Profile() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: profile, isLoading: profileLoading } = useProfile();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/login");
-      return;
-    }
-    if (user) {
-      fetchProfile();
     }
   }, [user, authLoading]);
-
-  const fetchProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogout = async () => {
     await signOut();
@@ -113,7 +83,7 @@ export default function Profile() {
       .slice(0, 2);
   };
 
-  if (authLoading || loading) {
+  if (authLoading || profileLoading) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 pt-8">
@@ -151,7 +121,7 @@ export default function Profile() {
           <Avatar className="h-16 w-16">
             <AvatarImage src={profile?.avatar_url || undefined} />
             <AvatarFallback className="text-xl bg-secondary">
-              {getInitials(profile?.full_name)}
+              {getInitials(profile?.full_name ?? null)}
             </AvatarFallback>
           </Avatar>
           <div>
@@ -160,7 +130,7 @@ export default function Profile() {
           </div>
         </motion.div>
 
-        {/* Subscription Item (Opens Modal) */}
+        {/* Subscription Item */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -179,9 +149,7 @@ export default function Profile() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-sm">Assinatura</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Gerenciar plano
-                    </p>
+                    <p className="text-xs text-muted-foreground">Gerenciar plano</p>
                   </div>
                   <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
                 </div>
@@ -213,9 +181,7 @@ export default function Profile() {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-medium text-sm">{item.label}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          {item.description}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
                       </div>
                       <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
                     </div>
@@ -232,17 +198,12 @@ export default function Profile() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={handleLogout}
-          >
+          <Button variant="outline" className="w-full" onClick={handleLogout}>
             <SignOut className="w-4 h-4" weight="bold" />
             Sair da conta
           </Button>
         </motion.div>
 
-        {/* Subscription Modal */}
         <SubscriptionModal 
           isOpen={showSubscriptionModal} 
           onClose={() => setShowSubscriptionModal(false)} 
