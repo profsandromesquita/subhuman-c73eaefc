@@ -10,7 +10,7 @@ import { usePodcastBySlug, useLikePodcast, useSavePodcast, useAddPodcastComment,
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -53,7 +53,6 @@ export default function PodcastDetail() {
   const fetchEngagementData = async () => {
     if (!podcast?.id) return;
 
-    // Fetch likes count
     const { count } = await supabase
       .from("podcast_likes")
       .select("id", { count: "exact", head: true })
@@ -61,21 +60,10 @@ export default function PodcastDetail() {
     
     setLikesCount(count || 0);
 
-    // Check user interactions
     if (user) {
       const [likeResult, saveResult] = await Promise.all([
-        supabase
-          .from("podcast_likes")
-          .select("id")
-          .eq("podcast_id", podcast.id)
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("saved_podcasts")
-          .select("id")
-          .eq("podcast_id", podcast.id)
-          .eq("user_id", user.id)
-          .maybeSingle(),
+        supabase.from("podcast_likes").select("id").eq("podcast_id", podcast.id).eq("user_id", user.id).maybeSingle(),
+        supabase.from("saved_podcasts").select("id").eq("podcast_id", podcast.id).eq("user_id", user.id).maybeSingle(),
       ]);
 
       setIsLiked(!!likeResult.data);
@@ -88,13 +76,7 @@ export default function PodcastDetail() {
 
     const { data: commentsData, error } = await supabase
       .from("podcast_comments")
-      .select(`
-        id,
-        content,
-        user_id,
-        parent_id,
-        created_at
-      `)
+      .select(`id, content, user_id, parent_id, created_at`)
       .eq("podcast_id", podcast.id)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -115,9 +97,7 @@ export default function PodcastDetail() {
         : Promise.resolve({ data: [] }),
     ]);
 
-    const profilesMap = new Map(
-      profilesResult.data?.map(p => [p.id, p.full_name]) || []
-    );
+    const profilesMap = new Map(profilesResult.data?.map(p => [p.id, p.full_name]) || []);
 
     const likesCountMap: Record<string, number> = {};
     likesCountResult.data?.forEach((like) => {
@@ -160,11 +140,7 @@ export default function PodcastDetail() {
 
   const handleLikeToggle = async () => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para curtir",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para curtir");
       return;
     }
 
@@ -182,11 +158,7 @@ export default function PodcastDetail() {
 
   const handleSaveToggle = async () => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para salvar",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para salvar");
       return;
     }
 
@@ -195,17 +167,10 @@ export default function PodcastDetail() {
 
     try {
       await saveMutation.mutateAsync({ podcastId: podcast!.id, isSaved: wasSaved });
-      toast({
-        title: wasSaved ? "Removido dos salvos" : "Podcast salvo!",
-        description: wasSaved ? undefined : "Você pode acessar seus podcasts salvos no perfil",
-      });
+      toast.success(wasSaved ? "Removido dos salvos" : "Podcast salvo!");
     } catch (error) {
       setIsSaved(wasSaved);
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível salvar");
     }
   };
 
@@ -215,23 +180,15 @@ export default function PodcastDetail() {
 
   const handleLikeComment = async (commentId: string) => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para curtir",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para curtir");
       return;
     }
 
     let isCurrentlyLiked = false;
     comments.forEach(comment => {
-      if (comment.id === commentId) {
-        isCurrentlyLiked = comment.isLiked;
-      }
+      if (comment.id === commentId) isCurrentlyLiked = comment.isLiked;
       comment.replies.forEach(reply => {
-        if (reply.id === commentId) {
-          isCurrentlyLiked = reply.isLiked;
-        }
+        if (reply.id === commentId) isCurrentlyLiked = reply.isLiked;
       });
     });
 
@@ -248,11 +205,7 @@ export default function PodcastDetail() {
           ...comment,
           replies: comment.replies.map(reply => 
             reply.id === commentId
-              ? {
-                  ...reply,
-                  isLiked: !reply.isLiked,
-                  likesCount: reply.isLiked ? reply.likesCount - 1 : reply.likesCount + 1,
-                }
+              ? { ...reply, isLiked: !reply.isLiked, likesCount: reply.isLiked ? reply.likesCount - 1 : reply.likesCount + 1 }
               : reply
           ),
         };
@@ -272,33 +225,17 @@ export default function PodcastDetail() {
 
   const handleSubmitComment = async (content: string, parentId?: string) => {
     if (!user) {
-      toast({
-        title: "Faça login",
-        description: "Você precisa estar logado para comentar",
-        variant: "destructive",
-      });
+      toast.error("Você precisa estar logado para comentar");
       return;
     }
 
     try {
-      await commentMutation.mutateAsync({
-        podcastId: podcast!.id,
-        content,
-        parentId,
-      });
-
+      await commentMutation.mutateAsync({ podcastId: podcast!.id, content, parentId });
       await fetchComments();
       setReplyTo(null);
-
-      toast({
-        title: "Comentário enviado!",
-      });
+      toast.success("Comentário enviado!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível enviar o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível enviar o comentário");
     }
   };
 
@@ -316,9 +253,7 @@ export default function PodcastDetail() {
 
       setComments(prev =>
         prev.map(comment => {
-          if (comment.id === commentId) {
-            return { ...comment, content: newContent };
-          }
+          if (comment.id === commentId) return { ...comment, content: newContent };
           return {
             ...comment,
             replies: comment.replies.map(reply =>
@@ -328,13 +263,9 @@ export default function PodcastDetail() {
         })
       );
 
-      toast({ title: "Comentário atualizado!" });
+      toast.success("Comentário atualizado!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível editar o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível editar o comentário");
     }
   };
 
@@ -359,13 +290,9 @@ export default function PodcastDetail() {
           }))
       );
 
-      toast({ title: "Comentário excluído!" });
+      toast.success("Comentário excluído!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível excluir o comentário",
-        variant: "destructive",
-      });
+      toast.error("Não foi possível excluir o comentário");
     }
   };
 
@@ -394,10 +321,7 @@ export default function PodcastDetail() {
   }
 
   const timeAgo = podcast.published_at
-    ? formatDistanceToNow(new Date(podcast.published_at), {
-        addSuffix: true,
-        locale: ptBR,
-      })
+    ? formatDistanceToNow(new Date(podcast.published_at), { addSuffix: true, locale: ptBR })
     : null;
 
   return (
@@ -409,7 +333,6 @@ export default function PodcastDetail() {
       />
 
       <div className="pt-14">
-        {/* Player Section */}
         <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
           <PodcastPlayer
             audioUrl={podcast.audio_url}
@@ -417,7 +340,6 @@ export default function PodcastDetail() {
             coverUrl={podcast.cover_url}
           />
 
-          {/* Info */}
           <div className="space-y-4 text-center">
             <h1 className="text-2xl font-bold text-foreground">{podcast.title}</h1>
             
@@ -428,22 +350,16 @@ export default function PodcastDetail() {
               </p>
             )}
 
-            {/* Tags */}
             {podcast.tags && podcast.tags.length > 0 && (
               <div className="flex flex-wrap justify-center gap-2">
                 {podcast.tags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="text-xs"
-                  >
+                  <Badge key={tag} variant="secondary" className="text-xs">
                     #{tag}
                   </Badge>
                 ))}
               </div>
             )}
 
-            {/* Description */}
             {podcast.description && (
               <div className="text-muted-foreground text-left mt-6 whitespace-pre-wrap leading-relaxed">
                 {podcast.description}
@@ -452,7 +368,6 @@ export default function PodcastDetail() {
           </div>
         </div>
 
-        {/* Engagement Section */}
         <div className="mt-8">
           <PostEngagement
             likesCount={likesCount}
@@ -463,7 +378,6 @@ export default function PodcastDetail() {
           />
         </div>
 
-        {/* Comments Section */}
         <div ref={commentSectionRef}>
           <CommentSection
             comments={comments}
@@ -476,7 +390,6 @@ export default function PodcastDetail() {
         </div>
       </div>
 
-      {/* Comment Input */}
       <CommentInput
         onSubmit={handleSubmitComment}
         replyTo={replyTo}

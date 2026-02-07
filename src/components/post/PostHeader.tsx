@@ -2,7 +2,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowLeft, BookmarkSimple, ShareNetwork } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface PostHeaderProps {
   isSaved: boolean;
@@ -35,10 +35,7 @@ export function PostHeader({ isSaved, onSaveToggle, title }: PostHeaderProps) {
         });
       } else {
         await navigator.clipboard.writeText(window.location.href);
-        toast({
-          title: "Link copiado!",
-          description: "O link foi copiado para a área de transferência",
-        });
+        toast.success("Link copiado!");
       }
     } catch (error) {
       // User cancelled share
