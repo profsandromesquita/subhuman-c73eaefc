@@ -1,118 +1,122 @@
 
 
-# Auditoria Tecnica - Subhumano
-
-## Resumo Executivo
-
-O projeto esta em boa saude geral. A arquitetura segue padroes modernos com React, lazy loading, TanStack Query com batch fetching, e um design system coerente em dark mode. As principais oportunidades de melhoria estao em: codigo duplicado (funcao `formatTime` repetida em 5+ arquivos), tipagem frouxa com uso de `any` em joins do Supabase, e a pagina `PostDetail.tsx` que usa estado local + fetch manual ao inves do padrao React Query usado no restante do projeto.
+# Plano de Correcao - 4 Itens de Usabilidade
 
 ---
 
-## Problemas Identificados vs. Solucao Proposta
+## 1. Popup de Onboarding reaparecendo
 
-| # | Problema | Severidade | Solucao |
-|---|----------|-----------|---------|
-| 1 | **`formatTime()` duplicada em 5+ arquivos** (Home, Channels, SpaceDetail, ChannelDetail, etc.) | Media | Extrair para `src/lib/formatTime.ts` e importar em todos os arquivos |
-| 2 | **PostDetail.tsx usa `useState` + `useEffect` para fetch** ao inves de React Query. Nao tem cache, nao tem staleTime, faz waterfall de requests (space -> post -> author -> likes -> media -> comments) | Alta | Refatorar para hooks com `useQuery`, similar ao padrao de `usePosts.ts` |
-| 3 | **Uso excessivo de `as any`** nos joins do Supabase (ex: `(update.spaces as any)?.name`, `(post.channels as any)?.name`) | Media | Definir tipos para as respostas de join do Supabase ou criar interfaces intermediarias |
-| 4 | **Profile.tsx usa fetch manual** ao inves de React Query para buscar perfil | Media | Criar `useProfile()` hook com React Query para consistencia e cache |
-| 5 | **AIAssistant.tsx: links hardcoded `text-blue-400`** nos componentes de markdown | Baixa | Substituir por `text-primary` ou token do design system |
-| 6 | **ChannelDetail.tsx: stagger delay `index * 0.05`** sem limite MAX_STAGGER_ITEMS | Baixa | Adicionar `Math.min(index, MAX_STAGGER_ITEMS)` como nas outras paginas |
-| 7 | **SubscriptionGuard renderiza children escondidos** durante loading (`opacity-0 pointer-events-none`) | Media | Isso monta todos os componentes filhos e dispara queries desnecessarias. Usar skeleton puro ou null |
-| 8 | **`useUnreadNotificationsCount` faz 3 queries sequenciais** para contar notificacoes nao lidas | Media | Mover logica para uma view ou RPC no banco |
-| 9 | **Font family divergente**: CSS define `DM Sans`, mas o design system pede `Inter` | Baixa | Alinhar com stakeholder - atualmente usa DM Sans consistentemente no codigo, mas a spec pede Inter |
-| 10 | **Dois sistemas de toast coexistem**: `@/hooks/use-toast` (Radix) e `sonner` | Baixa | Padronizar em um unico sistema (sonner e mais simples) |
+**Causa raiz**: O estado de "ja vi o onboarding" e salvo em `sessionStorage` (apaga ao fechar aba). Alem disso, o `handleNavigateToSpaces` nao seta o flag de dismissal — so o botao "Ver a home primeiro" faz isso. Quando o usuario volta do `/spaces` para `/home`, o `sessionStorage` tem o flag mas o `subscribedSpaces` pode nao ter carregado ainda, ou se o usuario selecionou espacos e voltou, o popup nao deveria aparecer de forma alguma.
+
+**Solucao**:
+- Trocar `sessionStorage` por consulta direta: o popup so aparece quando `subscribedSpaces.length === 0` e os dados ja carregaram. Nao precisa de storage nenhum.
+- Remover completamente a logica de `sessionStorage` do onboarding.
+- No `handleNavigateToSpaces`, manter apenas o `setShowOnboarding(false)`.
+- O `handleDismissOnboarding` tambem so faz `setShowOnboarding(false)` — sem storage.
+- Condicao final: `user && !authLoading && !loadingSpaces && subscribedSpaces.length === 0` — se verdadeiro, mostra. Se o usuario selecionou ao menos 1 espaco, nunca mais mostra.
+
+**Arquivo**: `src/pages/Home.tsx` (linhas 38-63)
 
 ---
 
-## Detalhes Tecnicos por Pilar
+## 2. Compartilhamento de artigos para usuarios nao logados
 
-### 1. Arquitetura de Componentes
+**Causa raiz**: A rota `/spaces/:spaceSlug/post/:postSlug` esta dentro do `SubscriptionGuard`, que permite acesso a usuarios nao logados (linha 44: retorna children se `!user`). Porem, ao tentar curtir/comentar/salvar, o `PostDetail.tsx` exibe apenas um `toast.error("Voce precisa estar logado para curtir")` sem nenhum link ou botao para login. O botao "voltar" usa `navigate(-1)`, que leva a pagina vazia se nao ha historico.
 
-**Pontos fortes:**
-- Lazy loading em todas as paginas (bom code splitting)
-- `AppLayout` como wrapper consistente com BottomNav
-- ErrorBoundary global
-- Hooks dedicados por dominio (useSpaces, usePosts, useChannels)
+**Solucao**:
 
-**Problemas:**
-- `PostDetail.tsx` (615 linhas) tem toda a logica de fetch, like, save, comment inline. Deveria delegar para hooks
-- `ChannelDetail.tsx` duplica a logica de `iconMap` que ja existe em `Channels.tsx`
-- `formatTime` duplicada: Home.tsx, Channels.tsx, SpaceDetail.tsx, ChannelDetail.tsx
+### 2a. Criar componente `AuthPromptDialog`
+- Novo componente `src/components/AuthPromptDialog.tsx`
+- Dialog/modal com mensagem "Para interagir com o conteudo, voce precisa ter uma conta"
+- Dois botoes: "Criar conta" (vai para `/register`) e "Ja tenho conta" (vai para `/login`)
+- Ambos passam `redirectTo` como query param para retornar ao artigo apos login
 
-### 2. Performance
+### 2b. Integrar no PostDetail.tsx
+- Adicionar estado `showAuthPrompt`
+- Nos handlers `handleLikeToggle`, `handleSaveToggle`, `handleSubmitComment`: em vez de `toast.error(...)`, setar `showAuthPrompt = true`
+- Renderizar o `AuthPromptDialog` no JSX
 
-**Pontos fortes:**
-- Batch fetching com `Promise.all` em usePosts, useChannels (sem N+1)
-- `channel_stats` view para stats agregados
-- `MAX_STAGGER_ITEMS` limita animacoes
-- staleTime de 5min no queryClient
+### 2c. Corrigir botao voltar no PostHeader
+- Quando `!user` (visitante), o botao voltar deve navegar para `/` em vez de `navigate(-1)` (que pode levar a pagina vazia)
 
-**Problemas:**
-- `PostDetail.tsx` faz requests em waterfall (sequenciais): space -> post -> author -> likes -> media -> comments
-- `SubscriptionGuard` monta children em modo invisivel, disparando todas as queries dos componentes filhos antes mesmo de confirmar a assinatura
-- `useUnreadNotificationsCount` faz 3 queries separadas onde uma RPC ou view resolveria em 1
-- `useSubscribedSpaces` busca todos os `space_updates` para contar (sem `count: 'exact'`)
+### 2d. Adicionar botao fixo "Conhecer a plataforma"
+- No `PostDetail.tsx`, quando `!user`, exibir um banner fixo no topo (abaixo do header) com texto "Conheca o Subhumano" e link para `/`
+- Estilo sutil: `bg-card` com texto e botao
 
-### 3. Boas Praticas de Codigo
-
-**Pontos fortes:**
-- TypeScript em todo o projeto
-- useCallback para funcoes de auth
-- Separacao clara entre contexto (AuthContext) e hook (useAuth)
-- Optimistic updates em likes e saves
-
-**Problemas:**
-- 15+ usos de `as any` nos hooks de dados
-- `PostDetail.tsx` mistura fetch, estado local e logica de negocio num unico componente
-- Dois sistemas de toast ativos (Radix toast + Sonner)
-- `useAIAssistant` usa `fetch` direto em vez de abstrair chamada a edge function
-
-### 4. UX/UI Consistency
-
-**Pontos fortes:**
-- Paleta dark consistente em todas as telas
-- Icones Phosphor (outline) usados uniformemente
-- Mobile-first com max-w-lg
-- BottomNav presente em todas as telas autenticadas
-- Safe area utilities para dispositivos com notch
-
-**Problemas:**
-- `text-blue-400` / `text-blue-300` hardcoded no AIAssistant (links do markdown)
-- DM Sans vs Inter (spec pede Inter, codigo usa DM Sans)
-- Landing.tsx usa `border border-border` em cards de features (spec diz "sem bordas visiveis em cards")
+**Arquivos**:
+- `src/components/AuthPromptDialog.tsx` (novo)
+- `src/pages/PostDetail.tsx` (handlers + JSX)
+- `src/components/post/PostHeader.tsx` (botao voltar)
 
 ---
 
-## Plano de Implementacao (por prioridade)
+## 3. Atalho para conteudos salvos na Home
 
-### Prioridade Alta (impacto direto em performance e manutencao)
+**Solucao**:
+- Na Home, ao lado do icone de sino (notificacoes), adicionar icone `BookmarkSimple` do Phosphor
+- Ao clicar, navega para `/profile/saved`
+- Posicionamento: no header, lado esquerdo, ao lado do Bell
 
-1. **Extrair `formatTime` para utilitario compartilhado**
-   - Criar `src/lib/formatTime.ts`
-   - Substituir em Home, Channels, SpaceDetail, ChannelDetail
-   - Estimativa: rapido, sem risco
+**Arquivo**: `src/pages/Home.tsx` (linhas 86-101)
 
-2. **Refatorar `PostDetail.tsx` para usar React Query**
-   - Criar `usePostDetail(spaceSlug, postSlug)` hook
-   - Criar `usePostComments(postId)` hook
-   - Paralelizar requests com `Promise.all`
-   - Estimativa: medio, melhora performance e cache
+Mudanca no JSX:
+```
+<div className="flex items-center gap-1">
+  <button onClick={() => navigate("/profile/saved")} ...>
+    <BookmarkSimple />
+  </button>
+  <button onClick={() => navigate("/notifications")} ...>
+    <Bell />
+  </button>
+</div>
+<Logo size="sm" />
+```
 
-3. **Corrigir SubscriptionGuard**
-   - Nao renderizar children durante loading (usar null ou skeleton)
-   - Previne queries desnecessarias antes da validacao
+---
 
-### Prioridade Media
+## 4. Separar espacos escolhidos e disponiveis
 
-4. **Criar `useProfile()` hook** para Profile.tsx
-5. **Consolidar sistemas de toast** em Sonner unico
-6. **Adicionar `Math.min` no stagger** de ChannelDetail
+**Solucao**:
+- Na pagina `Spaces.tsx`, dividir a lista em duas secoes:
+  - **"Seus espaços"** — espacos onde `subscriptions[space.id] === true`
+  - **"Explorar"** — espacos restantes
+- Se nao ha espacos escolhidos, mostra apenas "Explorar" com todos
+- Se todos estao escolhidos, mostra apenas "Seus espacos"
+- Manter o mesmo card component, apenas dividindo com headers de secao
 
-### Prioridade Baixa
+**Arquivo**: `src/pages/Spaces.tsx`
 
-7. Substituir `text-blue-400` por token do design system
-8. Resolver divergencia de fonte (DM Sans vs Inter)
-9. Eliminar `iconMap` duplicado entre Channels e ChannelDetail
-10. Criar RPC/view para contagem de notificacoes nao lidas
+Logica:
+```typescript
+const subscribedSpaces = spaces.filter(s => subscriptions[s.id]);
+const availableSpaces = spaces.filter(s => !subscriptions[s.id]);
+```
+
+Layout:
+```
+{subscribedSpaces.length > 0 && (
+  <section>
+    <h2>"Seus espacos"</h2>
+    {subscribedSpaces.map(...)}
+  </section>
+)}
+{availableSpaces.length > 0 && (
+  <section>
+    <h2>"Explorar"</h2>
+    {availableSpaces.map(...)}
+  </section>
+)}
+```
+
+---
+
+## Resumo de arquivos
+
+| Arquivo | Acao |
+|---------|------|
+| `src/pages/Home.tsx` | Corrigir onboarding + adicionar icone salvos |
+| `src/components/AuthPromptDialog.tsx` | Novo componente |
+| `src/pages/PostDetail.tsx` | Integrar AuthPromptDialog nos handlers |
+| `src/components/post/PostHeader.tsx` | Corrigir botao voltar para visitantes |
+| `src/pages/Spaces.tsx` | Separar em secoes |
 
