@@ -8,9 +8,10 @@ interface PostHeaderProps {
   isSaved: boolean;
   onSaveToggle: () => void;
   title: string;
+  isGuest?: boolean;
 }
 
-export function PostHeader({ isSaved, onSaveToggle, title }: PostHeaderProps) {
+export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeaderProps) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
   
@@ -54,7 +55,7 @@ export function PostHeader({ isSaved, onSaveToggle, title }: PostHeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate(-1)}
+          onClick={() => isGuest ? navigate("/") : navigate(-1)}
           className="text-foreground hover:bg-secondary"
         >
           <ArrowLeft className="w-5 h-5" weight="bold" />

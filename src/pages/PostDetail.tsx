@@ -10,6 +10,9 @@ import { useLikeSpaceUpdate, useAddSpaceUpdateComment } from "@/hooks/usePosts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AuthPromptDialog } from "@/components/AuthPromptDialog";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -69,6 +72,7 @@ export default function PostDetail() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
   const [media, setMedia] = useState<any[]>([]);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   useEffect(() => {
     if (spaceSlug && postSlug) {
@@ -279,7 +283,7 @@ export default function PostDetail() {
 
   const handleLikeToggle = async () => {
     if (!user) {
-      toast.error("Você precisa estar logado para curtir");
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -300,7 +304,7 @@ export default function PostDetail() {
 
   const handleSaveToggle = async () => {
     if (!user) {
-      toast.error("Você precisa estar logado para salvar");
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -336,7 +340,7 @@ export default function PostDetail() {
 
   const handleLikeComment = async (commentId: string) => {
     if (!user) {
-      toast.error("Você precisa estar logado para curtir");
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -402,7 +406,7 @@ export default function PostDetail() {
 
   const handleSubmitComment = async (content: string, parentId?: string) => {
     if (!user) {
-      toast.error("Você precisa estar logado para comentar");
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -531,7 +535,23 @@ export default function PostDetail() {
         isSaved={isSaved}
         onSaveToggle={handleSaveToggle}
         title={post.title}
+        isGuest={!user}
       />
+
+      {/* Banner para visitantes */}
+      {!user && (
+        <div className="fixed top-14 left-0 right-0 z-40 bg-card border-b border-border">
+          <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Conheça o Subhumano</span>
+            <Button size="sm" variant="outline" onClick={() => navigate("/")}>
+              Ver plataforma
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <AuthPromptDialog open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
 
       <PostContent
         title={post.title}

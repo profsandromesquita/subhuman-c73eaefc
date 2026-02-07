@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { formatTime } from "@/lib/formatTime";
@@ -6,7 +5,8 @@ import {
   ArrowRight, 
   Heart, 
   ChatCircle,
-  Bell
+  Bell,
+  BookmarkSimple
 } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,32 +35,15 @@ export default function Home() {
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // Verifica se deve mostrar o modal de onboarding
-  useEffect(() => {
-    const hasSeenOnboarding = sessionStorage.getItem('onboarding-dismissed');
-    
-    if (
-      user && 
-      !authLoading &&
-      !loadingSpaces && 
-      subscribedSpaces.length === 0 && 
-      !hasSeenOnboarding
-    ) {
-      const timer = setTimeout(() => setShowOnboarding(true), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [user, authLoading, loadingSpaces, subscribedSpaces]);
+  // Popup só aparece quando dados carregaram E o usuário não tem nenhum espaço selecionado
+  const showOnboarding = !!(user && !authLoading && !loadingSpaces && subscribedSpaces.length === 0);
 
   const handleNavigateToSpaces = () => {
-    setShowOnboarding(false);
     navigate('/spaces');
   };
 
   const handleDismissOnboarding = () => {
-    setShowOnboarding(false);
-    sessionStorage.setItem('onboarding-dismissed', 'true');
+    // No-op: popup desaparece automaticamente quando o usuário selecionar espaços
   };
 
 
@@ -85,18 +68,27 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-between"
         >
-          <button 
-            onClick={() => navigate("/notifications")}
-            className="relative p-2 rounded-lg hover:bg-accent transition-colors"
-            aria-label="Notificações"
-          >
-            <Bell className="w-5 h-5" weight={unreadCount > 0 ? "fill" : "regular"} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-foreground text-background rounded-full px-1">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => navigate("/profile/saved")}
+              className="p-2 rounded-lg hover:bg-accent transition-colors"
+              aria-label="Conteúdos salvos"
+            >
+              <BookmarkSimple className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => navigate("/notifications")}
+              className="relative p-2 rounded-lg hover:bg-accent transition-colors"
+              aria-label="Notificações"
+            >
+              <Bell className="w-5 h-5" weight={unreadCount > 0 ? "fill" : "regular"} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-foreground text-background rounded-full px-1">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
           <Logo size="sm" />
         </motion.div>
 
