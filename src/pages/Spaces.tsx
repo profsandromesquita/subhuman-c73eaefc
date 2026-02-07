@@ -64,12 +64,23 @@ export default function Spaces() {
         </motion.div>
 
         {/* Spaces List */}
-        <div className="space-y-3">
-          {spaces.map((space, index) => {
+        {(() => {
+          const subscribedSpaces = spaces.filter(s => subscriptions[s.id]);
+          const availableSpaces = spaces.filter(s => !subscriptions[s.id]);
+
+          if (spaces.length === 0) {
+            return (
+              <div className="text-center py-12 text-muted-foreground">
+                Nenhum espaço disponível no momento
+              </div>
+            );
+          }
+
+          const renderSpaceCard = (space: typeof spaces[0], index: number) => {
             const isSubscribed = subscriptions[space.id] || false;
             const isProcessing = toggleMutation.isPending && toggleMutation.variables?.spaceId === space.id;
             const IconComponent = getIconComponent(space.icon);
-            
+
             return (
               <motion.div
                 key={space.id}
@@ -114,7 +125,6 @@ export default function Spaces() {
                       </div>
                     </div>
                     
-                    {/* View Space Link */}
                     <Link
                       to={`/spaces/${space.slug}`}
                       className="mt-3 pt-3 border-t border-border flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -126,14 +136,25 @@ export default function Spaces() {
                 </Card>
               </motion.div>
             );
-          })}
+          };
 
-          {spaces.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              Nenhum espaço disponível no momento
+          return (
+            <div className="space-y-6">
+              {subscribedSpaces.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Seus espaços</h2>
+                  {subscribedSpaces.map((space, index) => renderSpaceCard(space, index))}
+                </section>
+              )}
+              {availableSpaces.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Explorar</h2>
+                  {availableSpaces.map((space, index) => renderSpaceCard(space, index))}
+                </section>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
     </AppLayout>
   );
