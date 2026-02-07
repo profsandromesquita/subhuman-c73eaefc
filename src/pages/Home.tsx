@@ -102,8 +102,6 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-between"
         >
-          <Logo size="sm" />
-          
           <button 
             onClick={() => navigate("/notifications")}
             className="relative p-2 rounded-lg hover:bg-accent transition-colors"
@@ -116,6 +114,7 @@ export default function Home() {
               </span>
             )}
           </button>
+          <Logo size="sm" />
         </motion.div>
 
         {/* Daily Highlights */}

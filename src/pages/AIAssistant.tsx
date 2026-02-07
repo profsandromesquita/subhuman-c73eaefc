@@ -133,20 +133,20 @@ export default function AIAssistant() {
         <div className="px-4 py-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex flex-col items-center gap-1">
-                <Logo size="sm" />
-                <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center">
-                  <Robot className="w-5 h-5 text-foreground" weight="fill" />
-                </div>
+              <div className="w-10 h-10 rounded-full bg-card flex items-center justify-center">
+                <Robot className="w-5 h-5 text-foreground" weight="fill" />
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-foreground">Subhumano IA</h1>
                 <p className="text-xs text-muted-foreground">Especialista em modelos de IA</p>
               </div>
             </div>
-            {messages.length > 0 && <Button variant="ghost" size="icon" onClick={requestClearMessages} className="text-muted-foreground hover:text-foreground">
-                <PlusCircle className="w-5 h-5" />
-              </Button>}
+            <div className="flex items-center gap-2">
+              {messages.length > 0 && <Button variant="ghost" size="icon" onClick={requestClearMessages} className="text-muted-foreground hover:text-foreground">
+                  <PlusCircle className="w-5 h-5" />
+                </Button>}
+              <Logo size="sm" />
+            </div>
           </div>
         </div>
 

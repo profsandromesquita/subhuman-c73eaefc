@@ -76,15 +76,16 @@ export default function Channels() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-        <Logo size="sm" className="mb-4" />
-        
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h1 className="text-2xl font-bold mb-1">Canais</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Canais</h1>
+            <Logo size="sm" />
+          </div>
           <p className="text-muted-foreground text-sm">
             Participe das discussões da comunidade
           </p>

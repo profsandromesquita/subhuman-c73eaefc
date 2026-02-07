@@ -48,15 +48,16 @@ export default function Spaces() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 pt-8">
-        <Logo size="sm" className="mb-4" />
-        
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h1 className="text-2xl font-bold mb-1">Espaços</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Espaços</h1>
+            <Logo size="sm" />
+          </div>
           <p className="text-muted-foreground text-sm">
             Escolha os temas que você quer acompanhar
           </p>

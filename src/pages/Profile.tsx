@@ -137,7 +137,10 @@ export default function Profile() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 pt-8">
-        <Logo size="sm" className="mb-4" />
+        <div className="flex items-center justify-between mb-4">
+          <div />
+          <Logo size="sm" />
+        </div>
         
         {/* Profile Header */}
         <motion.div
