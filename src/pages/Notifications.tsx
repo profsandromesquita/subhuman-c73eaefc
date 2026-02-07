@@ -107,33 +107,34 @@ export default function Notifications() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 pt-8">
-        <Logo size="sm" className="mb-4" />
-        
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-6"
+          className="mb-6"
         >
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Notificações</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Notificações</h1>
+            <Logo size="sm" />
+          </div>
+          <div className="flex items-center justify-between">
             <p className="text-muted-foreground text-sm">
               {unreadCount > 0 
                 ? `${unreadCount} não lida${unreadCount > 1 ? 's' : ''}`
                 : 'Fique por dentro de tudo'
               }
             </p>
+            {unreadCount > 0 && (
+              <button 
+                onClick={handleMarkAllRead}
+                disabled={markAllRead.isPending}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                <Check className="w-4 h-4" weight="bold" />
+                Marcar todas
+              </button>
+            )}
           </div>
-          {unreadCount > 0 && (
-            <button 
-              onClick={handleMarkAllRead}
-              disabled={markAllRead.isPending}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <Check className="w-4 h-4" weight="bold" />
-              Marcar todas
-            </button>
-          )}
         </motion.div>
 
         {/* Notifications List - Separated by read/unread */}

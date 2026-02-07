@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { Logo } from "@/components/Logo";
 import { PodcastCard } from "@/components/podcast/PodcastCard";
 import { PodcastFilters } from "@/components/podcast/PodcastFilters";
 import { usePodcasts } from "@/hooks/usePodcasts";
@@ -14,7 +15,10 @@ export default function Podcasts() {
       <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Podcast</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-foreground">Podcast</h1>
+            <Logo size="sm" />
+          </div>
           <p className="text-muted-foreground mt-1">
             Ouça episódios sobre IA e tecnologia
           </p>
