@@ -120,7 +120,8 @@ export default function AIAssistant() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-[calc(100dvh-64px)] max-w-lg mx-auto overflow-hidden">
+      <div className="fixed inset-0 flex flex-col bg-background z-10 pt-safe">
+      <div className="flex flex-col flex-1 max-w-lg mx-auto w-full overflow-hidden">
         {/* Header */}
         <div className="px-4 py-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
@@ -265,6 +266,7 @@ export default function AIAssistant() {
             </Button>
           </form>
         </div>
+      </div>
       </div>
 
       {/* Clear confirmation dialog */}
