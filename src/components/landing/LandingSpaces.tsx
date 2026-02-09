@@ -1,4 +1,6 @@
 import { Code2, Target, TrendingUp, Video, Heart } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "./ScrollReveal";
 
 const spaces = [
@@ -43,9 +45,9 @@ export function LandingSpaces() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-12">
           {spaces.map((space, i) => (
             <ScrollReveal key={space.name} delay={i * 0.08}>
-              <div className="group p-5 rounded-xl bg-card border border-border hover:border-muted-foreground/30 transition-all duration-300 h-full">
-                <div className="p-2.5 rounded-lg bg-secondary w-fit mb-4">
-                  <space.icon className="w-5 h-5 text-foreground" />
+              <div className="group p-5 rounded-xl bg-card border border-border hover:border-muted-foreground/30 hover:shadow-[0_0_20px_hsl(0_0%_100%_/_0.06)] transition-all duration-300 h-full">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-foreground/20 to-foreground/5 flex items-center justify-center mb-4">
+                  <space.icon className="w-7 h-7 text-foreground" />
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{space.name}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -55,6 +57,16 @@ export function LandingSpaces() {
             </ScrollReveal>
           ))}
         </div>
+
+        {/* CTA after spaces */}
+        <ScrollReveal delay={0.3}>
+          <div className="text-center mt-12">
+            <p className="text-muted-foreground mb-4">Escolha seus Espaços e comece a filtrar o ruído</p>
+            <Button asChild variant="glow" size="lg">
+              <Link to="/register">Começar Agora — 7 Dias Grátis</Link>
+            </Button>
+          </div>
+        </ScrollReveal>
       </div>
     </section>
   );

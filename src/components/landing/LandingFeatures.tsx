@@ -1,4 +1,6 @@
-import { Bot, Headphones, Users, Check } from "lucide-react";
+import { Bot, Headphones, Users, Check, Sparkles, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "./ScrollReveal";
 
 const features = [
@@ -12,6 +14,7 @@ const features = [
       "Resume posts complexos em segundos",
       "Corta ferramentas e cursos que não passam no crivo prático",
     ],
+    decoration: "ai",
   },
   {
     icon: Headphones,
@@ -22,6 +25,7 @@ const features = [
       "Consuma enquanto dirige, treina ou se desloca",
       "Sem \"novidades\" superficiais — só estratégia",
     ],
+    decoration: "podcast",
   },
   {
     icon: Users,
@@ -32,8 +36,61 @@ const features = [
       "Oportunidades reais de negócios e empregos em IA",
       "Discussões moderadas — sinal sempre vence o ruído",
     ],
+    decoration: "community",
   },
 ];
+
+function AIDecoration() {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <Bot className="absolute top-4 right-4 w-16 h-16 text-foreground/[0.06] animate-float" />
+      <Sparkles className="absolute bottom-8 right-12 w-12 h-12 text-foreground/[0.08] animate-float" style={{ animationDelay: "1s" }} />
+      <MessageSquare className="absolute top-1/2 right-2 w-10 h-10 text-foreground/[0.05] animate-float" style={{ animationDelay: "2s" }} />
+    </div>
+  );
+}
+
+function PodcastDecoration() {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-end pr-4">
+      <div className="flex items-end gap-1.5 opacity-15">
+        {[20, 32, 16, 28, 12].map((h, i) => (
+          <div
+            key={i}
+            className="w-2 bg-foreground rounded-full animate-pulse"
+            style={{ height: h, animationDelay: `${i * 0.2}s` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommunityDecoration() {
+  const gradients = [
+    "from-foreground/20 to-foreground/5",
+    "from-foreground/15 to-foreground/5",
+    "from-foreground/10 to-foreground/5",
+  ];
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-end pr-6">
+      <div className="flex flex-wrap gap-2 max-w-[100px] opacity-30">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-8 h-8 rounded-full bg-gradient-to-br ${gradients[i % 3]}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const decorations: Record<string, React.FC> = {
+  ai: AIDecoration,
+  podcast: PodcastDecoration,
+  community: CommunityDecoration,
+};
 
 export function LandingFeatures() {
   return (
@@ -47,39 +104,54 @@ export function LandingFeatures() {
         </ScrollReveal>
 
         <div className="space-y-16 sm:space-y-20">
-          {features.map((feat, i) => (
-            <ScrollReveal key={feat.subtitle} delay={0.1}>
-              <div
-                className={`flex flex-col ${
-                  i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
-                } gap-8 md:gap-12 items-center`}
-              >
-                {/* Icon */}
-                <div className="flex-shrink-0 p-6 rounded-2xl bg-card border border-border">
-                  <feat.icon className="w-12 h-12 text-foreground" />
-                </div>
+          {features.map((feat, i) => {
+            const Decoration = decorations[feat.decoration];
+            return (
+              <ScrollReveal key={feat.subtitle} delay={0.1}>
+                <div
+                  className={`relative flex flex-col ${
+                    i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
+                  } gap-8 md:gap-12 items-center`}
+                >
+                  {Decoration && <Decoration />}
 
-                {/* Content */}
-                <div className="flex-1">
-                  <h3 className="text-lg sm:text-xl font-bold mb-3">
-                    {feat.subtitle}
-                  </h3>
-                  <p className="text-muted-foreground leading-relaxed mb-4">
-                    {feat.text}
-                  </p>
-                  <ul className="space-y-2">
-                    {feat.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <Check className="w-4 h-4 text-foreground mt-0.5 flex-shrink-0" />
-                        <span>{b}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* Icon */}
+                  <div className="flex-shrink-0 p-6 rounded-2xl bg-card border border-border">
+                    <feat.icon className="w-12 h-12 text-foreground" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1">
+                    <h3 className="text-lg sm:text-xl font-bold mb-3">
+                      {feat.subtitle}
+                    </h3>
+                    <p className="text-muted-foreground leading-relaxed mb-4">
+                      {feat.text}
+                    </p>
+                    <ul className="space-y-2">
+                      {feat.bullets.map((b) => (
+                        <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <Check className="w-4 h-4 text-foreground mt-0.5 flex-shrink-0" />
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-              </div>
-            </ScrollReveal>
-          ))}
+              </ScrollReveal>
+            );
+          })}
         </div>
+
+        {/* CTA after features */}
+        <ScrollReveal delay={0.2}>
+          <div className="text-center mt-16">
+            <p className="text-muted-foreground mb-4">Todas as ferramentas incluídas em um único ecossistema</p>
+            <Button asChild variant="glow" size="lg">
+              <Link to="/register">Acessar o Ecossistema Completo</Link>
+            </Button>
+          </div>
+        </ScrollReveal>
       </div>
     </section>
   );

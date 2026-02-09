@@ -1,5 +1,11 @@
-import { GraduationCap, Landmark, Cog } from "lucide-react";
+import { GraduationCap, Landmark, Cog, BookOpen } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "./ScrollReveal";
+import profSandro from "@/assets/landing/prof-sandro.png";
+import logoFiocruz from "@/assets/landing/logo-fiocruz.png";
+import logoCesar from "@/assets/landing/logo-cesar.png";
+import logoIfce from "@/assets/landing/logo-ifce.png";
 
 const pillars = [
   {
@@ -19,6 +25,12 @@ const pillars = [
   },
 ];
 
+const badges = [
+  { logo: logoFiocruz, label: "Fiocruz" },
+  { logo: logoCesar, label: "CESAR School" },
+  { logo: logoIfce, label: "IFCE" },
+];
+
 export function LandingAuthor() {
   return (
     <section className="py-20 sm:py-28 px-6 surface-elevated">
@@ -30,6 +42,35 @@ export function LandingAuthor() {
           <p className="text-muted-foreground text-center text-base sm:text-lg max-w-2xl mx-auto mb-6">
             Você não está seguindo um "guru". Você está acessando a curadoria de um especialista de fronteira.
           </p>
+        </ScrollReveal>
+
+        {/* Photo + badges */}
+        <ScrollReveal delay={0.05}>
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-40 h-40 rounded-full overflow-hidden ring-2 ring-foreground/20 mb-4">
+              <img
+                src={profSandro}
+                alt="Prof. Sandro Mesquita"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {badges.map((b) => (
+                <div
+                  key={b.label}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary border border-border text-xs text-muted-foreground"
+                >
+                  <img src={b.logo} alt={b.label} className="w-5 h-5 object-contain" />
+                  <span>{b.label}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary border border-border text-xs text-muted-foreground">
+                <BookOpen className="w-4 h-4" />
+                <span>6 Livros Publicados</span>
+              </div>
+            </div>
+          </div>
         </ScrollReveal>
 
         <ScrollReveal delay={0.1}>
@@ -58,6 +99,15 @@ export function LandingAuthor() {
               "No Subhumano, você não recebe opiniões. Recebe o filtro de quem vive a IA onde o erro não é uma opção."
             </p>
           </blockquote>
+        </ScrollReveal>
+
+        {/* CTA after author */}
+        <ScrollReveal delay={0.25}>
+          <div className="text-center mt-8">
+            <Button asChild variant="glow" size="lg">
+              <Link to="/register">Entrar com Acesso Guiado por Especialista</Link>
+            </Button>
+          </div>
         </ScrollReveal>
       </div>
     </section>
