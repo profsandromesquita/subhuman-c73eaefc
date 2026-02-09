@@ -40,7 +40,7 @@ export function PhoneMockupCarousel() {
         }}
       >
         <div
-          className="rounded-[2.5rem] border-4 border-border overflow-hidden shadow-[0_0_60px_hsl(0_0%_100%_/_0.08)] bg-card sm:[transform:rotateX(5deg)]"
+          className="rounded-[2.5rem] border-4 border-border overflow-hidden shadow-[0_0_60px_hsl(0_0%_100%_/_0.08)] bg-card"
           style={{ aspectRatio: "9/19.5" }}
         >
           <div ref={emblaRef} className="overflow-hidden h-full">
