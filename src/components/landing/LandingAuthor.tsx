@@ -47,7 +47,7 @@ export function LandingAuthor() {
         {/* Photo + badges */}
         <ScrollReveal delay={0.05}>
           <div className="flex flex-col items-center mb-10">
-            <div className="w-40 h-40 rounded-full overflow-hidden ring-2 ring-foreground/20 mb-4">
+            <div className="w-48 h-56 rounded-xl overflow-hidden ring-2 ring-foreground/20 mb-4 transition-transform duration-300 hover:scale-105">
               <img
                 src={profSandro}
                 alt="Prof. Sandro Mesquita"

@@ -46,11 +46,11 @@ export function PhoneMockupCarousel() {
           <div ref={emblaRef} className="overflow-hidden h-full">
             <div className="flex h-full">
               {screens.map((src, i) => (
-                <div key={i} className="flex-[0_0_100%] min-w-0 h-full">
+                <div key={i} className="flex-[0_0_100%] min-w-0 h-full bg-black">
                   <img
                     src={src}
                     alt={labels[i]}
-                    className="w-full h-full object-cover object-top"
+                    className="w-full h-full object-contain object-top"
                     loading="lazy"
                   />
                 </div>
