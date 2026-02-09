@@ -1,5 +1,8 @@
 import { ShieldOff, Map, BookOpen, Users, Bot, Headphones } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "./ScrollReveal";
+import { motion } from "framer-motion";
 
 const steps = [
   { num: 1, icon: ShieldOff, title: "Filtro — Detox de Ruído", desc: "Nossa plataforma identifica e descarta o lixo tecnológico para você." },
@@ -26,16 +29,22 @@ export function LandingMethod() {
 
         <div className="relative">
           {/* Vertical line */}
-          <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
+          <div className="absolute left-5 top-0 bottom-0 w-px bg-foreground/10" />
 
           <div className="space-y-10">
             {steps.map((step, i) => (
               <ScrollReveal key={step.num} delay={i * 0.08}>
                 <div className="flex gap-6 relative">
-                  {/* Number circle */}
-                  <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-secondary border border-border flex items-center justify-center">
+                  {/* Number circle with whileInView animation */}
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0.5 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    viewport={{ once: true, amount: 0.8 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                    className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-foreground text-background border border-border flex items-center justify-center shadow-[0_0_12px_hsl(0_0%_100%_/_0.1)]"
+                  >
                     <span className="text-sm font-bold">{step.num}</span>
-                  </div>
+                  </motion.div>
 
                   <div className="pt-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -51,6 +60,16 @@ export function LandingMethod() {
             ))}
           </div>
         </div>
+
+        {/* CTA after method */}
+        <ScrollReveal delay={0.3}>
+          <div className="text-center mt-12">
+            <p className="text-muted-foreground mb-4">Aplique o método na prática — comece pelo primeiro filtro</p>
+            <Button asChild variant="outline" size="lg">
+              <Link to="/register">Testar o Método por 7 Dias</Link>
+            </Button>
+          </div>
+        </ScrollReveal>
       </div>
     </section>
   );

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { LandingHero } from "@/components/landing/LandingHero";
+import { LandingSocialProof } from "@/components/landing/LandingSocialProof";
 import { LandingProblem } from "@/components/landing/LandingProblem";
 import { LandingSpaces } from "@/components/landing/LandingSpaces";
 import { LandingFeatures } from "@/components/landing/LandingFeatures";
@@ -11,6 +12,8 @@ import { LandingAuthor } from "@/components/landing/LandingAuthor";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
 import { LandingCTA } from "@/components/landing/LandingCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { GradientOrbs } from "@/components/landing/GradientOrbs";
+import { StickyBottomCTA } from "@/components/landing/StickyBottomCTA";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -41,16 +44,21 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden relative">
+      <GradientOrbs />
       <LandingHero />
+      <LandingSocialProof />
       <LandingProblem />
       <LandingSpaces />
       <LandingFeatures />
       <LandingMethod />
       <LandingAuthor />
       <LandingFAQ />
-      <LandingCTA />
+      <div id="landing-cta-final">
+        <LandingCTA />
+      </div>
       <LandingFooter />
+      <StickyBottomCTA />
     </div>
   );
 }

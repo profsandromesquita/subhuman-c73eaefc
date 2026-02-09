@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
+import { PhoneMockupCarousel } from "./PhoneMockupCarousel";
 
 export function LandingHero() {
   return (
@@ -55,6 +56,16 @@ export function LandingHero() {
           <Button asChild variant="outline" size="xl">
             <Link to="/login">Já tenho conta</Link>
           </Button>
+        </motion.div>
+
+        {/* Phone Mockup Carousel */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.6 }}
+          className="mt-16"
+        >
+          <PhoneMockupCarousel />
         </motion.div>
       </div>
 
