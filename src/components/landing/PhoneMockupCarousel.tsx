@@ -59,8 +59,6 @@ export function PhoneMockupCarousel() {
           </div>
         </div>
 
-        {/* Fade at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-background to-transparent rounded-b-[2.5rem] pointer-events-none" />
       </div>
 
       {/* Dots */}
