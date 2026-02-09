@@ -46,14 +46,15 @@ export function LandingAuthor() {
 
         {/* Photo + badges */}
         <ScrollReveal delay={0.05}>
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-48 h-56 rounded-xl overflow-hidden ring-2 ring-foreground/20 mb-4 transition-transform duration-300 hover:scale-105">
+          <div className="mb-10">
+            <div className="relative w-full h-64 sm:h-80 lg:h-96 rounded-xl overflow-hidden ring-2 ring-foreground/20 mb-4 group">
               <img
                 src={profSandro}
                 alt="Prof. Sandro Mesquita"
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
+              <div className="absolute inset-0 bg-black/50 group-hover:bg-black/0 transition-all duration-500" />
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {badges.map((b) => (
