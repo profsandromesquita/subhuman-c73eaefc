@@ -34,7 +34,7 @@ export function PhoneMockupCarousel() {
     <div className="flex flex-col items-center">
       {/* Phone frame with perspective on desktop */}
       <div
-        className="relative max-w-[280px] sm:max-w-[300px] mx-auto"
+        className="relative max-w-[252px] sm:max-w-[270px] mx-auto"
         style={{
           perspective: "1000px",
         }}
