@@ -1,21 +1,46 @@
 
 
-# Corrigir espaço morto no frame do celular
+# Ajustar imagem do Prof. Sandro — largura total + overlay com hover
 
 ## Problema
 
-O frame do celular usa `aspect-ratio: 9/19.5` que é mais alto do que as screenshots reais. Isso cria um espaço preto vazio abaixo da barra de navegação inferior das imagens.
+A imagem do Prof. Sandro esta pequena (w-48 h-56) e destoa dos cards abaixo que ocupam a largura total do grid (3 colunas no desktop).
 
-## Solução
+## Solucao
 
-No arquivo `src/components/landing/PhoneMockupCarousel.tsx` (linha 48):
+No arquivo `src/components/landing/LandingAuthor.tsx` (linhas 49-57):
 
-- Alterar o aspect-ratio de `9/19.5` para `9/18` (proporção mais compatível com telas reais de celular)
-- Isso elimina o espaço morto inferior, fazendo a imagem preencher corretamente o frame
+### 1. Expandir a imagem para largura total
+- Remover `w-48 h-56` e `flex flex-col items-center`
+- Usar `w-full` com uma altura fixa responsiva (`h-64 sm:h-80 lg:h-96`)
+- Manter `rounded-xl overflow-hidden`
+
+### 2. Adicionar overlay preto 50% com hover
+- Usar `position: relative` no container da imagem
+- Adicionar um `div` absoluto por cima com `bg-black/50` (50% de transparencia)
+- No hover, transicionar para `bg-black/0` (transparencia total)
+- Usar `transition-all duration-500` para suavizar
+
+### Codigo resultante (linhas 49-62 aproximadamente)
+
+```tsx
+<div className="relative w-full h-64 sm:h-80 lg:h-96 rounded-xl overflow-hidden ring-2 ring-foreground/20 mb-4 group">
+  <img
+    src={profSandro}
+    alt="Prof. Sandro Mesquita"
+    className="w-full h-full object-cover"
+    loading="lazy"
+  />
+  <div className="absolute inset-0 bg-black/50 group-hover:bg-black/0 transition-all duration-500" />
+</div>
+```
+
+- Remover `hover:scale-105` e `transition-transform` do container antigo
+- Manter os badges centralizados abaixo normalmente
 
 ## Arquivo alterado
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---------|---------|
-| `src/components/landing/PhoneMockupCarousel.tsx` | `aspectRatio: "9/19.5"` → `aspectRatio: "9/18"` |
+| `src/components/landing/LandingAuthor.tsx` | Imagem full-width + overlay preto 50% com hover reveal |
 
