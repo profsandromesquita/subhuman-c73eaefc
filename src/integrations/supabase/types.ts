@@ -146,6 +146,13 @@ export type Database = {
             foreignKeyName: "channel_post_comments_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "channel_post_stats"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "channel_post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "channel_posts"
             referencedColumns: ["id"]
           },
@@ -171,6 +178,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "channel_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "channel_post_stats"
+            referencedColumns: ["post_id"]
+          },
           {
             foreignKeyName: "channel_post_likes_post_id_fkey"
             columns: ["post_id"]
@@ -218,6 +232,13 @@ export type Database = {
           youtube_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "channel_post_media_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "channel_post_stats"
+            referencedColumns: ["post_id"]
+          },
           {
             foreignKeyName: "channel_post_media_post_id_fkey"
             columns: ["post_id"]
@@ -1024,6 +1045,13 @@ export type Database = {
             foreignKeyName: "saved_updates_update_id_fkey"
             columns: ["update_id"]
             isOneToOne: false
+            referencedRelation: "space_update_stats"
+            referencedColumns: ["update_id"]
+          },
+          {
+            foreignKeyName: "saved_updates_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
             referencedRelation: "space_updates"
             referencedColumns: ["id"]
           },
@@ -1071,6 +1099,13 @@ export type Database = {
             foreignKeyName: "space_update_media_update_id_fkey"
             columns: ["update_id"]
             isOneToOne: false
+            referencedRelation: "space_update_stats"
+            referencedColumns: ["update_id"]
+          },
+          {
+            foreignKeyName: "space_update_media_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
             referencedRelation: "space_updates"
             referencedColumns: ["id"]
           },
@@ -1085,6 +1120,7 @@ export type Database = {
           is_published: boolean
           media_type: string | null
           published_at: string | null
+          read_time_minutes: number | null
           scheduled_at: string | null
           slug: string
           space_id: string
@@ -1100,6 +1136,7 @@ export type Database = {
           is_published?: boolean
           media_type?: string | null
           published_at?: string | null
+          read_time_minutes?: number | null
           scheduled_at?: string | null
           slug: string
           space_id: string
@@ -1115,6 +1152,7 @@ export type Database = {
           is_published?: boolean
           media_type?: string | null
           published_at?: string | null
+          read_time_minutes?: number | null
           scheduled_at?: string | null
           slug?: string
           space_id?: string
@@ -1247,6 +1285,13 @@ export type Database = {
             foreignKeyName: "update_comments_update_id_fkey"
             columns: ["update_id"]
             isOneToOne: false
+            referencedRelation: "space_update_stats"
+            referencedColumns: ["update_id"]
+          },
+          {
+            foreignKeyName: "update_comments_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
             referencedRelation: "space_updates"
             referencedColumns: ["id"]
           },
@@ -1272,6 +1317,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "update_likes_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "space_update_stats"
+            referencedColumns: ["update_id"]
+          },
           {
             foreignKeyName: "update_likes_update_id_fkey"
             columns: ["update_id"]
@@ -1333,6 +1385,14 @@ export type Database = {
       }
     }
     Views: {
+      channel_post_stats: {
+        Row: {
+          comments_count: number | null
+          likes_count: number | null
+          post_id: string | null
+        }
+        Relationships: []
+      }
       channel_stats: {
         Row: {
           channel_id: string | null
@@ -1350,6 +1410,14 @@ export type Database = {
           },
         ]
       }
+      space_update_stats: {
+        Row: {
+          comments_count: number | null
+          likes_count: number | null
+          update_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_access_channel: {
@@ -1357,6 +1425,10 @@ export type Database = {
         Returns: boolean
       }
       generate_slug: { Args: { title: string }; Returns: string }
+      get_unread_notifications_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       has_any_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {
