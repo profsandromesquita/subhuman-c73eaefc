@@ -61,7 +61,7 @@ export default function Plans() {
   const canStartTrial = status === 'none';
 
   // Determine back navigation destination
-  const backDestination = user ? '/home' : '/register';
+  const backDestination = user ? '/' : '/register';
 
   const handleBackClick = () => {
     if (canStartTrial) {

@@ -297,8 +297,8 @@ export function useRecentDiscussions() {
   return useQuery({
     queryKey: ["recent-discussions", user?.id],
     queryFn: async () => {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const { data: posts, error } = await supabase
         .from("channel_posts")
@@ -308,7 +308,7 @@ export function useRecentDiscussions() {
           profiles:author_id(full_name)
         `)
         .eq("is_moderated", false)
-        .gte("created_at", sevenDaysAgo.toISOString())
+        .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(50);
 
