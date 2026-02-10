@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatTime } from "@/lib/formatTime";
 import { useSpace } from "@/hooks/useSpaces";
 import { useSpaceUpdates } from "@/hooks/usePosts";
+import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 
 // Max animation delay (prevents long waits for lists)
 const MAX_STAGGER_ITEMS = 4;
@@ -33,7 +34,8 @@ export default function SpaceDetail() {
   const navigate = useNavigate();
   
   const { data: space, isLoading: loadingSpace } = useSpace(spaceSlug);
-  const { data: updates = [], isLoading: loadingUpdates } = useSpaceUpdates(space?.id);
+  const { data, isLoading: loadingUpdates, hasNextPage, isFetchingNextPage, fetchNextPage } = useSpaceUpdates(space?.id);
+  const updates = data?.pages.flatMap(p => p.items) ?? [];
 
   const loading = loadingSpace || loadingUpdates;
 
@@ -142,12 +144,10 @@ export default function SpaceDetail() {
                 >
                   <CardContent className="p-4">
                     <div className="flex gap-3">
-                      {/* Conteúdo à esquerda */}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold leading-snug line-clamp-3">
                           {update.title}
                         </h3>
-                        {/* Interações e tempo na mesma linha */}
                         <div className="flex items-center justify-between mt-3">
                           <div className="flex items-center gap-3">
                             <Button 
@@ -180,7 +180,6 @@ export default function SpaceDetail() {
                         </div>
                       </div>
                       
-                      {/* Miniatura à direita */}
                       {update.thumbnail_url && (
                         <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
                           <img 
@@ -201,6 +200,11 @@ export default function SpaceDetail() {
                 </Card>
               </motion.div>
             ))}
+            <InfiniteScrollTrigger
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+            />
           </div>
         )}
       </div>
