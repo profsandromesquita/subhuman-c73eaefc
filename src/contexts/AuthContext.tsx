@@ -19,6 +19,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const currentUserIdRef = useRef<string | null>(null);
+  const initialSessionChecked = useRef(false);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -30,13 +31,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession(session);
         
         // Only update user if ID actually changed
-        // This prevents re-renders when only the token is refreshed
         if (newUserId !== currentUserIdRef.current) {
           currentUserIdRef.current = newUserId;
           setUser(session?.user ?? null);
         }
         
-        setLoading(false);
+        // Only resolve loading after initial session check completed
+        if (initialSessionChecked.current) {
+          setLoading(false);
+        }
       }
     );
 
@@ -48,6 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         currentUserIdRef.current = userId;
         setUser(session?.user ?? null);
       }
+      initialSessionChecked.current = true;
       setLoading(false);
     });
 
