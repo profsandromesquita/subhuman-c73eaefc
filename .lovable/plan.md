@@ -1,110 +1,88 @@
 
 
-# Correcoes: Logo cortada, Input IA sobreposto, Miniatura Podcast no lock screen
+# Melhorias na Experiencia de Podcast: Progresso, Retomada e Status Visual
 
-## 1. Logo cortada na Landing Page (imagem 1)
+## Problemas Identificados
 
-**Causa**: A secao hero usa `min-h-screen flex items-center justify-center`, centralizando verticalmente o conteudo. A logo `xl` (h-32) com `mb-12` fica muito proxima do topo da tela em dispositivos moveis, sendo cortada pela barra de status do iOS.
+1. Os hooks `useTrackPodcastListen` e `useListenedPodcasts` usam `as any` no nome da tabela `podcast_listens`, mesmo ela existindo nos types gerados. Isso pode causar falhas silenciosas.
+2. `useListenedPodcasts` so busca podcasts com `completed = true`, ignorando os em progresso.
+3. O `PodcastPlayer` nao carrega o progresso salvo ao abrir — sempre comeca do zero.
+4. O `PodcastCard` nao mostra barra de progresso visual — so tem o check verde (que depende de dados que podem nao estar chegando).
 
-**Solucao**: Adicionar `pt-16` (padding-top) na secao hero para garantir espaco seguro acima da logo no mobile.
+## Solucao
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/components/landing/LandingHero.tsx` | Adicionar `pt-16` na section (linha 10) |
+### 1. Corrigir hooks em `src/hooks/usePodcasts.ts`
+
+- Remover `as any` de todas as referencias a `podcast_listens` (a tabela ja existe nos types)
+- Alterar `useListenedPodcasts` para buscar TODOS os registros do usuario (nao apenas `completed = true`), retornando `podcast_id`, `completed` e `progress_seconds`
+- Criar novo hook `usePodcastProgress(podcastId)` que busca o progresso salvo de um episodio especifico (para usar no player ao abrir)
+
+### 2. Retomar de onde parou no `PodcastPlayer`
+
+- Adicionar novo hook `usePodcastProgress` que busca `progress_seconds` do banco
+- No `PodcastPlayer`, receber `initialProgress` como prop
+- No `PodcastDetail`, buscar o progresso salvo e passa-lo ao player
+- No `useEffect` de `loadedmetadata`, setar `audio.currentTime` para o progresso salvo (se existir e nao for completo)
+
+### 3. Barra de progresso visual no `PodcastCard`
+
+- Receber `progressPercent` (0-100) como prop no `PodcastCard`
+- Mostrar uma barra fina (h-1) na parte inferior do card indicando quanto foi ouvido
+- Se `completed`, mostrar o check verde (ja implementado)
+- Se em progresso (progressPercent > 0 e < 100), mostrar a barra parcial
+
+### 4. Integrar tudo na pagina `Podcasts.tsx`
+
+- Alterar `useListenedPodcasts` para retornar todos os registros (com e sem completed)
+- Construir mapa de progresso por podcast_id
+- Passar `progressPercent` e `isListened` para cada `PodcastCard`
 
 ---
 
-## 2. Caixa de texto da IA sobreposta pelo menu inferior (imagem 2)
+## Detalhes Tecnicos
 
-**Causa**: O input area usa `pb-20` (linha 219), mas a bottom nav (h-16 + safe-area) pode ser maior em dispositivos com home indicator (iPhone). O input fica parcialmente escondido atras da nav.
-
-**Solucao**: Aumentar o `pb-20` para `pb-24` e adicionar `pb-safe` para garantir espaco suficiente em todos os dispositivos iOS.
+### Arquivos alterados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/pages/AIAssistant.tsx` | Alterar `pb-20` para `pb-28` no container do input (linha 219) |
+| `src/hooks/usePodcasts.ts` | Remover `as any`, alterar `useListenedPodcasts` para buscar todos, criar `usePodcastProgress` |
+| `src/components/podcast/PodcastCard.tsx` | Adicionar prop `progressPercent` e barra visual de progresso |
+| `src/components/podcast/PodcastPlayer.tsx` | Aceitar `initialProgress` e setar currentTime no load |
+| `src/pages/PodcastDetail.tsx` | Buscar progresso salvo e passar ao player |
+| `src/pages/Podcasts.tsx` | Calcular e passar progressPercent para cada card |
 
----
-
-## 3. Miniatura do podcast na tela de bloqueio (imagem 3)
-
-**Causa**: O player nao utiliza a Media Session API do navegador. Por padrao, o iOS/Android mostra o icone do PWA (logo do Subhumano) na tela de bloqueio.
-
-**Solucao**: Implementar a `navigator.mediaSession` API no componente `PodcastPlayer`, configurando:
-- `metadata.title` com o titulo do episodio
-- `metadata.artist` com "Subhumano"
-- `metadata.artwork` com a `coverUrl` do episodio (em multiplos tamanhos)
-- Action handlers para play, pause, seekbackward, seekforward
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/components/podcast/PodcastPlayer.tsx` | Adicionar useEffect com navigator.mediaSession metadata e action handlers |
-
-Codigo relevante:
-```tsx
-useEffect(() => {
-  if (!("mediaSession" in navigator)) return;
-  
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: title,
-    artist: "Subhumano",
-    album: "Podcast",
-    artwork: coverUrl
-      ? [
-          { src: coverUrl, sizes: "96x96", type: "image/png" },
-          { src: coverUrl, sizes: "128x128", type: "image/png" },
-          { src: coverUrl, sizes: "192x192", type: "image/png" },
-          { src: coverUrl, sizes: "256x256", type: "image/png" },
-          { src: coverUrl, sizes: "384x384", type: "image/png" },
-          { src: coverUrl, sizes: "512x512", type: "image/png" },
-        ]
-      : [],
+### Hook `usePodcastProgress`
+```typescript
+export function usePodcastProgress(podcastId: string | undefined) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["podcast-progress", podcastId, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("podcast_listens")
+        .select("progress_seconds, completed")
+        .eq("user_id", user!.id)
+        .eq("podcast_id", podcastId!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && !!podcastId,
   });
-
-  navigator.mediaSession.setActionHandler("play", () => { /* toggle play */ });
-  navigator.mediaSession.setActionHandler("pause", () => { /* toggle pause */ });
-  navigator.mediaSession.setActionHandler("seekbackward", () => skip(-15));
-  navigator.mediaSession.setActionHandler("seekforward", () => skip(15));
-}, [title, coverUrl]);
+}
 ```
 
----
+### Barra de progresso no PodcastCard
+Uma barra fina colorida (bg-blue-500 ou bg-green-500 se completo) na base do card, ocupando a porcentagem correspondente da largura.
 
-## 4. Indicador de "ja ouvido" nos podcasts (imagem 4 - Spotify-style)
+### Retomada no PodcastPlayer
+```typescript
+// Ao carregar o audio, setar posicao inicial
+const handleLoadedMetadata = () => {
+  setDuration(audio.duration);
+  if (initialProgress && initialProgress > 0 && initialProgress < audio.duration - 5) {
+    audio.currentTime = initialProgress;
+    setCurrentTime(initialProgress);
+  }
+};
+```
 
-**Causa**: Nao existe rastreamento de progresso de escuta dos podcasts.
-
-**Solucao**: Criar uma tabela `podcast_listens` no banco de dados para rastrear o progresso de escuta por usuario. Adicionar um indicador visual (check verde) no `PodcastCard` quando o episodio foi ouvido ate o final (>90% de progresso).
-
-### Banco de dados
-Nova tabela `podcast_listens`:
-- `id` (uuid, PK)
-- `user_id` (uuid, NOT NULL)
-- `podcast_id` (uuid, FK podcasts)
-- `progress_seconds` (integer, default 0)
-- `completed` (boolean, default false)
-- `updated_at` (timestamptz)
-- Constraint UNIQUE(user_id, podcast_id)
-- RLS: usuario so le/escreve seus proprios registros
-
-### Componentes alterados
-
-| Arquivo | Mudanca |
-|---------|---------|
-| Migration SQL | Criar tabela `podcast_listens` com RLS |
-| `src/hooks/usePodcasts.ts` | Adicionar hooks `useTrackListen` e `useListenedPodcasts` |
-| `src/components/podcast/PodcastPlayer.tsx` | Salvar progresso periodicamente e marcar como completo em >90% |
-| `src/components/podcast/PodcastCard.tsx` | Mostrar icone de check verde quando `completed = true` |
-
-O PodcastCard mostrara um pequeno icone de check (CheckCircle) verde no canto da miniatura quando o podcast ja foi ouvido completamente.
-
----
-
-## Resumo
-
-| # | Problema | Arquivo(s) | Tipo |
-|---|----------|-----------|------|
-| 1 | Logo cortada | LandingHero.tsx | CSS |
-| 2 | Input IA sobreposto | AIAssistant.tsx | CSS |
-| 3 | Miniatura lock screen | PodcastPlayer.tsx | Media Session API |
-| 4 | Check "ja ouvido" | DB + PodcastPlayer + PodcastCard + usePodcasts | Feature nova |
