@@ -216,7 +216,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Input Area */}
-        <div className="px-4 py-3 pb-20 border-t border-border bg-background shrink-0">
+        <div className="px-4 py-3 pb-28 border-t border-border bg-background shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoading} className="flex-1" />
             <Button type="submit" disabled={!input.trim() || isLoading} size="icon" className="shrink-0">

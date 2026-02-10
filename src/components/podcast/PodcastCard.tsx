@@ -3,13 +3,14 @@ import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Podcast, formatDuration } from "@/hooks/usePodcasts";
-import { Play } from "@phosphor-icons/react";
+import { Play, CheckCircle } from "@phosphor-icons/react";
 
 interface PodcastCardProps {
   podcast: Podcast;
+  isListened?: boolean;
 }
 
-export function PodcastCard({ podcast }: PodcastCardProps) {
+export function PodcastCard({ podcast, isListened }: PodcastCardProps) {
   const timeAgo = podcast.published_at
     ? formatDistanceToNow(new Date(podcast.published_at), {
         addSuffix: true,
@@ -39,6 +40,12 @@ export function PodcastCard({ podcast }: PodcastCardProps) {
         <div className="absolute bottom-1 right-1 bg-background/80 backdrop-blur-sm text-xs font-medium px-1.5 py-0.5 rounded">
           {formatDuration(podcast.duration_seconds)}
         </div>
+        {/* Listened indicator */}
+        {isListened && (
+          <div className="absolute top-1 left-1">
+            <CheckCircle className="w-5 h-5 text-green-500" weight="fill" />
+          </div>
+        )}
       </div>
 
       {/* Content */}

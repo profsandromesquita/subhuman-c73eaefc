@@ -3,12 +3,14 @@ import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
 import { PodcastCard } from "@/components/podcast/PodcastCard";
 import { PodcastFilters } from "@/components/podcast/PodcastFilters";
-import { usePodcasts } from "@/hooks/usePodcasts";
+import { usePodcasts, useListenedPodcasts } from "@/hooks/usePodcasts";
 import { Microphone } from "@phosphor-icons/react";
 
 export default function Podcasts() {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const { data: podcasts, isLoading } = usePodcasts(selectedSpaceId);
+  const { data: listenedPodcasts } = useListenedPodcasts();
+  const listenedSet = new Set(listenedPodcasts?.map(l => l.podcast_id) || []);
 
   return (
     <AppLayout>
@@ -49,7 +51,7 @@ export default function Podcasts() {
             ))
           ) : podcasts && podcasts.length > 0 ? (
             podcasts.map((podcast) => (
-              <PodcastCard key={podcast.id} podcast={podcast} />
+              <PodcastCard key={podcast.id} podcast={podcast} isListened={listenedSet.has(podcast.id)} />
             ))
           ) : (
             // Empty state

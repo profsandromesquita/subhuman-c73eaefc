@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,20 +10,25 @@ import {
   SpeakerSlash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useTrackPodcastListen } from "@/hooks/usePodcasts";
 
 interface PodcastPlayerProps {
   audioUrl: string;
   title: string;
   coverUrl?: string | null;
+  podcastId?: string;
+  durationSeconds?: number | null;
 }
 
-export function PodcastPlayer({ audioUrl, title, coverUrl }: PodcastPlayerProps) {
+export function PodcastPlayer({ audioUrl, title, coverUrl, podcastId, durationSeconds }: PodcastPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const trackListen = useTrackPodcastListen();
+  const lastTrackedRef = useRef(0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -31,7 +36,13 @@ export function PodcastPlayer({ audioUrl, title, coverUrl }: PodcastPlayerProps)
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleLoadedMetadata = () => setDuration(audio.duration);
-    const handleEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      // Mark as completed on end
+      if (podcastId) {
+        trackListen.mutate({ podcastId, progressSeconds: Math.floor(audio.duration), totalSeconds: durationSeconds || Math.floor(audio.duration) });
+      }
+    };
 
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -42,7 +53,55 @@ export function PodcastPlayer({ audioUrl, title, coverUrl }: PodcastPlayerProps)
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, []);
+  }, [podcastId, durationSeconds]);
+
+  // Ref for Media Session handlers
+  const togglePlayRef = useRef(() => {});
+
+  // Track progress every 30 seconds
+  useEffect(() => {
+    if (!podcastId || !isPlaying) return;
+    const interval = setInterval(() => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const secs = Math.floor(audio.currentTime);
+      if (secs - lastTrackedRef.current >= 30) {
+        lastTrackedRef.current = secs;
+        trackListen.mutate({ podcastId, progressSeconds: secs, totalSeconds: durationSeconds || Math.floor(audio.duration) });
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [podcastId, isPlaying, durationSeconds]);
+
+  // Media Session API
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist: "Subhumano",
+      album: "Podcast",
+      artwork: coverUrl
+        ? [
+            { src: coverUrl, sizes: "96x96", type: "image/png" },
+            { src: coverUrl, sizes: "256x256", type: "image/png" },
+            { src: coverUrl, sizes: "512x512", type: "image/png" },
+          ]
+        : [],
+    });
+
+    navigator.mediaSession.setActionHandler("play", () => togglePlayRef.current());
+    navigator.mediaSession.setActionHandler("pause", () => togglePlayRef.current());
+    navigator.mediaSession.setActionHandler("seekbackward", () => skip(-15));
+    navigator.mediaSession.setActionHandler("seekforward", () => skip(15));
+
+    return () => {
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("seekbackward", null);
+      navigator.mediaSession.setActionHandler("seekforward", null);
+    };
+  }, [title, coverUrl]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -55,6 +114,9 @@ export function PodcastPlayer({ audioUrl, title, coverUrl }: PodcastPlayerProps)
     }
     setIsPlaying(!isPlaying);
   };
+
+  // Keep togglePlayRef in sync
+  togglePlayRef.current = togglePlay;
 
   const seek = (value: number[]) => {
     const audio = audioRef.current;

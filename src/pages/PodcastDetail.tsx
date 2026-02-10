@@ -338,6 +338,8 @@ export default function PodcastDetail() {
             audioUrl={podcast.audio_url}
             title={podcast.title}
             coverUrl={podcast.cover_url}
+            podcastId={podcast.id}
+            durationSeconds={podcast.duration_seconds}
           />
 
           <div className="space-y-4 text-center">

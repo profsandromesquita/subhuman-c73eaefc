@@ -590,6 +590,41 @@ export type Database = {
           },
         ]
       }
+      podcast_listens: {
+        Row: {
+          completed: boolean
+          id: string
+          podcast_id: string
+          progress_seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          id?: string
+          podcast_id: string
+          progress_seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          id?: string
+          podcast_id?: string
+          progress_seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_listens_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcasts: {
         Row: {
           audio_url: string
