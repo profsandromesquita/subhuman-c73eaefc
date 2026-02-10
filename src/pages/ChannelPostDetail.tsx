@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useDeleteChannelPost } from "@/hooks/usePosts";
+import { useChannelPostDetail, type ChannelPostComment } from "@/hooks/useChannelPostDetail";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -35,30 +36,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface Post {
-  id: string;
-  title: string | null;
-  content: string;
-  created_at: string;
-  author_id: string | null;
-  author_name: string | null;
-  author_avatar: string | null;
-  channel_name: string;
-}
-
-interface Comment {
-  id: string;
-  content: string;
-  created_at: string;
-  user_id: string;
-  author_name: string;
-  author_avatar: string | null;
-  parent_id: string | null;
-  likes_count: number;
-  is_liked: boolean;
-  replies: Comment[];
-}
-
 export default function ChannelPostDetail() {
   const { channelId, postId } = useParams<{ channelId: string; postId: string }>();
   const navigate = useNavigate();
@@ -67,17 +44,22 @@ export default function ChannelPostDetail() {
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteChannelPost();
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
-  
-  const [post, setPost] = useState<Post | null>(null);
-  const [media, setMedia] = useState<any[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [likesCount, setLikesCount] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
+
+  const { data, isLoading } = useChannelPostDetail(postId);
+
   const [commentContent, setCommentContent] = useState("");
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Local optimistic state for likes
+  const [optimisticLike, setOptimisticLike] = useState<{ isLiked: boolean; likesCount: number } | null>(null);
+
+  const post = data?.post ?? null;
+  const media = data?.media ?? [];
+  const comments = data?.comments ?? [];
+  const likesCount = optimisticLike?.likesCount ?? data?.likesCount ?? 0;
+  const isLiked = optimisticLike?.isLiked ?? data?.isLiked ?? false;
 
   const canEdit = user?.id === post?.author_id;
   const canDelete = user?.id === post?.author_id || isAdminOrModerator;
@@ -94,196 +76,28 @@ export default function ChannelPostDetail() {
     }
   };
 
-  useEffect(() => {
-    if (postId) {
-      fetchPost();
-      fetchMedia();
-      fetchComments();
-      checkUserLiked();
-    }
-  }, [postId, user]);
-
-  const fetchPost = async () => {
-    setLoading(true);
-
-    // Get post data
-    const { data: postData, error } = await supabase
-      .from('channel_posts')
-      .select('*, channels(name)')
-      .eq('id', postId)
-      .single();
-
-    if (error || !postData) {
-      console.error('Error fetching post:', error);
-      setLoading(false);
-      return;
-    }
-
-    // Get author profile
-    let authorName = 'Usuário';
-    let authorAvatar = null;
-    if (postData.author_id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, avatar_url')
-        .eq('id', postData.author_id)
-        .single();
-      if (profile) {
-        authorName = profile.full_name || 'Usuário';
-        authorAvatar = profile.avatar_url;
-      }
-    }
-
-    // Get likes count
-    const { count } = await supabase
-      .from('channel_post_likes')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_id', postId);
-
-    setLikesCount(count || 0);
-
-    setPost({
-      id: postData.id,
-      title: (postData as any).title || null,
-      content: postData.content,
-      created_at: postData.created_at,
-      author_id: postData.author_id,
-      author_name: authorName,
-      author_avatar: authorAvatar,
-      channel_name: (postData as any).channels?.name || 'Canal',
-    });
-
-    setLoading(false);
-  };
-
-  const fetchMedia = async () => {
-    const { data, error } = await supabase
-      .from('channel_post_media')
-      .select('*')
-      .eq('post_id', postId)
-      .order('sort_order', { ascending: true });
-
-    if (!error && data) {
-      setMedia(data);
-    }
-  };
-
-  const fetchComments = async () => {
-    const { data: commentsData, error } = await supabase
-      .from('channel_post_comments')
-      .select('*')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true })
-      .limit(100);
-
-    if (error) {
-      console.error('Error fetching comments:', error);
-      return;
-    }
-
-    if (!commentsData || commentsData.length === 0) {
-      setComments([]);
-      return;
-    }
-
-    const commentIds = commentsData.map(c => c.id);
-    const uniqueUserIds = [...new Set(commentsData.map(c => c.user_id))];
-
-    // Batch fetch all related data in parallel (no N+1!)
-    const [profilesResult, likesCountResult, userLikesResult] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, avatar_url').in('id', uniqueUserIds),
-      supabase.from('channel_post_comment_likes').select('comment_id').in('comment_id', commentIds),
-      user
-        ? supabase.from('channel_post_comment_likes').select('comment_id').in('comment_id', commentIds).eq('user_id', user.id)
-        : Promise.resolve({ data: [] }),
-    ]);
-
-    // Build lookup maps
-    const profilesMap = new Map(
-      profilesResult.data?.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]) || []
-    );
-
-    const likesCountMap: Record<string, number> = {};
-    likesCountResult.data?.forEach((like) => {
-      likesCountMap[like.comment_id] = (likesCountMap[like.comment_id] || 0) + 1;
-    });
-
-    const userLikedSet = new Set(userLikesResult.data?.map(l => l.comment_id) || []);
-
-    // Build enriched comments
-    const enrichedComments = commentsData.map((comment) => {
-      const profile = profilesMap.get(comment.user_id);
-      return {
-        id: comment.id,
-        content: comment.content,
-        created_at: comment.created_at,
-        user_id: comment.user_id,
-        author_name: profile?.full_name || 'Usuário',
-        author_avatar: profile?.avatar_url || null,
-        parent_id: comment.parent_id,
-        likes_count: likesCountMap[comment.id] || 0,
-        is_liked: userLikedSet.has(comment.id),
-        replies: [] as Comment[],
-      };
-    });
-
-    // Organize into tree structure
-    const commentMap = new Map<string, Comment>();
-    const rootComments: Comment[] = [];
-
-    enrichedComments.forEach(comment => {
-      commentMap.set(comment.id, comment);
-    });
-
-    enrichedComments.forEach(comment => {
-      if (comment.parent_id && commentMap.has(comment.parent_id)) {
-        commentMap.get(comment.parent_id)!.replies.push(comment);
-      } else {
-        rootComments.push(comment);
-      }
-    });
-
-    setComments(rootComments);
-  };
-
-  const checkUserLiked = async () => {
-    if (!user || !postId) return;
-
-    const { data } = await supabase
-      .from('channel_post_likes')
-      .select('id')
-      .eq('post_id', postId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    setIsLiked(!!data);
-  };
-
   const handleLikePost = async () => {
     if (!user) {
       toast.error("Você precisa estar logado para curtir");
       return;
     }
 
-    if (isLiked) {
-      await supabase
-        .from('channel_post_likes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('user_id', user.id);
-      setIsLiked(false);
-      setLikesCount(prev => prev - 1);
-    } else {
-      await supabase
-        .from('channel_post_likes')
-        .insert({ post_id: postId, user_id: user.id });
-      setIsLiked(true);
-      setLikesCount(prev => prev + 1);
+    const newIsLiked = !isLiked;
+    const newCount = newIsLiked ? likesCount + 1 : likesCount - 1;
+    setOptimisticLike({ isLiked: newIsLiked, likesCount: newCount });
+
+    try {
+      if (newIsLiked) {
+        await supabase.from("channel_post_likes").insert({ post_id: postId, user_id: user.id });
+      } else {
+        await supabase.from("channel_post_likes").delete().eq("post_id", postId).eq("user_id", user.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
+      queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
+      queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
+    } catch {
+      setOptimisticLike(null);
     }
-    
-    // Invalidate cache to update Home cards
-    queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
-    queryClient.invalidateQueries({ queryKey: ["channel-posts"] });
   };
 
   const handleLikeComment = async (commentId: string, currentlyLiked: boolean) => {
@@ -293,35 +107,12 @@ export default function ChannelPostDetail() {
     }
 
     if (currentlyLiked) {
-      await supabase
-        .from('channel_post_comment_likes')
-        .delete()
-        .eq('comment_id', commentId)
-        .eq('user_id', user.id);
+      await supabase.from("channel_post_comment_likes").delete().eq("comment_id", commentId).eq("user_id", user.id);
     } else {
-      await supabase
-        .from('channel_post_comment_likes')
-        .insert({ comment_id: commentId, user_id: user.id });
+      await supabase.from("channel_post_comment_likes").insert({ comment_id: commentId, user_id: user.id });
     }
 
-    // Update local state
-    const updateCommentLike = (comments: Comment[]): Comment[] => {
-      return comments.map(comment => {
-        if (comment.id === commentId) {
-          return {
-            ...comment,
-            is_liked: !currentlyLiked,
-            likes_count: currentlyLiked ? comment.likes_count - 1 : comment.likes_count + 1,
-          };
-        }
-        return {
-          ...comment,
-          replies: updateCommentLike(comment.replies),
-        };
-      });
-    };
-
-    setComments(updateCommentLike(comments));
+    queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
   };
 
   const handleSubmitComment = async () => {
@@ -329,30 +120,25 @@ export default function ChannelPostDetail() {
       toast.error("Você precisa estar logado para comentar");
       return;
     }
-
     if (!commentContent.trim()) return;
 
     setSubmittingComment(true);
 
-    const { error } = await supabase
-      .from('channel_post_comments')
-      .insert({
-        post_id: postId,
-        user_id: user.id,
-        content: commentContent.trim(),
-        parent_id: replyTo?.id || null,
-      });
+    const { error } = await supabase.from("channel_post_comments").insert({
+      post_id: postId,
+      user_id: user.id,
+      content: commentContent.trim(),
+      parent_id: replyTo?.id || null,
+    });
 
     if (error) {
-      console.error('Error creating comment:', error);
+      console.error("Error creating comment:", error);
       toast.error("Erro ao enviar comentário");
     } else {
       toast.success(replyTo ? "Resposta enviada!" : "Comentário enviado!");
       setCommentContent("");
       setReplyTo(null);
-      fetchComments();
-      
-      // Invalidate cache to update Home cards
+      queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
       queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
     }
 
@@ -365,7 +151,6 @@ export default function ChannelPostDetail() {
       .replace("cerca de ", "")
       .replace("menos de um", "< 1")
       .replace("menos de ", "< ")
-      // Números por extenso para numerais
       .replace(/\bum\b/g, "1")
       .replace(/\bdois\b/g, "2")
       .replace(/\btrês\b/g, "3")
@@ -378,7 +163,6 @@ export default function ChannelPostDetail() {
       .replace(/\bdez\b/g, "10")
       .replace(/\bonze\b/g, "11")
       .replace(/\bdoze\b/g, "12")
-      // Unidades de tempo
       .replace(" horas", "h")
       .replace(" hora", "h")
       .replace(" minutos", " min")
@@ -391,7 +175,7 @@ export default function ChannelPostDetail() {
       .replace(" mês", " mês");
   };
 
-  const renderComment = (comment: Comment, isReply = false) => (
+  const renderComment = (comment: ChannelPostComment, isReply = false) => (
     <motion.div
       key={comment.id}
       initial={{ opacity: 0, y: 10 }}
@@ -437,7 +221,7 @@ export default function ChannelPostDetail() {
     </motion.div>
   );
 
-  if (loading) {
+  if (isLoading) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 pt-4">
