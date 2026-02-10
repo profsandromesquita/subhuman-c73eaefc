@@ -332,6 +332,58 @@ export function useLikePodcastComment() {
   });
 }
 
+// ============ LISTEN TRACKING HOOKS ============
+
+export function useTrackPodcastListen() {
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ podcastId, progressSeconds, totalSeconds }: { podcastId: string; progressSeconds: number; totalSeconds: number }) => {
+      if (!user) return;
+
+      const completed = totalSeconds > 0 && progressSeconds / totalSeconds >= 0.9;
+
+      const { error } = await supabase
+        .from("podcast_listens" as any)
+        .upsert(
+          {
+            user_id: user.id,
+            podcast_id: podcastId,
+            progress_seconds: progressSeconds,
+            completed,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,podcast_id" }
+        );
+      if (error) throw error;
+    },
+    onError: (error) => {
+      console.error("Error tracking listen:", error);
+    },
+  });
+}
+
+export function useListenedPodcasts() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["podcast-listens", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from("podcast_listens" as any)
+        .select("podcast_id, completed, progress_seconds")
+        .eq("user_id", user.id)
+        .eq("completed", true);
+
+      if (error) throw error;
+      return (data || []) as unknown as { podcast_id: string; completed: boolean; progress_seconds: number }[];
+    },
+    enabled: !!user,
+  });
+}
+
 export function formatDuration(seconds: number | null): string {
   if (!seconds) return "0 min";
   
