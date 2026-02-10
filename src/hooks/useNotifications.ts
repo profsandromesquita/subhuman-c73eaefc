@@ -219,7 +219,7 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
-// Get unread notifications count
+// Get unread notifications count via RPC (single query instead of 3)
 export function useUnreadNotificationsCount() {
   const { user } = useAuth();
 
@@ -228,38 +228,14 @@ export function useUnreadNotificationsCount() {
     queryFn: async (): Promise<number> => {
       if (!user) return 0;
 
-      // Count user-specific unread notifications
-      const { count: userUnread, error: userError } = await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
+      const { data, error } = await supabase.rpc("get_unread_notifications_count", {
+        p_user_id: user.id,
+      });
 
-      if (userError) throw userError;
-
-      // Count unread global notifications (not in notification_reads)
-      const { data: globalNotifs } = await supabase
-        .from("notifications")
-        .select("id")
-        .is("user_id", null);
-
-      let globalUnread = 0;
-      if (globalNotifs && globalNotifs.length > 0) {
-        const globalIds = globalNotifs.map(n => n.id);
-
-        const { data: readGlobal } = await supabase
-          .from("notification_reads")
-          .select("notification_id")
-          .eq("user_id", user.id)
-          .in("notification_id", globalIds);
-
-        const readSet = new Set(readGlobal?.map(r => r.notification_id) || []);
-        globalUnread = globalIds.filter(id => !readSet.has(id)).length;
-      }
-
-      return (userUnread || 0) + globalUnread;
+      if (error) throw error;
+      return data || 0;
     },
     enabled: !!user,
-    staleTime: 1000 * 30, // 30 segundos para contador
+    staleTime: 1000 * 30,
   });
 }

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowLeft, Heart, ChatCircle, Clock, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,12 @@ import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, subYears } from "date-fns";
+import { useState } from "react";
 
 interface Highlight {
   id: string;
   title: string;
   slug: string;
-  content: string | null;
   thumbnail_url: string | null;
   media_type: string | null;
   published_at: string | null;
@@ -26,6 +26,7 @@ interface Highlight {
   space_slug: string;
   likes_count: number;
   comments_count: number;
+  read_time_minutes: number | null;
 }
 
 const dateFilters = [
@@ -41,145 +42,98 @@ const dateFilters = [
 
 function getDateRange(filter: string): { start: Date; end: Date } {
   const now = new Date();
-  
   switch (filter) {
-    case "today":
-      return { start: startOfDay(now), end: now };
-    case "yesterday":
-      return { start: startOfDay(subDays(now, 1)), end: endOfDay(subDays(now, 1)) };
-    case "7days":
-      return { start: subDays(now, 7), end: now };
-    case "14days":
-      return { start: subDays(now, 14), end: now };
-    case "thisMonth":
-      return { start: startOfMonth(now), end: now };
-    case "lastMonth":
-      return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
-    case "3months":
-      return { start: subMonths(now, 3), end: now };
-    case "lastYear":
-      return { start: subYears(now, 1), end: now };
-    default:
-      return { start: startOfDay(now), end: now };
+    case "today": return { start: startOfDay(now), end: now };
+    case "yesterday": return { start: startOfDay(subDays(now, 1)), end: endOfDay(subDays(now, 1)) };
+    case "7days": return { start: subDays(now, 7), end: now };
+    case "14days": return { start: subDays(now, 14), end: now };
+    case "thisMonth": return { start: startOfMonth(now), end: now };
+    case "lastMonth": return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
+    case "3months": return { start: subMonths(now, 3), end: now };
+    case "lastYear": return { start: subYears(now, 1), end: now };
+    default: return { start: startOfDay(now), end: now };
   }
 }
 
-export default function Highlights() {
-  const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedFilter, setSelectedFilter] = useState("today");
+function useHighlightsFiltered(filter: string) {
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (!authLoading) {
-      fetchHighlights();
-    }
-  }, [user, authLoading, selectedFilter]);
+  return useQuery({
+    queryKey: ["highlights-filtered", filter, user?.id],
+    queryFn: async (): Promise<Highlight[]> => {
+      if (!user) return [];
 
-  const fetchHighlights = async () => {
-    if (!user) {
-      setHighlights([]);
-      setLoading(false);
-      return;
-    }
+      const { data: subscriptions } = await supabase
+        .from("user_space_subscriptions")
+        .select("space_id")
+        .eq("user_id", user.id);
 
-    setLoading(true);
-    try {
-      // Fetch user's subscribed spaces
-      const { data: subscriptions, error: subError } = await supabase
-        .from('user_space_subscriptions')
-        .select('space_id')
-        .eq('user_id', user.id);
-
-      if (subError) throw subError;
-
-      if (!subscriptions || subscriptions.length === 0) {
-        setHighlights([]);
-        setLoading(false);
-        return;
-      }
+      if (!subscriptions || subscriptions.length === 0) return [];
 
       const spaceIds = subscriptions.map(s => s.space_id);
-      const dateRange = getDateRange(selectedFilter);
+      const dateRange = getDateRange(filter);
 
-      // Fetch updates from subscribed spaces within date range
-      const { data: updates, error: updatesError } = await supabase
-        .from('space_updates')
+      // Fetch WITHOUT content
+      const { data: updates, error } = await supabase
+        .from("space_updates")
         .select(`
-          id, title, slug, content, thumbnail_url, media_type, 
-          published_at, created_at, space_id,
+          id, title, slug, thumbnail_url, media_type, published_at, created_at, space_id, read_time_minutes,
           spaces!inner(name, slug)
         `)
-        .in('space_id', spaceIds)
-        .eq('is_published', true)
-        .gte('published_at', dateRange.start.toISOString())
-        .lte('published_at', dateRange.end.toISOString())
-        .order('published_at', { ascending: false });
+        .in("space_id", spaceIds)
+        .eq("is_published", true)
+        .gte("published_at", dateRange.start.toISOString())
+        .lte("published_at", dateRange.end.toISOString())
+        .order("published_at", { ascending: false });
 
-      if (updatesError) throw updatesError;
+      if (error) throw error;
+      if (!updates || updates.length === 0) return [];
 
-      if (!updates || updates.length === 0) {
-        setHighlights([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch likes and comments counts
+      // Fetch counts from view
       const updateIds = updates.map(u => u.id);
-      
-      const [likesResult, commentsResult] = await Promise.all([
-        supabase
-          .from('update_likes')
-          .select('update_id')
-          .in('update_id', updateIds),
-        supabase
-          .from('update_comments')
-          .select('update_id')
-          .in('update_id', updateIds)
-      ]);
+      const { data: statsData } = await supabase
+        .from("space_update_stats")
+        .select("update_id, likes_count, comments_count")
+        .in("update_id", updateIds);
 
-      const likesMap: Record<string, number> = {};
-      const commentsMap: Record<string, number> = {};
-
-      likesResult.data?.forEach(like => {
-        likesMap[like.update_id] = (likesMap[like.update_id] || 0) + 1;
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsData || []).forEach((s: any) => {
+        statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
 
-      commentsResult.data?.forEach(comment => {
-        commentsMap[comment.update_id] = (commentsMap[comment.update_id] || 0) + 1;
-      });
-
-      const highlightsData: Highlight[] = updates.map(update => ({
+      return updates.map(update => ({
         id: update.id,
         title: update.title,
         slug: (update as any).slug || "",
-        content: update.content,
         thumbnail_url: update.thumbnail_url,
         media_type: update.media_type,
         published_at: update.published_at,
         created_at: update.created_at,
         space_id: update.space_id,
-        space_name: (update.spaces as any)?.name || '',
-        space_slug: (update.spaces as any)?.slug || '',
-        likes_count: likesMap[update.id] || 0,
-        comments_count: commentsMap[update.id] || 0,
+        space_name: (update.spaces as any)?.name || "",
+        space_slug: (update.spaces as any)?.slug || "",
+        likes_count: statsMap[update.id]?.likes_count || 0,
+        comments_count: statsMap[update.id]?.comments_count || 0,
+        read_time_minutes: (update as any).read_time_minutes,
       }));
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+}
 
-      setHighlights(highlightsData);
-    } catch (error) {
-      console.error('Error fetching highlights:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function Highlights() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [selectedFilter, setSelectedFilter] = useState("today");
+
+  const { data: highlights = [], isLoading: loading } = useHighlightsFiltered(selectedFilter);
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
     if (diffInHours < 1) return "Agora";
     if (diffInHours < 24) return `${diffInHours}h`;
     const diffInDays = Math.floor(diffInHours / 24);
@@ -188,11 +142,8 @@ export default function Highlights() {
     return `${Math.floor(diffInDays / 30)}m`;
   };
 
-  const estimateReadTime = (content: string | null) => {
-    if (!content) return "1min";
-    const words = content.split(/\s+/).length;
-    const minutes = Math.max(1, Math.ceil(words / 200));
-    return `${minutes}min`;
+  const formatReadTime = (minutes: number | null) => {
+    return `${minutes || 1}min`;
   };
 
   const handleCardClick = (highlight: Highlight) => {
@@ -214,21 +165,13 @@ export default function Highlights() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-background">
-        {/* Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="flex items-center gap-3 p-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="shrink-0"
-            >
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-xl font-semibold">Destaques</h1>
           </div>
-
-          {/* Date Filters */}
           <ScrollArea className="w-full pb-3">
             <div className="flex gap-2 px-4">
               {dateFilters.map((filter) => (
@@ -248,17 +191,10 @@ export default function Highlights() {
           </ScrollArea>
         </div>
 
-        {/* Content */}
         <div className="p-4">
           {!user ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center py-12"
-            >
-              <p className="text-muted-foreground mb-4">
-                Faça login para ver os destaques dos seus espaços
-              </p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-12">
+              <p className="text-muted-foreground mb-4">Faça login para ver os destaques dos seus espaços</p>
               <Button onClick={() => navigate("/login")}>Fazer login</Button>
             </motion.div>
           ) : loading ? (
@@ -268,24 +204,12 @@ export default function Highlights() {
               ))}
             </div>
           ) : highlights.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center py-12"
-            >
-              <p className="text-muted-foreground mb-4">
-                Nenhum destaque encontrado para este período
-              </p>
-              <Button variant="outline" onClick={() => navigate("/spaces")}>
-                Explorar espaços
-              </Button>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-12">
+              <p className="text-muted-foreground mb-4">Nenhum destaque encontrado para este período</p>
+              <Button variant="outline" onClick={() => navigate("/spaces")}>Explorar espaços</Button>
             </motion.div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-3"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
               {highlights.map((highlight, index) => (
                 <motion.div
                   key={highlight.id}
@@ -293,23 +217,13 @@ export default function Highlights() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Card
-                    className="p-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                    onClick={() => handleCardClick(highlight)}
-                  >
+                  <Card className="p-3 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => handleCardClick(highlight)}>
                     <div className="flex gap-3">
-                      {/* Content */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
-                          <Badge variant="secondary" className="mb-2 text-xs">
-                            {highlight.space_name}
-                          </Badge>
-                          <h3 className="font-medium text-sm leading-snug line-clamp-3">
-                            {highlight.title}
-                          </h3>
+                          <Badge variant="secondary" className="mb-2 text-xs">{highlight.space_name}</Badge>
+                          <h3 className="font-medium text-sm leading-snug line-clamp-3">{highlight.title}</h3>
                         </div>
-                        
-                        {/* Meta info */}
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Heart className="h-3.5 w-3.5" />
@@ -323,17 +237,16 @@ export default function Highlights() {
                           <span>{formatTime(highlight.published_at)}</span>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" />
-                            <span>{estimateReadTime(highlight.content)}</span>
+                            <span>{formatReadTime(highlight.read_time_minutes)}</span>
                           </div>
                         </div>
                       </div>
-
-                      {/* Thumbnail */}
                       {highlight.thumbnail_url && (
                         <div className="shrink-0">
                           <img
                             src={highlight.thumbnail_url}
                             alt=""
+                            loading="lazy"
                             className="w-20 h-20 object-cover rounded-lg bg-muted"
                           />
                         </div>

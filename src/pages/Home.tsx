@@ -186,6 +186,7 @@ export default function Home() {
                           <img
                             src={highlight.thumbnail_url}
                             alt=""
+                            loading="lazy"
                             className="w-20 h-20 object-cover rounded-lg bg-muted"
                           />
                         </div>
@@ -283,6 +284,7 @@ export default function Home() {
                           <img
                             src={discussion.thumbnail_url}
                             alt=""
+                            loading="lazy"
                             className="w-16 h-16 object-cover rounded-lg bg-muted"
                           />
                         </div>

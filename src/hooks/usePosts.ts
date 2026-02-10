@@ -17,6 +17,7 @@ interface SpaceUpdate {
   likes_count: number;
   comments_count: number;
   is_liked?: boolean;
+  read_time_minutes?: number | null;
 }
 
 interface ChannelPost {
@@ -34,7 +35,7 @@ interface ChannelPost {
   thumbnail_url: string | null;
 }
 
-// Fetch space updates with engagement counts (optimized - no N+1)
+// Fetch space updates with engagement counts via database view (no client-side counting)
 export function useSpaceUpdates(spaceId: string | undefined) {
   const { user } = useAuth();
 
@@ -43,10 +44,10 @@ export function useSpaceUpdates(spaceId: string | undefined) {
     queryFn: async (): Promise<SpaceUpdate[]> => {
       if (!spaceId) return [];
 
-      // Fetch updates
+      // Fetch updates WITHOUT content (use read_time_minutes instead)
       const { data: updates, error } = await supabase
         .from("space_updates")
-        .select("id, title, slug, content, thumbnail_url, media_type, published_at, created_at, space_id")
+        .select("id, title, slug, thumbnail_url, media_type, published_at, created_at, space_id, read_time_minutes")
         .eq("space_id", spaceId)
         .eq("is_published", true)
         .order("published_at", { ascending: false });
@@ -56,40 +57,29 @@ export function useSpaceUpdates(spaceId: string | undefined) {
 
       const updateIds = updates.map((u) => u.id);
 
-      // Batch fetch likes and comments
-      const [likesResult, commentsResult, userLikesResult] = await Promise.all([
-        supabase.from("update_likes").select("update_id").in("update_id", updateIds),
-        supabase.from("update_comments").select("update_id").in("update_id", updateIds),
+      // Fetch counts from view + user likes in parallel
+      const [statsResult, userLikesResult] = await Promise.all([
+        supabase.from("space_update_stats").select("update_id, likes_count, comments_count").in("update_id", updateIds),
         user
-          ? supabase
-              .from("update_likes")
-              .select("update_id")
-              .in("update_id", updateIds)
-              .eq("user_id", user.id)
+          ? supabase.from("update_likes").select("update_id").in("update_id", updateIds).eq("user_id", user.id)
           : Promise.resolve({ data: [] }),
       ]);
 
-      // Count likes and comments per update
-      const likesMap: Record<string, number> = {};
-      const commentsMap: Record<string, number> = {};
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsResult.data || []).forEach((s: any) => {
+        statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
+      });
+
       const userLikedSet = new Set<string>();
-
-      likesResult.data?.forEach((like) => {
-        likesMap[like.update_id] = (likesMap[like.update_id] || 0) + 1;
-      });
-
-      commentsResult.data?.forEach((comment) => {
-        commentsMap[comment.update_id] = (commentsMap[comment.update_id] || 0) + 1;
-      });
-
-      userLikesResult.data?.forEach((like) => {
+      (userLikesResult.data || []).forEach((like: any) => {
         userLikedSet.add(like.update_id);
       });
 
       return updates.map((update) => ({
         ...update,
-        likes_count: likesMap[update.id] || 0,
-        comments_count: commentsMap[update.id] || 0,
+        content: null, // Not fetched in listings
+        likes_count: statsMap[update.id]?.likes_count || 0,
+        comments_count: statsMap[update.id]?.comments_count || 0,
         is_liked: userLikedSet.has(update.id),
       }));
     },
@@ -106,7 +96,6 @@ export function useHighlights() {
     queryFn: async (): Promise<SpaceUpdate[]> => {
       if (!user) return [];
 
-      // Get subscribed spaces
       const { data: subscriptions } = await supabase
         .from("user_space_subscriptions")
         .select("space_id")
@@ -118,11 +107,11 @@ export function useHighlights() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // Fetch recent updates from subscribed spaces
+      // Fetch WITHOUT content
       const { data: updates, error } = await supabase
         .from("space_updates")
         .select(`
-          id, title, slug, content, thumbnail_url, media_type, published_at, space_id,
+          id, title, slug, thumbnail_url, media_type, published_at, space_id, read_time_minutes,
           spaces!inner(name, slug)
         `)
         .in("space_id", spaceIds)
@@ -136,28 +125,22 @@ export function useHighlights() {
 
       const updateIds = updates.map((u) => u.id);
 
-      // Batch fetch engagement
-      const [likesResult, commentsResult] = await Promise.all([
-        supabase.from("update_likes").select("update_id").in("update_id", updateIds),
-        supabase.from("update_comments").select("update_id").in("update_id", updateIds),
-      ]);
+      // Fetch counts from view
+      const { data: statsData } = await supabase
+        .from("space_update_stats")
+        .select("update_id, likes_count, comments_count")
+        .in("update_id", updateIds);
 
-      const likesMap: Record<string, number> = {};
-      const commentsMap: Record<string, number> = {};
-
-      likesResult.data?.forEach((like) => {
-        likesMap[like.update_id] = (likesMap[like.update_id] || 0) + 1;
-      });
-
-      commentsResult.data?.forEach((comment) => {
-        commentsMap[comment.update_id] = (commentsMap[comment.update_id] || 0) + 1;
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsData || []).forEach((s: any) => {
+        statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
 
       const highlightsData = updates.map((update) => ({
         id: update.id,
         title: update.title,
         slug: (update as any).slug || "",
-        content: update.content,
+        content: null,
         thumbnail_url: update.thumbnail_url,
         media_type: update.media_type,
         published_at: update.published_at,
@@ -165,8 +148,9 @@ export function useHighlights() {
         space_id: update.space_id,
         space_name: (update.spaces as any)?.name || "",
         space_slug: (update.spaces as any)?.slug || "",
-        likes_count: likesMap[update.id] || 0,
-        comments_count: commentsMap[update.id] || 0,
+        likes_count: statsMap[update.id]?.likes_count || 0,
+        comments_count: statsMap[update.id]?.comments_count || 0,
+        read_time_minutes: (update as any).read_time_minutes,
       }));
 
       // Sort by engagement
@@ -199,7 +183,6 @@ export function useChannelPosts(channelId: string | undefined) {
     queryFn: async (): Promise<ChannelPost[]> => {
       if (!channelId) return [];
 
-      // Fetch posts
       const { data: posts, error } = await supabase
         .from("channel_posts")
         .select("id, title, content, created_at, channel_id, author_id")
@@ -213,17 +196,13 @@ export function useChannelPosts(channelId: string | undefined) {
       const postIds = posts.map((p) => p.id);
       const authorIds = [...new Set(posts.map((p) => p.author_id).filter(Boolean))] as string[];
 
-      // Batch fetch all related data
-      const [profilesResult, likesResult, commentsResult, mediaResult, userLikesResult] =
+      // Batch fetch: profiles, stats from view, media, user likes
+      const [profilesResult, statsResult, mediaResult, userLikesResult] =
         await Promise.all([
           authorIds.length > 0
-            ? supabase
-                .from("profiles")
-                .select("id, full_name, avatar_url")
-                .in("id", authorIds)
+            ? supabase.from("profiles").select("id, full_name, avatar_url").in("id", authorIds)
             : Promise.resolve({ data: [] }),
-          supabase.from("channel_post_likes").select("post_id").in("post_id", postIds),
-          supabase.from("channel_post_comments").select("post_id").in("post_id", postIds),
+          supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
           supabase
             .from("channel_post_media")
             .select("post_id, file_url")
@@ -231,40 +210,29 @@ export function useChannelPosts(channelId: string | undefined) {
             .in("file_type", ["image", "video"])
             .order("sort_order", { ascending: true }),
           user
-            ? supabase
-                .from("channel_post_likes")
-                .select("post_id")
-                .in("post_id", postIds)
-                .eq("user_id", user.id)
+            ? supabase.from("channel_post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id)
             : Promise.resolve({ data: [] }),
         ]);
 
-      // Build maps for quick lookup
-      const profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> =
-        {};
-      profilesResult.data?.forEach((p) => {
+      const profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+      (profilesResult.data || []).forEach((p: any) => {
         profilesMap[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
       });
 
-      const likesMap: Record<string, number> = {};
-      likesResult.data?.forEach((like) => {
-        likesMap[like.post_id] = (likesMap[like.post_id] || 0) + 1;
-      });
-
-      const commentsMap: Record<string, number> = {};
-      commentsResult.data?.forEach((comment) => {
-        commentsMap[comment.post_id] = (commentsMap[comment.post_id] || 0) + 1;
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsResult.data || []).forEach((s: any) => {
+        statsMap[s.post_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
 
       const mediaMap: Record<string, string> = {};
-      mediaResult.data?.forEach((media) => {
+      (mediaResult.data || []).forEach((media: any) => {
         if (!mediaMap[media.post_id]) {
           mediaMap[media.post_id] = media.file_url;
         }
       });
 
       const userLikedSet = new Set<string>();
-      userLikesResult.data?.forEach((like) => {
+      (userLikesResult.data || []).forEach((like: any) => {
         userLikedSet.add(like.post_id);
       });
 
@@ -279,8 +247,8 @@ export function useChannelPosts(channelId: string | undefined) {
           author_id: post.author_id,
           author_name: profile?.full_name || "Usuário",
           author_avatar: profile?.avatar_url || null,
-          likes_count: likesMap[post.id] || 0,
-          comments_count: commentsMap[post.id] || 0,
+          likes_count: statsMap[post.id]?.likes_count || 0,
+          comments_count: statsMap[post.id]?.comments_count || 0,
           is_liked: userLikedSet.has(post.id),
           thumbnail_url: mediaMap[post.id] || null,
         };
@@ -317,9 +285,9 @@ export function useRecentDiscussions() {
 
       const postIds = posts.map((p) => p.id);
 
-      const [likesResult, commentsResult, mediaResult] = await Promise.all([
-        supabase.from("channel_post_likes").select("post_id").in("post_id", postIds),
-        supabase.from("channel_post_comments").select("post_id").in("post_id", postIds),
+      // Use view for stats + media in parallel
+      const [statsResult, mediaResult] = await Promise.all([
+        supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
         supabase
           .from("channel_post_media")
           .select("post_id, file_url")
@@ -327,19 +295,13 @@ export function useRecentDiscussions() {
           .in("file_type", ["image", "video"]),
       ]);
 
-      const likesMap: Record<string, number> = {};
-      const commentsMap: Record<string, number> = {};
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsResult.data || []).forEach((s: any) => {
+        statsMap[s.post_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
+      });
+
       const mediaMap: Record<string, string> = {};
-
-      likesResult.data?.forEach((like) => {
-        likesMap[like.post_id] = (likesMap[like.post_id] || 0) + 1;
-      });
-
-      commentsResult.data?.forEach((comment) => {
-        commentsMap[comment.post_id] = (commentsMap[comment.post_id] || 0) + 1;
-      });
-
-      mediaResult.data?.forEach((media) => {
+      (mediaResult.data || []).forEach((media: any) => {
         if (!mediaMap[media.post_id]) {
           mediaMap[media.post_id] = media.file_url;
         }
@@ -354,8 +316,8 @@ export function useRecentDiscussions() {
         channel_name: (post.channels as any)?.name || "",
         channel_slug: (post.channels as any)?.slug || "",
         author_name: (post.profiles as any)?.full_name || "Usuário",
-        likes_count: likesMap[post.id] || 0,
-        comments_count: commentsMap[post.id] || 0,
+        likes_count: statsMap[post.id]?.likes_count || 0,
+        comments_count: statsMap[post.id]?.comments_count || 0,
         thumbnail_url: mediaMap[post.id] || null,
       }));
 
@@ -399,6 +361,7 @@ export function useLikeSpaceUpdate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["highlights"] });
       queryClient.invalidateQueries({ queryKey: ["space-updates"] });
+      queryClient.invalidateQueries({ queryKey: ["post-detail"] });
     },
   });
 }
@@ -432,6 +395,7 @@ export function useAddSpaceUpdateComment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["highlights"] });
       queryClient.invalidateQueries({ queryKey: ["space-updates"] });
+      queryClient.invalidateQueries({ queryKey: ["post-detail"] });
     },
   });
 }
@@ -468,13 +432,11 @@ export function useDeleteChannelPost() {
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      // Primeiro buscar IDs dos comentários para deletar os likes dos comentários
       const { data: commentIds } = await supabase
         .from("channel_post_comments")
         .select("id")
         .eq("post_id", postId);
 
-      // Deletar likes dos comentários
       if (commentIds && commentIds.length > 0) {
         await supabase
           .from("channel_post_comment_likes")
@@ -482,30 +444,11 @@ export function useDeleteChannelPost() {
           .in("comment_id", commentIds.map(c => c.id));
       }
 
-      // Deletar comentários
-      await supabase
-        .from("channel_post_comments")
-        .delete()
-        .eq("post_id", postId);
+      await supabase.from("channel_post_comments").delete().eq("post_id", postId);
+      await supabase.from("channel_post_likes").delete().eq("post_id", postId);
+      await supabase.from("channel_post_media").delete().eq("post_id", postId);
 
-      // Deletar likes do post
-      await supabase
-        .from("channel_post_likes")
-        .delete()
-        .eq("post_id", postId);
-
-      // Deletar mídia
-      await supabase
-        .from("channel_post_media")
-        .delete()
-        .eq("post_id", postId);
-
-      // Finalmente deletar o post
-      const { error } = await supabase
-        .from("channel_posts")
-        .delete()
-        .eq("id", postId);
-
+      const { error } = await supabase.from("channel_posts").delete().eq("id", postId);
       if (error) throw error;
     },
     onSuccess: () => {
