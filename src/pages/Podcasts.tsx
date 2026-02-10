@@ -10,7 +10,10 @@ export default function Podcasts() {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const { data: podcasts, isLoading } = usePodcasts(selectedSpaceId);
   const { data: listenedPodcasts } = useListenedPodcasts();
-  const listenedSet = new Set(listenedPodcasts?.map(l => l.podcast_id) || []);
+  
+  const progressMap = new Map<string, { completed: boolean; progress_seconds: number }>();
+  listenedPodcasts?.forEach(l => progressMap.set(l.podcast_id, l));
+  const listenedSet = new Set(listenedPodcasts?.filter(l => l.completed).map(l => l.podcast_id) || []);
 
   return (
     <AppLayout>
@@ -51,7 +54,16 @@ export default function Podcasts() {
             ))
           ) : podcasts && podcasts.length > 0 ? (
             podcasts.map((podcast) => (
-              <PodcastCard key={podcast.id} podcast={podcast} isListened={listenedSet.has(podcast.id)} />
+              <PodcastCard
+                key={podcast.id}
+                podcast={podcast}
+                isListened={listenedSet.has(podcast.id)}
+                progressPercent={
+                  progressMap.has(podcast.id) && podcast.duration_seconds
+                    ? Math.round((progressMap.get(podcast.id)!.progress_seconds / podcast.duration_seconds) * 100)
+                    : 0
+                }
+              />
             ))
           ) : (
             // Empty state

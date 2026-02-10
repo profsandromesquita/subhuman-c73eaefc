@@ -6,7 +6,7 @@ import { PodcastHeader } from "@/components/podcast/PodcastHeader";
 import { PostEngagement } from "@/components/post/PostEngagement";
 import { CommentSection } from "@/components/post/CommentSection";
 import { CommentInput } from "@/components/post/CommentInput";
-import { usePodcastBySlug, useLikePodcast, useSavePodcast, useAddPodcastComment, useLikePodcastComment } from "@/hooks/usePodcasts";
+import { usePodcastBySlug, useLikePodcast, useSavePodcast, useAddPodcastComment, useLikePodcastComment, usePodcastProgress } from "@/hooks/usePodcasts";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,7 @@ export default function PodcastDetail() {
   const commentSectionRef = useRef<HTMLDivElement>(null);
   
   const { data: podcast, isLoading } = usePodcastBySlug(podcastSlug);
+  const { data: savedProgress } = usePodcastProgress(podcast?.id);
   const likeMutation = useLikePodcast();
   const saveMutation = useSavePodcast();
   const commentMutation = useAddPodcastComment();
@@ -340,6 +341,7 @@ export default function PodcastDetail() {
             coverUrl={podcast.cover_url}
             podcastId={podcast.id}
             durationSeconds={podcast.duration_seconds}
+            initialProgress={savedProgress?.completed ? null : savedProgress?.progress_seconds}
           />
 
           <div className="space-y-4 text-center">

@@ -336,6 +336,7 @@ export function useLikePodcastComment() {
 
 export function useTrackPodcastListen() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ podcastId, progressSeconds, totalSeconds }: { podcastId: string; progressSeconds: number; totalSeconds: number }) => {
@@ -344,7 +345,7 @@ export function useTrackPodcastListen() {
       const completed = totalSeconds > 0 && progressSeconds / totalSeconds >= 0.9;
 
       const { error } = await supabase
-        .from("podcast_listens" as any)
+        .from("podcast_listens")
         .upsert(
           {
             user_id: user.id,
@@ -356,6 +357,10 @@ export function useTrackPodcastListen() {
           { onConflict: "user_id,podcast_id" }
         );
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["podcast-listens"] });
+      queryClient.invalidateQueries({ queryKey: ["podcast-progress"] });
     },
     onError: (error) => {
       console.error("Error tracking listen:", error);
@@ -372,15 +377,34 @@ export function useListenedPodcasts() {
       if (!user) return [];
 
       const { data, error } = await supabase
-        .from("podcast_listens" as any)
+        .from("podcast_listens")
         .select("podcast_id, completed, progress_seconds")
-        .eq("user_id", user.id)
-        .eq("completed", true);
+        .eq("user_id", user.id);
 
       if (error) throw error;
-      return (data || []) as unknown as { podcast_id: string; completed: boolean; progress_seconds: number }[];
+      return (data || []) as { podcast_id: string; completed: boolean; progress_seconds: number }[];
     },
     enabled: !!user,
+  });
+}
+
+export function usePodcastProgress(podcastId: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["podcast-progress", podcastId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("podcast_listens")
+        .select("progress_seconds, completed")
+        .eq("user_id", user!.id)
+        .eq("podcast_id", podcastId!)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!podcastId,
   });
 }
 

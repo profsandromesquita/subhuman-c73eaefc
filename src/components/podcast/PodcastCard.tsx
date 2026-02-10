@@ -8,9 +8,10 @@ import { Play, CheckCircle } from "@phosphor-icons/react";
 interface PodcastCardProps {
   podcast: Podcast;
   isListened?: boolean;
+  progressPercent?: number;
 }
 
-export function PodcastCard({ podcast, isListened }: PodcastCardProps) {
+export function PodcastCard({ podcast, isListened, progressPercent = 0 }: PodcastCardProps) {
   const timeAgo = podcast.published_at
     ? formatDistanceToNow(new Date(podcast.published_at), {
         addSuffix: true,
@@ -21,7 +22,7 @@ export function PodcastCard({ podcast, isListened }: PodcastCardProps) {
   return (
     <Link
       to={`/podcasts/${podcast.slug}`}
-      className="flex gap-4 p-4 bg-card rounded-xl hover:bg-elevated transition-colors"
+      className="relative flex gap-4 p-4 bg-card rounded-xl hover:bg-elevated transition-colors overflow-hidden"
     >
       {/* Cover Image */}
       <div className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-secondary">
@@ -80,6 +81,16 @@ export function PodcastCard({ podcast, isListened }: PodcastCardProps) {
           </span>
         </div>
       </div>
+
+      {/* Progress bar at bottom */}
+      {progressPercent > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/30">
+          <div
+            className={`h-full transition-all ${isListened ? 'bg-green-500' : 'bg-blue-500'}`}
+            style={{ width: `${Math.min(progressPercent, 100)}%` }}
+          />
+        </div>
+      )}
     </Link>
   );
 }
