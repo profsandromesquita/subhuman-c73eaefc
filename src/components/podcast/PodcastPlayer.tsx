@@ -18,9 +18,10 @@ interface PodcastPlayerProps {
   coverUrl?: string | null;
   podcastId?: string;
   durationSeconds?: number | null;
+  initialProgress?: number | null;
 }
 
-export function PodcastPlayer({ audioUrl, title, coverUrl, podcastId, durationSeconds }: PodcastPlayerProps) {
+export function PodcastPlayer({ audioUrl, title, coverUrl, podcastId, durationSeconds, initialProgress }: PodcastPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -29,13 +30,23 @@ export function PodcastPlayer({ audioUrl, title, coverUrl, podcastId, durationSe
   const [isMuted, setIsMuted] = useState(false);
   const trackListen = useTrackPodcastListen();
   const lastTrackedRef = useRef(0);
+  const hasRestoredRef = useRef(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+      // Resume from saved progress
+      if (!hasRestoredRef.current && initialProgress && initialProgress > 0 && initialProgress < audio.duration - 5) {
+        audio.currentTime = initialProgress;
+        setCurrentTime(initialProgress);
+        lastTrackedRef.current = initialProgress;
+        hasRestoredRef.current = true;
+      }
+    };
     const handleEnded = () => {
       setIsPlaying(false);
       // Mark as completed on end
