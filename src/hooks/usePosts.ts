@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -35,29 +35,33 @@ interface ChannelPost {
   thumbnail_url: string | null;
 }
 
-// Fetch space updates with engagement counts via database view (no client-side counting)
+const PAGE_SIZE = 20;
+
+// Fetch space updates with engagement counts via database view (paginated)
 export function useSpaceUpdates(spaceId: string | undefined) {
   const { user } = useAuth();
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["space-updates", spaceId, user?.id],
-    queryFn: async (): Promise<SpaceUpdate[]> => {
-      if (!spaceId) return [];
+    queryFn: async ({ pageParam = 0 }): Promise<{ items: SpaceUpdate[]; nextPage: number | undefined }> => {
+      if (!spaceId) return { items: [], nextPage: undefined };
 
-      // Fetch updates WITHOUT content (use read_time_minutes instead)
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
       const { data: updates, error } = await supabase
         .from("space_updates")
         .select("id, title, slug, thumbnail_url, media_type, published_at, created_at, space_id, read_time_minutes")
         .eq("space_id", spaceId)
         .eq("is_published", true)
-        .order("published_at", { ascending: false });
+        .order("published_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      if (!updates || updates.length === 0) return [];
+      if (!updates || updates.length === 0) return { items: [], nextPage: undefined };
 
       const updateIds = updates.map((u) => u.id);
 
-      // Fetch counts from view + user likes in parallel
       const [statsResult, userLikesResult] = await Promise.all([
         supabase.from("space_update_stats").select("update_id, likes_count, comments_count").in("update_id", updateIds),
         user
@@ -75,14 +79,21 @@ export function useSpaceUpdates(spaceId: string | undefined) {
         userLikedSet.add(like.update_id);
       });
 
-      return updates.map((update) => ({
+      const items = updates.map((update) => ({
         ...update,
-        content: null, // Not fetched in listings
+        content: null,
         likes_count: statsMap[update.id]?.likes_count || 0,
         comments_count: statsMap[update.id]?.comments_count || 0,
         is_liked: userLikedSet.has(update.id),
       }));
+
+      return {
+        items,
+        nextPage: updates.length === PAGE_SIZE ? pageParam + 1 : undefined,
+      };
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
     enabled: !!spaceId,
   });
 }

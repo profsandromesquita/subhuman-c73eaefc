@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowLeft, Heart, ChatCircle, Clock, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { AppLayout } from "@/components/AppLayout";
+import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, subYears } from "date-fns";
@@ -28,6 +29,8 @@ interface Highlight {
   comments_count: number;
   read_time_minutes: number | null;
 }
+
+const PAGE_SIZE = 20;
 
 const dateFilters = [
   { label: "Hoje", value: "today" },
@@ -58,22 +61,23 @@ function getDateRange(filter: string): { start: Date; end: Date } {
 function useHighlightsFiltered(filter: string) {
   const { user } = useAuth();
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["highlights-filtered", filter, user?.id],
-    queryFn: async (): Promise<Highlight[]> => {
-      if (!user) return [];
+    queryFn: async ({ pageParam = 0 }): Promise<{ items: Highlight[]; nextPage: number | undefined }> => {
+      if (!user) return { items: [], nextPage: undefined };
 
       const { data: subscriptions } = await supabase
         .from("user_space_subscriptions")
         .select("space_id")
         .eq("user_id", user.id);
 
-      if (!subscriptions || subscriptions.length === 0) return [];
+      if (!subscriptions || subscriptions.length === 0) return { items: [], nextPage: undefined };
 
       const spaceIds = subscriptions.map(s => s.space_id);
       const dateRange = getDateRange(filter);
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-      // Fetch WITHOUT content
       const { data: updates, error } = await supabase
         .from("space_updates")
         .select(`
@@ -84,12 +88,12 @@ function useHighlightsFiltered(filter: string) {
         .eq("is_published", true)
         .gte("published_at", dateRange.start.toISOString())
         .lte("published_at", dateRange.end.toISOString())
-        .order("published_at", { ascending: false });
+        .order("published_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      if (!updates || updates.length === 0) return [];
+      if (!updates || updates.length === 0) return { items: [], nextPage: undefined };
 
-      // Fetch counts from view
       const updateIds = updates.map(u => u.id);
       const { data: statsData } = await supabase
         .from("space_update_stats")
@@ -101,7 +105,7 @@ function useHighlightsFiltered(filter: string) {
         statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
 
-      return updates.map(update => ({
+      const items = updates.map(update => ({
         id: update.id,
         title: update.title,
         slug: (update as any).slug || "",
@@ -116,7 +120,14 @@ function useHighlightsFiltered(filter: string) {
         comments_count: statsMap[update.id]?.comments_count || 0,
         read_time_minutes: (update as any).read_time_minutes,
       }));
+
+      return {
+        items,
+        nextPage: updates.length === PAGE_SIZE ? pageParam + 1 : undefined,
+      };
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
     enabled: !!user,
     staleTime: 1000 * 60 * 2,
   });
@@ -127,7 +138,8 @@ export default function Highlights() {
   const { user, loading: authLoading } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState("today");
 
-  const { data: highlights = [], isLoading: loading } = useHighlightsFiltered(selectedFilter);
+  const { data, isLoading: loading, hasNextPage, isFetchingNextPage, fetchNextPage } = useHighlightsFiltered(selectedFilter);
+  const highlights = data?.pages.flatMap(p => p.items) ?? [];
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return "";
@@ -255,6 +267,11 @@ export default function Highlights() {
                   </Card>
                 </motion.div>
               ))}
+              <InfiniteScrollTrigger
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+              />
             </motion.div>
           )}
         </div>
