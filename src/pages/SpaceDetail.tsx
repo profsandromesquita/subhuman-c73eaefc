@@ -12,7 +12,7 @@ import {
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatTime, estimateReadTime } from "@/lib/formatTime";
+import { formatTime } from "@/lib/formatTime";
 import { useSpace } from "@/hooks/useSpaces";
 import { useSpaceUpdates } from "@/hooks/usePosts";
 
@@ -175,7 +175,7 @@ export default function SpaceDetail() {
                               {formatTime(update.published_at || update.created_at)}
                             </span>
                             <span>·</span>
-                            <span>{estimateReadTime(update.content)}</span>
+                            <span>{(update as any).read_time_minutes ? `${(update as any).read_time_minutes}min` : '1min'}</span>
                           </div>
                         </div>
                       </div>
@@ -186,6 +186,7 @@ export default function SpaceDetail() {
                           <img 
                             src={update.thumbnail_url} 
                             alt="" 
+                            loading="lazy"
                             className="w-full h-full object-cover"
                           />
                           {update.media_type === 'video' && (
