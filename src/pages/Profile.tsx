@@ -20,7 +20,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const menuItems = [
   {
@@ -60,14 +60,17 @@ export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const isLoggingOut = useRef(false);
 
   useEffect(() => {
+    if (isLoggingOut.current) return;
     if (!authLoading && !user) {
       navigate("/login");
     }
   }, [user, authLoading]);
 
   const handleLogout = async () => {
+    isLoggingOut.current = true;
     await signOut();
     toast.success("Você saiu da sua conta");
     navigate("/");
