@@ -2,16 +2,13 @@ import { Users, LayoutGrid, RefreshCw } from "lucide-react";
 import { ScrollReveal } from "./ScrollReveal";
 const stats = [{
   icon: Users,
-  value: "+500",
-  label: "profissionais"
+  label: "Profissionais para Networking"
 }, {
   icon: LayoutGrid,
-  value: "5",
-  label: "Espaços temáticos"
+  label: "5 Espaços Temáticos"
 }, {
   icon: RefreshCw,
-  value: "Curadoria",
-  label: "diária"
+  label: "Conteúdo Diário"
 }];
 export function LandingSocialProof() {
   return <ScrollReveal>
