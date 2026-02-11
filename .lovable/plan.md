@@ -1,34 +1,33 @@
 
 
-# Correcao: Tela Preta — React chunk splitting quebrado
+# Correcao: Icone de Like nos Cards do SpaceDetail
 
 ## Causa Raiz
 
-O erro `TypeError: undefined is not an object (evaluating 'Rf.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED')` ocorre porque o `manualChunks` no `vite.config.ts` separa `react-dom` no chunk `vendor-react`, mas o pacote `react` (core) nao e capturado por nenhuma regra e vai para um chunk generico diferente.
-
-`react-dom` depende internamente de `react.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED`. Quando estao em chunks separados, a referencia se perde e o app inteiro quebra antes de renderizar qualquer coisa.
-
-## Arquivo Afetado
-
-`vite.config.ts`, linha 23.
+O hook `useSpaceUpdates` ja retorna `is_liked: true/false` para cada artigo (linha 87 de `usePosts.ts`), porem o componente `SpaceDetail.tsx` ignora esse campo. Na linha 159, o icone Heart esta fixo com `weight="regular"`, sem verificar `update.is_liked`.
 
 ## Correcao
 
-Alterar a condicao do `manualChunks` para que o pacote `react` (core) tambem seja incluido no chunk `vendor-react`. A verificacao precisa usar um pattern que capture `node_modules/react/` sem capturar acidentalmente `react-dom` ou `react-router` (que ja sao tratados na mesma linha):
+Arquivo: `src/pages/SpaceDetail.tsx`
 
+Alterar o bloco do botao de like (linhas 153-161) para:
+
+1. Usar `weight={update.is_liked ? "fill" : "regular"}` no icone Heart
+2. Aplicar `text-red-500` quando curtido, para feedback visual consistente com a pagina de detalhe do artigo (`PostEngagement.tsx`)
+
+Antes:
 ```text
-Antes (quebrado):
-  if (id.includes("react-dom") || id.includes("react-router")) return "vendor-react";
-
-Depois (corrigido):
-  if (id.includes("react-dom") || id.includes("react-router") || id.includes("/react/")) return "vendor-react";
+<Heart className="w-4 h-4" weight="regular" />
 ```
 
-O pattern `/react/` (com barras) garante que so captura o pacote `react` dentro de `node_modules/react/` e nao faz match parcial com `react-dom`, `react-router`, `react-hook-form`, etc.
+Depois:
+```text
+<Heart className={`w-4 h-4 ${update.is_liked ? "text-red-500" : ""}`} weight={update.is_liked ? "fill" : "regular"} />
+```
 
 ## Impacto
 
-- Corrige a tela preta imediatamente
-- Nenhuma outra mudanca necessaria — o resto do `manualChunks` esta correto
-- Zero risco de regressao, pois so altera a distribuicao de chunks no build
+- Zero risco de regressao: e uma mudanca puramente visual
+- Nenhuma query ou mutacao precisa ser alterada
+- O campo `is_liked` ja existe nos dados retornados pelo hook
 
