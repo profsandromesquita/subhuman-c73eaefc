@@ -25,6 +25,7 @@ export type Database = {
           system_instruction: string | null
           system_prompt: string
           temperature: number
+          top_p: number
           updated_at: string
         }
         Insert: {
@@ -37,6 +38,7 @@ export type Database = {
           system_instruction?: string | null
           system_prompt?: string
           temperature?: number
+          top_p?: number
           updated_at?: string
         }
         Update: {
@@ -49,6 +51,7 @@ export type Database = {
           system_instruction?: string | null
           system_prompt?: string
           temperature?: number
+          top_p?: number
           updated_at?: string
         }
         Relationships: []

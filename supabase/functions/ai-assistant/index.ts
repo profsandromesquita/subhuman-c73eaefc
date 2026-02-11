@@ -3,237 +3,296 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Types
+// ============ TYPES ============
 interface RAGChunk { id: string; content: string; document_title: string; layer: string; priority: number; rank?: number; }
 interface SpaceUpdate { id: string; title: string; slug: string; content: string; published_at: string; spaces: { name: string; slug: string }; }
 interface ChannelPost { id: string; title: string | null; content: string; created_at: string; author_id: string | null; channels: { name: string; slug: string }; author_name?: string; }
 interface Channel { id: string; name: string; description: string | null; access_type: string; slug: string | null; }
 interface Podcast { id: string; title: string; slug: string; description: string | null; published_at: string; spaces: { name: string; slug: string } | null; }
 interface UserProfile { 
-  full_name: string | null; 
-  city: string | null; 
-  state: string | null; 
-  occupation_type: string | null; 
-  job_title: string | null; 
-  company_name: string | null; 
-  industry: string | null; 
-  ai_experience_level: string | null; 
-  goals: string | null; 
+  full_name: string | null; city: string | null; state: string | null; 
+  occupation_type: string | null; job_title: string | null; company_name: string | null; 
+  industry: string | null; ai_experience_level: string | null; goals: string | null; 
 }
 
-// Fetch channels catalog
+// ============ CACHE (Tarefa 6) ============
+const cache = new Map<string, { data: unknown; ts: number }>();
+
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.ts < ttlMs) {
+    return entry.data as T;
+  }
+  const data = await fn();
+  cache.set(key, { data, ts: Date.now() });
+  return data;
+}
+
+// ============ DATA FETCHERS ============
 // deno-lint-ignore no-explicit-any
 async function fetchChannelsCatalog(db: any): Promise<Channel[]> {
-  const { data } = await db.from("channels").select("id, name, description, access_type, slug").eq("is_active", true).order("sort_order");
-  return (data || []) as Channel[];
+  return cached("channels_catalog", 5 * 60_000, async () => {
+    const { data } = await db.from("channels").select("id, name, description, access_type, slug").eq("is_active", true).order("sort_order");
+    return (data || []) as Channel[];
+  });
 }
 
-// Fetch user profile for personalization
 // deno-lint-ignore no-explicit-any
 async function fetchUserProfile(db: any, userId: string): Promise<UserProfile | null> {
-  const { data, error } = await db
-    .from("profiles")
-    .select("full_name, city, state, occupation_type, job_title, company_name, industry, ai_experience_level, goals")
-    .eq("id", userId)
-    .single();
-  
-  if (error) {
-    console.error("Profile fetch error:", error);
-    return null;
-  }
-  return data as UserProfile;
+  return cached(`profile_${userId}`, 5 * 60_000, async () => {
+    const { data, error } = await db
+      .from("profiles")
+      .select("full_name, city, state, occupation_type, job_title, company_name, industry, ai_experience_level, goals")
+      .eq("id", userId).single();
+    if (error) { console.error("Profile fetch error:", error); return null; }
+    return data as UserProfile;
+  });
 }
 
-// Fetch recent podcasts
 // deno-lint-ignore no-explicit-any
 async function fetchRecentPodcasts(db: any): Promise<Podcast[]> {
-  const ago = new Date(); 
-  ago.setDate(ago.getDate() - 60); // Last 60 days for podcasts
-  
-  const { data, error } = await db
-    .from("podcasts")
-    .select("id, title, slug, description, published_at, spaces(name, slug)")
-    .eq("is_published", true)
-    .gte("published_at", ago.toISOString())
-    .order("published_at", { ascending: false })
-    .limit(15);
-  
-  if (error) {
-    console.error("Podcasts fetch error:", error);
-    return [];
-  }
-  return (data || []) as Podcast[];
+  return cached("recent_podcasts", 5 * 60_000, async () => {
+    const ago = new Date(); ago.setDate(ago.getDate() - 60);
+    const { data, error } = await db.from("podcasts")
+      .select("id, title, slug, description, published_at, spaces(name, slug)")
+      .eq("is_published", true).gte("published_at", ago.toISOString())
+      .order("published_at", { ascending: false }).limit(8); // Tarefa 4: 15→8
+    if (error) { console.error("Podcasts fetch error:", error); return []; }
+    return (data || []) as Podcast[];
+  });
 }
 
-// Search RAG chunks using LEXICAL search (no embeddings)
+// deno-lint-ignore no-explicit-any
+async function fetchRecentPosts(db: any): Promise<SpaceUpdate[]> {
+  return cached("recent_posts", 5 * 60_000, async () => {
+    const ago = new Date(); ago.setDate(ago.getDate() - 30);
+    const { data } = await db.from("space_updates")
+      .select("id, title, slug, content, published_at, spaces!inner(name, slug)")
+      .eq("is_published", true).gte("published_at", ago.toISOString())
+      .order("published_at", { ascending: false }).limit(5); // Tarefa 4: 15→5
+    return (data || []) as SpaceUpdate[];
+  });
+}
+
+// deno-lint-ignore no-explicit-any
+async function fetchRecentChannelPosts(db: any): Promise<ChannelPost[]> {
+  return cached("recent_channel_posts", 2 * 60_000, async () => {
+    const ago = new Date(); ago.setDate(ago.getDate() - 7);
+    const { data: posts } = await db.from("channel_posts")
+      .select("id, title, content, created_at, author_id, channels!inner(name, slug)")
+      .eq("is_moderated", false).gte("created_at", ago.toISOString())
+      .order("created_at", { ascending: false }).limit(10); // Tarefa 4: 20→10
+    if (!posts?.length) return [];
+    const authorIds = [...new Set(posts.map((p: ChannelPost) => p.author_id).filter(Boolean))] as string[];
+    const profilesMap: Record<string, string> = {};
+    if (authorIds.length) {
+      const { data: profiles } = await db.from("profiles").select("id, full_name").in("id", authorIds);
+      profiles?.forEach((p: { id: string; full_name: string | null }) => { profilesMap[p.id] = p.full_name || "Usuário"; });
+    }
+    return posts.map((p: ChannelPost) => ({ ...p, author_name: p.author_id ? (profilesMap[p.author_id] || "Usuário") : "Usuário" }));
+  });
+}
+
+// ============ RAG SEARCH (Tarefa 2 - Reranking Semântico) ============
 // deno-lint-ignore no-explicit-any
 async function searchRAGChunks(query: string, db: any, cfg: { rag_top_k?: number; rag_enabled?: boolean }): Promise<RAGChunk[]> {
   if (cfg.rag_enabled === false) return [];
-  
   const { data, error } = await db.rpc("search_rag_chunks_lexical", {
     query_text: query,
-    match_count: cfg.rag_top_k ?? 8,
-    include_constitution: true,
+    match_count: 15, // Fetch more for reranking
+    include_constitution: false, // Tarefa 3: handled separately
   });
-  
-  if (error) {
-    console.error("RAG search error:", error);
-    return [];
-  }
-  
+  if (error) { console.error("RAG search error:", error); return []; }
   return (data || []) as RAGChunk[];
 }
 
-// Fetch recent posts
-// deno-lint-ignore no-explicit-any
-async function fetchRecentPosts(db: any): Promise<SpaceUpdate[]> {
-  const ago = new Date(); ago.setDate(ago.getDate() - 30);
-  const { data } = await db.from("space_updates")
-    .select("id, title, slug, content, published_at, spaces!inner(name, slug)")
-    .eq("is_published", true)
-    .gte("published_at", ago.toISOString())
-    .order("published_at", { ascending: false })
-    .limit(15);
-  return (data || []) as SpaceUpdate[];
-}
+// Semantic reranking via LLM tool calling
+async function rerankChunks(query: string, chunks: RAGChunk[], apiKey: string): Promise<RAGChunk[]> {
+  if (chunks.length <= 3) return chunks; // Not worth reranking few results
+  
+  const chunkSummaries = chunks.slice(0, 12).map((c, i) => 
+    `[${i}] ${c.document_title}: ${c.content.substring(0, 150)}`
+  ).join("\n");
 
-// Fetch channel posts (2-step to avoid join error)
-// deno-lint-ignore no-explicit-any
-async function fetchRecentChannelPosts(db: any): Promise<ChannelPost[]> {
-  const ago = new Date(); ago.setDate(ago.getDate() - 7);
-  const { data: posts } = await db.from("channel_posts").select("id, title, content, created_at, author_id, channels!inner(name, slug)")
-    .eq("is_moderated", false).gte("created_at", ago.toISOString()).order("created_at", { ascending: false }).limit(20);
-  if (!posts?.length) return [];
-  const authorIds = [...new Set(posts.map((p: ChannelPost) => p.author_id).filter(Boolean))] as string[];
-  const profilesMap: Record<string, string> = {};
-  if (authorIds.length) {
-    const { data: profiles } = await db.from("profiles").select("id, full_name").in("id", authorIds);
-    profiles?.forEach((p: { id: string; full_name: string | null }) => { profilesMap[p.id] = p.full_name || "Usuário"; });
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: "Você é um ranqueador de relevância. Dado uma query e chunks, retorne os índices dos chunks mais relevantes." },
+          { role: "user", content: `Query: "${query}"\n\nChunks:\n${chunkSummaries}` },
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "rank_chunks",
+            description: "Retorna os índices dos chunks mais relevantes para a query, ordenados por relevância.",
+            parameters: {
+              type: "object",
+              properties: {
+                ranked_indices: {
+                  type: "array",
+                  items: { type: "integer" },
+                  description: "Índices dos chunks mais relevantes (máximo 5), do mais para o menos relevante"
+                }
+              },
+              required: ["ranked_indices"],
+              additionalProperties: false
+            }
+          }
+        }],
+        tool_choice: { type: "function", function: { name: "rank_chunks" } },
+      }),
+    });
+
+    if (!res.ok) {
+      console.error("Rerank failed:", res.status);
+      return chunks.slice(0, 5);
+    }
+
+    const data = await res.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return chunks.slice(0, 5);
+
+    const { ranked_indices } = JSON.parse(toolCall.function.arguments);
+    const reranked = (ranked_indices as number[])
+      .filter((i: number) => i >= 0 && i < chunks.length)
+      .slice(0, 5)
+      .map((i: number) => chunks[i]);
+
+    return reranked.length > 0 ? reranked : chunks.slice(0, 5);
+  } catch (e) {
+    console.error("Rerank error:", e);
+    return chunks.slice(0, 5); // Fallback to first 5
   }
-  return posts.map((p: ChannelPost) => ({ ...p, author_name: p.author_id ? (profilesMap[p.author_id] || "Usuário") : "Usuário" }));
 }
 
-// Build context strings
-function buildRAGContext(chunks: RAGChunk[]): string {
-  if (!chunks.length) return "";
-  const constitution = chunks.filter(c => c.layer === "constituicao");
-  const other = chunks.filter(c => c.layer !== "constituicao");
+// ============ CONSTITUTION RELEVANCE (Tarefa 3) ============
+const PLATFORM_KEYWORDS = [
+  "subhumano", "plataforma", "espaço", "espaços", "canal", "canais", "podcast", "podcasts",
+  "mentoria", "mentorias", "assinatura", "assinaturas", "plano", "planos", "como funciona",
+  "o que oferece", "quem é", "sandro", "comunidade", "premium", "o que é isso", "sobre a plataforma",
+  "funcionalidades", "recursos", "navegação", "como usar", "onde encontro"
+];
+
+function isConstitutionRelevant(query: string): boolean {
+  const q = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return PLATFORM_KEYWORDS.some(kw => {
+    const normalized = kw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return q.includes(normalized);
+  });
+}
+
+// Fetch constitution chunks separately when needed
+// deno-lint-ignore no-explicit-any
+async function fetchConstitutionChunks(db: any): Promise<RAGChunk[]> {
+  return cached("constitution_chunks", 10 * 60_000, async () => {
+    const { data, error } = await db.rpc("search_rag_chunks_lexical", {
+      query_text: "plataforma subhumano",
+      match_count: 5,
+      include_constitution: true,
+      filter_layer: "constituicao",
+    });
+    if (error) { console.error("Constitution fetch error:", error); return []; }
+    // Only return constitution layer chunks
+    return ((data || []) as RAGChunk[]).filter(c => c.layer === "constituicao");
+  });
+}
+
+// ============ CONTEXT BUILDERS (Tarefa 4 - Otimizado) ============
+function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): string {
   let ctx = "";
-  if (constitution.length) { ctx += "=== IDENTIDADE E DIRETRIZES ===\n\n" + constitution.map(c => c.content).join("\n\n") + "\n\n"; }
-  if (other.length) { ctx += "=== CONHECIMENTO RELEVANTE ===\n\n" + other.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n"; }
+  if (constitutionChunks.length) {
+    ctx += "=== IDENTIDADE E DIRETRIZES ===\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
+  }
+  const nonConst = chunks.filter(c => c.layer !== "constituicao");
+  if (nonConst.length) {
+    ctx += "=== CONHECIMENTO RELEVANTE ===\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
+  }
   return ctx;
 }
 
 function buildChannelsContext(channels: Channel[]): string {
   if (!channels.length) return "";
   const labels: Record<string, string> = { open: "aberto", subscribers: "assinantes", premium: "premium" };
-  return "\n=== CANAIS (FÓRUNS) DA COMUNIDADE ===\n" + channels.map(c => `- **${c.name}** (${labels[c.access_type] || c.access_type})${c.description ? `: ${c.description}` : ""}`).join("\n") + "\n\nIMPORTANTE: Canais são internos. NÃO invente Discord/LinkedIn.\n";
+  return "\n=== CANAIS ===\n" + channels.map(c => `- ${c.name} (${labels[c.access_type] || c.access_type})`).join("\n") + "\nNÃO invente Discord/LinkedIn.\n";
 }
 
 function buildUserContext(profile: UserProfile | null): string {
   if (!profile?.full_name) return "";
-  
-  // Extract first name
   const firstName = profile.full_name.split(" ")[0];
-  
-  let ctx = `\n=== CONTEXTO DO USUÁRIO ===\n`;
-  ctx += `Nome: ${profile.full_name}\n`;
-  ctx += `Primeiro nome: ${firstName}\n`;
-  
-  if (profile.city && profile.state) {
-    ctx += `Localização: ${profile.city}, ${profile.state}\n`;
-  }
-  
-  if (profile.job_title && profile.company_name) {
-    ctx += `Profissão: ${profile.job_title} na ${profile.company_name}\n`;
-  } else if (profile.job_title) {
-    ctx += `Cargo: ${profile.job_title}\n`;
-  } else if (profile.occupation_type) {
-    ctx += `Ocupação: ${profile.occupation_type}\n`;
-  }
-  
-  if (profile.industry) {
-    ctx += `Setor: ${profile.industry}\n`;
-  }
-  
-  if (profile.ai_experience_level) {
-    ctx += `Nível de experiência com IA: ${profile.ai_experience_level}\n`;
-  }
-  
-  if (profile.goals) {
-    ctx += `Objetivos: ${profile.goals}\n`;
-  }
-  
-  ctx += `\nIMPORTANTE: Chame o usuário pelo primeiro nome (${firstName}). Personalize recomendações com base no perfil.\n`;
-  
+  let ctx = `\n=== USUÁRIO ===\nNome: ${firstName}`;
+  if (profile.city && profile.state) ctx += ` | ${profile.city}/${profile.state}`;
+  if (profile.job_title) ctx += ` | ${profile.job_title}`;
+  if (profile.ai_experience_level) ctx += ` | Nível IA: ${profile.ai_experience_level}`;
+  if (profile.goals) ctx += `\nObjetivos: ${profile.goals}`;
+  ctx += `\nChame pelo nome: ${firstName}\n`;
   return ctx;
 }
 
 function buildPodcastContext(podcasts: Podcast[]): string {
   if (!podcasts.length) return "";
-  
   return "\n=== PODCASTS RECENTES ===\n" + podcasts.map(p => {
     const date = new Date(p.published_at).toLocaleDateString("pt-BR");
-    const spaceInfo = p.spaces ? ` [${p.spaces.name}]` : "";
-    const desc = p.description ? `\nResumo: ${p.description.substring(0, 200)}...` : "";
-    return `🎙️ "${p.title}"${spaceInfo} - ${date}\nLink: /podcasts/${p.slug}${desc}`;
-  }).join("\n\n") + "\n";
+    const desc = p.description ? ` - ${p.description.substring(0, 100)}` : "";
+    return `🎙️ [${p.title}](/podcasts/${p.slug}) ${date}${desc}`;
+  }).join("\n") + "\n";
 }
 
 function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): string {
   let ctx = "";
   if (posts.length) {
-    ctx += "\n=== ARTIGOS RECENTES (ESPAÇOS) ===\n" + posts.slice(0, 10).map(p => {
+    ctx += "\n=== ARTIGOS RECENTES ===\n" + posts.slice(0, 5).map(p => {
       const d = new Date(p.published_at).toLocaleDateString("pt-BR");
       const spaceSlug = p.spaces?.slug || "geral";
-      const postSlug = p.slug || p.id;
-      return `[${p.spaces?.name}] "${p.title}" - ${d}\nLink: /spaces/${spaceSlug}/post/${postSlug}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 200)}...`;
+      return `[${p.spaces?.name}] [${p.title}](/spaces/${spaceSlug}/post/${p.slug || p.id}) - ${d}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 100)}`;
     }).join("\n\n") + "\n";
   }
   if (chPosts.length) {
-    ctx += "\n=== DISCUSSÕES RECENTES (CANAIS) ===\n" + chPosts.slice(0, 10).map(p => {
+    ctx += "\n=== DISCUSSÕES RECENTES ===\n" + chPosts.slice(0, 5).map(p => {
       const d = new Date(p.created_at).toLocaleDateString("pt-BR");
-      return `[${p.channels?.name}] @${p.author_name} - ${d}\n${p.title ? `Título: ${p.title}\n` : ""}${p.content?.replace(/<[^>]*>/g, '').substring(0, 150)}...`;
-    }).join("\n\n") + "\n";
+      return `[${p.channels?.name}] @${p.author_name} ${d}: ${p.content?.replace(/<[^>]*>/g, '').substring(0, 80)}`;
+    }).join("\n") + "\n";
   }
   return ctx;
 }
 
-const PLATFORM_STRUCTURE = `
-=== ESTRUTURA DA PLATAFORMA SUBHUMANO ===
+// Tarefa 4: Compactado
+const PLATFORM_STRUCTURE = `=== ESTRUTURA SUBHUMANO ===
+1. ESPAÇOS (/spaces): Artigos e tutoriais dos administradores
+2. CANAIS (/channels): Fóruns da comunidade
+3. PODCASTS (/podcasts): Episódios de áudio sobre IA
+4. MENTORIAS: Sessões com Prof. Sandro Mesquita
+Links: Artigos → /spaces/{slug}/post/{slug} | Podcasts → /podcasts/{slug}
+"fóruns/dúvidas" → CANAIS | "artigos/tutoriais" → ESPAÇOS | "áudio" → PODCASTS`;
 
-1. ESPAÇOS (/spaces): Conteúdo editorial dos administradores (artigos, tutoriais, análises)
-2. CANAIS (/channels): Fóruns da comunidade onde USUÁRIOS postam dúvidas e experiências
-3. PODCASTS (/podcasts): Episódios de áudio com análises aprofundadas, debates e entrevistas sobre IA
-4. MENTORIAS: Sessões ao vivo e personalizadas com o Expert Prof. Sandro Mesquita, especialista em aplicações práticas de IA para negócios e produtividade
+const ANTI_HALLUCINATION = `\n=== REGRAS ===
+1. NÃO invente Discord/LinkedIn/Telegram
+2. Use APENAS links que aparecem no contexto
+3. Se não souber: "Não encontrei na base de conhecimento"
+4. NÃO invente nomes, datas ou especificações`;
 
-REGRA DE NAVEGAÇÃO: 
-- "fóruns/dúvidas/discussões" → CANAIS 
-- "artigos/tutoriais/análises" → ESPAÇOS
-- "áudio/episódios/ouvir" → PODCASTS
+// Tarefa 7: Fallback da RAG
+const RAG_FALLBACK = `\n=== AVISO DE CONTEXTO LIMITADO ===
+A busca na base de conhecimento NÃO retornou resultados relevantes para esta pergunta.
+REGRAS:
+1. NÃO invente informações específicas sobre modelos, preços ou capacidades
+2. Diga que essa informação não está na base de conhecimento atual
+3. Sugira explorar os Espaços (/spaces) ou perguntar nos Canais (/channels)
+4. Pode dar informações GERAIS sobre IA desde que deixe claro que são conhecimento geral`;
 
-QUANDO O USUÁRIO PEDIR LINK DE CONTEÚDO:
-- Forneça o link completo no formato Markdown: [Título](URL)
-- Artigos: [Título do Artigo](/spaces/{space_slug}/post/{post_slug})
-- Podcasts: [Título do Podcast](/podcasts/{podcast_slug})
-`;
-
-const ANTI_HALLUCINATION = `
-=== REGRAS ANTI-ALUCINAÇÃO ===
-1. NUNCA invente Discord/LinkedIn/Telegram como canais oficiais
-2. Use APENAS canais listados no contexto
-3. Se não souber, diga: "Não encontrei essa informação na base de conhecimento"
-4. Não invente nomes de usuários, datas ou especificações
-5. Para links, use APENAS slugs que aparecem no contexto
-`;
-
+// ============ MAIN HANDLER ============
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const startTime = Date.now(); // Tarefa 5: timing
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -264,30 +323,65 @@ serve(async (req) => {
     }
 
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
-    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean };
+    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean };
 
-    // Parallel fetches (using lexical search now) - including podcasts and user profile
-    const [ragChunks, recentPosts, channelPosts, channels, podcasts, userProfile] = await Promise.all([
+    // Tarefa 3: Check if constitution is relevant
+    const needsConstitution = isConstitutionRelevant(userQuery);
+
+    // Parallel fetches with cache (Tarefa 6)
+    const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks] = await Promise.all([
       searchRAGChunks(userQuery, db, ragCfg),
       fetchRecentPosts(db),
       fetchRecentChannelPosts(db),
       fetchChannelsCatalog(db),
       fetchRecentPodcasts(db),
       fetchUserProfile(db, user.id),
+      needsConstitution ? fetchConstitutionChunks(db) : Promise.resolve([]),
     ]);
 
-    console.log(`Context: ${ragChunks.length} RAG, ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anonymous'}`);
+    // Tarefa 2: Semantic reranking
+    let ragChunks = rawRagChunks;
+    const shouldRerank = ragCfg.rag_rerank_enabled !== false && rawRagChunks.length > 3;
+    if (shouldRerank) {
+      ragChunks = await rerankChunks(userQuery, rawRagChunks, API_KEY);
+    } else {
+      ragChunks = rawRagChunks.slice(0, 5);
+    }
 
-    // Build system message
+    // Tarefa 7: Check if RAG returned relevant results
+    const nonConstitutionChunks = ragChunks.filter(c => c.layer !== "constituicao");
+    const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
+      nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
+
+    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms`);
+
+    // Tarefa 5: Log RAG query
+    try {
+      await db.from("rag_query_logs").insert({
+        user_id: user.id,
+        query: userQuery.substring(0, 500),
+        chunks_retrieved: ragChunks.map(c => c.id),
+        chunks_count: ragChunks.length,
+        latency_ms: Date.now() - startTime,
+        intent: needsConstitution ? "platform" : "general",
+      });
+    } catch (logErr) {
+      console.error("Log error (non-fatal):", logErr);
+    }
+
+    // Build system message (Tarefa 4: Otimizado)
     const now = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
-    let sysMsg = `Data: ${now}\n\n${PLATFORM_STRUCTURE}\n\n`;
-    
-    // Add user context first for personalization
+    let sysMsg = `Data: ${now}\n\n${PLATFORM_STRUCTURE}\n`;
     sysMsg += buildUserContext(userProfile);
+    if (config.system_prompt) sysMsg += "\n" + config.system_prompt + "\n";
+    if (config.system_instruction) sysMsg += config.system_instruction + "\n";
+    sysMsg += buildRAGContext(ragChunks, constitutionChunks);
     
-    if (config.system_prompt) sysMsg += config.system_prompt + "\n\n";
-    if (config.system_instruction) sysMsg += config.system_instruction + "\n\n";
-    sysMsg += buildRAGContext(ragChunks);
+    // Tarefa 7: Add fallback warning if no relevant RAG
+    if (!hasRelevantRAG && !needsConstitution) {
+      sysMsg += RAG_FALLBACK;
+    }
+    
     sysMsg += buildChannelsContext(channels);
     sysMsg += buildPodcastContext(podcasts);
     sysMsg += buildPlatformContext(recentPosts, channelPosts);
@@ -296,8 +390,12 @@ serve(async (req) => {
 
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
-    const body: Record<string, unknown> = { model, messages: [{ role: "system", content: sysMsg }, ...messages], stream: true };
-    if (!isOpenAI) body.temperature = Number(config.temperature) || 0.7;
+    // deno-lint-ignore no-explicit-any
+    const body: Record<string, any> = { model, messages: [{ role: "system", content: sysMsg }, ...messages], stream: true };
+    if (!isOpenAI) {
+      body.temperature = Number(config.temperature) || 0.7;
+      body.top_p = Number(config.top_p) || 0.9; // Tarefa 1: top_p
+    }
     body[isOpenAI ? "max_completion_tokens" : "max_tokens"] = config.max_tokens || 2048;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

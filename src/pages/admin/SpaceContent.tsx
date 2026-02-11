@@ -11,8 +11,10 @@ import {
   PencilSimple,
   Trash,
   Clock,
-  Check
+  Check,
+  Brain,
 } from '@phosphor-icons/react';
+import { useConvertToRAG } from '@/hooks/useRAGDocuments';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -59,6 +61,7 @@ interface Space {
 export default function SpaceContent() {
   const { user } = useAdminAuth();
   const { saveMediaToSpaceUpdate, deleteMediaFromSpaceUpdate, getMediaForSpaceUpdate } = useMediaUpload();
+  const { convert: convertToRAG, isConverting } = useConvertToRAG();
   const [updates, setUpdates] = useState<SpaceUpdate[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,6 +301,20 @@ export default function SpaceContent() {
               <Trash className="w-4 h-4 mr-2" />
               Excluir
             </DropdownMenuItem>
+            {item.is_published && item.content && (
+              <DropdownMenuItem
+                onClick={() => convertToRAG({
+                  title: item.title,
+                  content: item.content || '',
+                  source_type: 'space_update',
+                  tags: ['artigo', item.space_name || ''],
+                })}
+                disabled={isConverting}
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                {isConverting ? 'Convertendo...' : 'Converter em RAG'}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
