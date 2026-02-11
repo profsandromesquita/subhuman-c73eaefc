@@ -1429,6 +1429,13 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      get_user_emails_admin: {
+        Args: never
+        Returns: {
+          email: string
+          user_id: string
+        }[]
+      }
       has_any_admin: { Args: never; Returns: boolean }
       has_role: {
         Args: {

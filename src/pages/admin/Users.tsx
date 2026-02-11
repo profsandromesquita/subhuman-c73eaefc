@@ -47,6 +47,7 @@ interface UserProfile {
   created_at: string;
   roles: string[];
   subscription_status?: string;
+  email?: string;
 }
 
 export default function Users() {
@@ -81,23 +82,35 @@ export default function Users() {
 
       if (rolesError) throw rolesError;
 
-      // Fetch subscriptions
+      // Fetch subscriptions with expires_at for real status
       const { data: subscriptions, error: subError } = await supabase
         .from('subscriptions')
-        .select('user_id, status')
+        .select('user_id, status, expires_at')
         .eq('status', 'active');
 
       if (subError) throw subError;
 
+      // Fetch emails for admin
+      const { data: emails } = await supabase.rpc('get_user_emails_admin');
+
       // Merge data
-      const usersWithRoles = (profiles || []).map(profile => ({
-        ...profile,
-        roles: (roles || [])
-          .filter(r => r.user_id === profile.id)
-          .map(r => r.role),
-        subscription_status: (subscriptions || [])
-          .find(s => s.user_id === profile.id)?.status || 'none'
-      }));
+      const usersWithRoles = (profiles || []).map(profile => {
+        const sub = (subscriptions || []).find(s => s.user_id === profile.id);
+        let realStatus = 'none';
+        if (sub) {
+          realStatus = sub.status === 'active' && sub.expires_at && new Date(sub.expires_at) < new Date()
+            ? 'expired'
+            : sub.status;
+        }
+        return {
+          ...profile,
+          roles: (roles || [])
+            .filter(r => r.user_id === profile.id)
+            .map(r => r.role),
+          subscription_status: realStatus,
+          email: (emails || []).find((e: any) => e.user_id === profile.id)?.email || undefined,
+        };
+      });
 
       setUsers(usersWithRoles);
     } catch (error) {
@@ -243,6 +256,15 @@ export default function Users() {
       )
     },
     {
+      key: 'email',
+      header: 'Email',
+      render: (item: UserProfile) => (
+        <span className="text-sm text-muted-foreground truncate max-w-[200px] block">
+          {item.email || '-'}
+        </span>
+      )
+    },
+    {
       key: 'subscription',
       header: 'Assinatura',
       render: (item: UserProfile) => (
@@ -250,10 +272,13 @@ export default function Users() {
           className={`px-2 py-1 text-xs rounded-full ${
             item.subscription_status === 'active'
               ? 'bg-emerald-500/20 text-emerald-500'
+              : item.subscription_status === 'expired'
+              ? 'bg-red-500/20 text-red-500'
               : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {item.subscription_status === 'active' ? 'Ativo' : 'Inativo'}
+          {item.subscription_status === 'active' ? 'Ativo' : 
+           item.subscription_status === 'expired' ? 'Expirado' : 'Inativo'}
         </span>
       )
     },
@@ -383,13 +408,20 @@ export default function Users() {
                     </div>
                   </div>
                   <div>
+                    <Label className="text-muted-foreground">Email</Label>
+                    <p className="mt-1 text-sm">{selectedUser.email || '-'}</p>
+                  </div>
+                  <div>
                     <Label className="text-muted-foreground">Assinatura</Label>
                     <p className={`mt-1 ${
                       selectedUser.subscription_status === 'active' 
                         ? 'text-emerald-500' 
+                        : selectedUser.subscription_status === 'expired'
+                        ? 'text-red-500'
                         : 'text-muted-foreground'
                     }`}>
-                      {selectedUser.subscription_status === 'active' ? 'Ativa' : 'Inativa'}
+                      {selectedUser.subscription_status === 'active' ? 'Ativa' : 
+                       selectedUser.subscription_status === 'expired' ? 'Expirada' : 'Inativa'}
                     </p>
                   </div>
                   <div>
