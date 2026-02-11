@@ -194,7 +194,8 @@ export function usePushNotifications() {
 
       // 4. Criar push subscription
       const applicationServerKey = urlBase64ToUint8Array(vapidKeyRef.current);
-      const subscription = await registration.pushManager.subscribe({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subscription = await (registration as any).pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey.buffer as ArrayBuffer
       });
@@ -272,7 +273,8 @@ export function usePushNotifications() {
       // Tentar remover do browser também
       const registration = await navigator.serviceWorker.getRegistration();
       if (registration) {
-        const subscription = await registration.pushManager.getSubscription();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const subscription = await (registration as any).pushManager.getSubscription();
         if (subscription) {
           await subscription.unsubscribe();
         }

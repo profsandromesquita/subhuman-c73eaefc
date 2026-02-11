@@ -345,3 +345,53 @@ export function useDeleteRAGDocument() {
     },
   });
 }
+
+// Tarefa 8: Convert content to RAG document
+export function useConvertToRAG() {
+  const ingestMutation = useIngestDocument();
+  const generateChunksMutation = useGenerateChunks();
+
+  const convert = async (params: {
+    title: string;
+    content: string;
+    layer?: string;
+    tags?: string[];
+    source_type: "space_update" | "channel_post";
+  }) => {
+    const { title, content, layer = "biblioteca", tags = [], source_type } = params;
+
+    // Strip HTML
+    const cleanContent = content.replace(/<[^>]*>/g, "").trim();
+    if (!cleanContent) {
+      toast.error("Conteúdo vazio após remover HTML");
+      return;
+    }
+
+    // Build frontmatter document
+    const allTags = [...new Set([source_type, ...tags])];
+    const sourceContent = `---
+title: "${title.replace(/"/g, '\\"')}"
+layer: ${layer}
+priority: 50
+tags: [${allTags.map(t => `"${t}"`).join(", ")}]
+---
+
+${cleanContent}`;
+
+    try {
+      const result = await ingestMutation.mutateAsync(sourceContent);
+      if (result?.id) {
+        // Auto-generate chunks
+        await generateChunksMutation.mutateAsync(result.id);
+        toast.success(`"${title}" convertido em conhecimento RAG com chunks gerados!`);
+      }
+    } catch (error) {
+      // Error already handled by individual mutations
+    }
+  };
+
+  return {
+    convert,
+    isConverting: ingestMutation.isPending || generateChunksMutation.isPending,
+  };
+}

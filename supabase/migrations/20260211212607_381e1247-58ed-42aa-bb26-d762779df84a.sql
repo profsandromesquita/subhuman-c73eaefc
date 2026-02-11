@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_assistant_config ADD COLUMN top_p numeric NOT NULL DEFAULT 0.9;
