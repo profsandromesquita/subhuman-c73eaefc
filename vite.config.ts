@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (id.includes("react-dom") || id.includes("react-router")) return "vendor-react";
+            if (id.includes("react-dom") || id.includes("react-router") || id.includes("/react/")) return "vendor-react";
             if (id.includes("@radix-ui")) return "vendor-ui";
             if (id.includes("@tiptap")) return "vendor-editor";
             if (id.includes("@supabase")) return "vendor-supabase";
