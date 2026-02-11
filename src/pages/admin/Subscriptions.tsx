@@ -71,6 +71,13 @@ export default function Subscriptions() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [newPlanType, setNewPlanType] = useState('');
 
+  const computeRealStatus = (sub: { status: string; expires_at: string | null }): string => {
+    if (sub.status === 'active' && sub.expires_at) {
+      return new Date(sub.expires_at) < new Date() ? 'expired' : 'active';
+    }
+    return sub.status;
+  };
+
   useEffect(() => {
     fetchSubscriptions();
   }, []);
@@ -93,25 +100,26 @@ export default function Subscriptions() {
 
       const subscriptionsWithNames = (data || []).map(sub => ({
         ...sub,
+        status: computeRealStatus(sub),
         user_name: profiles?.find(p => p.id === sub.user_id)?.full_name || 'Usuário'
       }));
 
       setSubscriptions(subscriptionsWithNames);
 
-      // Calculate stats
+      // Calculate stats — only truly active paid plans
       const paidPlans = ['monthly', 'yearly'];
-      const activeCount = (data || []).filter(s => 
+      const activeCount = subscriptionsWithNames.filter(s => 
         s.status === 'active' && paidPlans.includes(s.plan_type)
       ).length;
 
-      const mrr = (data || [])
+      const mrr = subscriptionsWithNames
         .filter(s => s.status === 'active' && paidPlans.includes(s.plan_type))
         .reduce((acc, s) => {
           return acc + (s.plan_type === 'monthly' ? 29.90 : 299.90 / 12);
         }, 0);
 
       setStats({
-        total: (data || []).length,
+        total: subscriptionsWithNames.length,
         active: activeCount,
         mrr
       });

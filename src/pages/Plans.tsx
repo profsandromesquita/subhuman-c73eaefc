@@ -364,7 +364,7 @@ export default function Plans() {
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                 className="flex-1"
-                maxLength={20}
+                maxLength={30}
               />
               <Button
                 variant="outline"
