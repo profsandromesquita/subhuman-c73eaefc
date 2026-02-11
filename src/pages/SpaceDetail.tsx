@@ -156,7 +156,7 @@ export default function SpaceDetail() {
                               className="gap-1 h-7 px-1.5 text-muted-foreground"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <Heart className="w-4 h-4" weight="regular" />
+                              <Heart className={`w-4 h-4 ${(update as any).is_liked ? "text-red-500" : ""}`} weight={(update as any).is_liked ? "fill" : "regular"} />
                               <span className="text-xs">{update.likes_count}</span>
                             </Button>
                             <Button 
