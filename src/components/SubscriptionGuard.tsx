@@ -18,8 +18,11 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Wait for both auth and subscription to load
     if (authLoading || subLoading) return;
 
-    // If not logged in, let other guards handle it
-    if (!user) return;
+    // If not logged in, redirect to login
+    if (!user) {
+      navigate('/login', { replace: true });
+      return;
+    }
 
     // If expired or no subscription, redirect to plans
     if (status === 'expired' || status === 'none') {
@@ -40,9 +43,9 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     );
   }
 
-  // If not logged in, render children (let other guards handle auth)
+  // If not logged in, don't render (redirect will happen)
   if (!user) {
-    return <>{children}</>;
+    return null;
   }
 
   // If expired or no subscription, don't render (redirect will happen)
