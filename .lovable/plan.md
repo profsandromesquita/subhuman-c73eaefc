@@ -1,94 +1,180 @@
 
-# Correcao de 3 Problemas: Status Admin, Email e Cupom
+# Otimizacao do Assistente IA - 8 Tarefas
 
-## Problema 1: Status Incorreto no Painel Admin
+## Visao Geral
 
-**Causa**: A tabela `subscriptions` armazena `status = 'active'` mesmo apos a data de expiracao passar. O `useSubscription` do lado do usuario calcula corretamente que o trial expirou (comparando `expires_at` com `now()`), mas o painel admin (`admin/Subscriptions.tsx`) exibe o valor cru do banco de dados sem essa verificacao.
-
-**Correcao no Admin**: Adicionar logica de status computado na pagina `admin/Subscriptions.tsx` e `admin/Users.tsx`. Para cada assinatura, verificar se `status === 'active'` e `expires_at < now()` — nesse caso, exibir "Expirado" (com cor vermelha) em vez de "Ativo".
-
-**Correcao no Backend**: Criar uma funcao scheduled ou um trigger que automaticamente mude o `status` de `active` para `expired` quando `expires_at` passa. Porem, como isso exige cron jobs que nao estao disponiveis no Lovable Cloud, a solucao mais segura e computar o status real no frontend (tanto no admin quanto no SubscriptionGuard, que ja faz isso corretamente).
-
-**O SubscriptionGuard ja bloqueia corretamente** usuarios com trial expirado (redireciona para /plans). Nao precisa de correcao nesse componente.
+Conjunto de melhorias no pipeline do Assistente IA cobrindo configuracao, busca semantica, otimizacao de contexto, logging, cache, fallback e conversao de conteudo em conhecimento RAG.
 
 ---
 
-## Problema 2: Email do Usuario Invisivel para Admin
+## Tarefa 1: Temperature e Top-P no Painel Admin
 
-**Causa**: A tabela `profiles` nao armazena email. O email esta apenas no schema `auth.users`, que nao e acessivel via client SDK.
+**O que muda**: Adicionar controle de `top_p` na aba "Configuracoes" da pagina `/admin/settings/ai-assistant`.
 
-**Correcao**: Criar uma funcao de banco de dados `SECURITY DEFINER` que retorna emails apenas para admins:
+**Detalhes tecnicos**:
+- Migracao SQL: adicionar coluna `top_p numeric NOT NULL DEFAULT 0.9` na tabela `ai_assistant_config`
+- Atualizar `src/pages/admin/settings/AIAssistant.tsx`: adicionar Slider para top_p (0.0 a 1.0, step 0.05) ao lado do slider de temperatura existente
+- Atualizar `supabase/functions/ai-assistant/index.ts`: enviar `top_p` no body da requisicao ao gateway (apenas para modelos nao-OpenAI, mesma logica da temperatura)
 
-```text
-create function get_user_emails_admin()
-returns table(user_id uuid, email text)
-security definer
--- Verifica se o chamador e admin antes de retornar dados
-```
-
-Depois, no `admin/Users.tsx`, chamar essa funcao via `supabase.rpc('get_user_emails_admin')` e exibir o email na tabela e no dialog de detalhes.
+> Nota: O slider de temperatura ja existe. A unica adicao real e o controle de top_p.
 
 ---
 
-## Problema 3: Cupom Nao Reconhecido
+## Tarefa 2: Busca Semantica no RAG
 
-**Causa**: O input de cupom na pagina Plans.tsx tem `maxLength={20}`. O cupom `PARCEIROS-SDW5-V62N-FV2V` tem **24 caracteres**. O usuario nao consegue digitar o codigo completo — ele e truncado para `PARCEIROS-SDW5-V62N-F`, que nao existe no banco.
+**O que muda**: Usar embeddings para busca semantica em vez de busca lexical (Full-Text Search). A busca lexical fica como fallback.
 
-**Correcao**: Aumentar o `maxLength` para 30 (os cupons gerados pelo sistema tem formato `PREFIX-XXXX-YYYY-ZZZZ`, que pode ter ate ~25 caracteres dependendo do prefixo).
+**Detalhes tecnicos**:
+- Criar edge function `generate-embedding/index.ts` que chama o Lovable AI Gateway com o modelo `google/gemini-2.5-flash` para gerar embeddings via tool calling (extrair vetor). Alternativa: usar a funcao `text-embedding` do gateway se disponivel, senao usar uma abordagem hibrida onde a busca lexical e enriquecida com reranking semantico usando o proprio LLM.
+
+**Abordagem pragmatica (recomendada)**: Como o Lovable AI Gateway nao expoe um endpoint de embeddings dedicado, a melhor estrategia e implementar **reranking semantico** no edge function:
+1. Busca lexical retorna top 15 chunks (ja funciona)
+2. Enviar os 15 chunks + query ao LLM com tool calling para ranquear por relevancia (0-10)
+3. Retornar os top 5-8 mais relevantes
+
+Isso melhora significativamente a qualidade sem precisar de um modelo de embeddings separado.
+
+- Atualizar `supabase/functions/ai-assistant/index.ts`: substituir `searchRAGChunks` por funcao que faz busca lexical + reranking
+- Novo parametro na config: `rag_rerank_enabled` (boolean, default true) no campo `metadata` (jsonb) da tabela `ai_assistant_config`
 
 ---
 
-## Plano de Implementacao
+## Tarefa 3: Constituicao Condicional
 
-### Etapa 1 — Corrigir maxLength do cupom (trivial)
-- Arquivo: `src/pages/Plans.tsx`
-- Alterar `maxLength={20}` para `maxLength={30}` no input de cupom (linha 366)
+**O que muda**: A constituicao so sera incluida quando a pergunta do usuario for sobre a plataforma, sua estrutura, funcionalidades ou identidade.
 
-### Etapa 2 — Corrigir exibicao de status no admin
-- Arquivo: `src/pages/admin/Subscriptions.tsx`
-  - Adicionar funcao `computeRealStatus(sub)` que retorna 'expired' se `status === 'active' && expires_at < now()`
-  - Atualizar a coluna "Status" para usar o status computado
-  - Atualizar as stats para excluir assinaturas expiradas do contador "Ativas"
-  - Atualizar o dialog de detalhes para mostrar o status real
+**Detalhes tecnicos**:
+- No `ai-assistant/index.ts`, antes de chamar `searchRAGChunks`, classificar a query do usuario:
+  - Lista de palavras-chave de relevancia: `["subhumano", "plataforma", "espaço", "canal", "podcast", "mentoria", "assinatura", "plano", "como funciona", "o que oferece", "quem é", "sandro", "comunidade", "premium"]`
+  - Se nenhuma keyword presente na query do usuario (case-insensitive), passar `include_constitution: false`
+  - Caso contrario, manter `include_constitution: true`
 
-- Arquivo: `src/pages/admin/Users.tsx`
-  - Na query de subscriptions, trazer tambem `expires_at` para computar o status real
-  - Atualizar a coluna "Assinatura" para mostrar "Expirado" quando `expires_at < now()`
+---
 
-### Etapa 3 — Expor email para admin
-- Criar migracao SQL com funcao `get_user_emails_admin()`:
-  - Funcao `SECURITY DEFINER` que consulta `auth.users`
-  - Verifica internamente se o chamador tem role 'admin' ou 'moderator'
-  - Retorna `(user_id uuid, email text)`
+## Tarefa 4: Otimizacao de Contexto (Economia de Tokens)
 
-- Arquivo: `src/pages/admin/Users.tsx`
-  - Chamar `supabase.rpc('get_user_emails_admin')` no `fetchUsers()`
-  - Adicionar coluna "Email" na tabela
-  - Exibir email no dialog de perfil do usuario
+**O que muda**: Reduzir drasticamente o tamanho do system prompt eliminando conteudo redundante e limitando volumes.
 
-### Detalhes Tecnicos
+**Detalhes tecnicos no `ai-assistant/index.ts`**:
+1. **Artigos**: Reduzir de 10 para 5 artigos, cortar preview de 200 para 100 caracteres, remover conteudo HTML (ja faz strip mas envia muito)
+2. **Discussoes de canais**: Reduzir de 10 para 5 posts, cortar preview de 150 para 80 caracteres
+3. **Podcasts**: Reduzir de 15 para 8, cortar descricao de 200 para 100 caracteres
+4. **Canais catalog**: Ja e compacto, manter
+5. **PLATFORM_STRUCTURE**: Compactar removendo linhas redundantes (de ~18 linhas para ~10)
+6. **RAG chunks**: Apos reranking (tarefa 2), limitar a 5 chunks em vez de 8
 
-**Funcao SQL get_user_emails_admin**:
-```text
-create or replace function public.get_user_emails_admin()
-returns table(user_id uuid, email text)
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select au.id as user_id, au.email
-  from auth.users au
-  where is_admin_or_moderator(auth.uid())
-$$;
-```
+Estimativa de reducao: de ~8000 tokens para ~3500 tokens no system prompt.
 
-**Funcao computeRealStatus (TypeScript)**:
-```text
-function computeRealStatus(sub: Subscription): string {
-  if (sub.status === 'active' && sub.expires_at) {
-    return new Date(sub.expires_at) < new Date() ? 'expired' : 'active';
-  }
-  return sub.status;
-}
-```
+---
+
+## Tarefa 5: Logging de Queries RAG
+
+**O que muda**: Registrar cada interacao na tabela `rag_query_logs`.
+
+**Detalhes tecnicos no `ai-assistant/index.ts`**:
+- Apos a busca RAG e antes de enviar ao LLM, registrar:
+  ```
+  await db.from("rag_query_logs").insert({
+    user_id: user.id,
+    query: userQuery,
+    chunks_retrieved: ragChunks.map(c => c.id),
+    chunks_count: ragChunks.length,
+    latency_ms: Date.now() - startTime,
+    intent: constitutionRelevant ? "platform" : "general"
+  });
+  ```
+- Adicionar `const startTime = Date.now()` no inicio do processamento
+
+---
+
+## Tarefa 6: Cache de Contexto
+
+**O que muda**: Nao refazer as queries de artigos, podcasts, canais e perfil se o contexto nao mudou recentemente.
+
+**Detalhes tecnicos**:
+- Usar cache em memoria no edge function com TTL de 5 minutos para dados "estaveis":
+  - `fetchRecentPosts` - cache 5min
+  - `fetchRecentPodcasts` - cache 5min
+  - `fetchChannelsCatalog` - cache 5min
+  - `fetchRecentChannelPosts` - cache 2min (muda mais rapido)
+  - `fetchUserProfile` - cache 5min por user_id
+- Implementar um Map global no modulo com timestamps:
+  ```
+  const cache = new Map<string, { data: unknown; ts: number }>();
+  function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T>
+  ```
+- A busca RAG **nunca** e cacheada (depende da query do usuario)
+
+---
+
+## Tarefa 7: Fallback da RAG
+
+**O que muda**: Quando a busca RAG nao retorna chunks relevantes (0 resultados ou todos com rank muito baixo), o modelo deve informar explicitamente que nao tem informacao especifica e sugerir onde buscar.
+
+**Detalhes tecnicos no `ai-assistant/index.ts`**:
+- Apos a busca RAG, verificar:
+  - Se `ragChunks.length === 0` ou todos os chunks (exceto constituicao) tem `rank < 0.01`
+  - Nesse caso, adicionar ao system prompt um bloco especial:
+    ```
+    === AVISO DE CONTEXTO LIMITADO ===
+    A busca na base de conhecimento NAO retornou resultados relevantes para esta pergunta.
+    REGRAS:
+    1. NAO invente informacoes especificas sobre modelos, precos ou capacidades
+    2. Diga ao usuario que essa informacao nao esta na base de conhecimento atual
+    3. Sugira que ele explore os Espacos (/spaces) ou pergunte nos Canais (/channels)
+    4. Voce pode dar informacoes GERAIS sobre IA desde que deixe claro que sao conhecimento geral
+    ```
+
+---
+
+## Tarefa 8: Converter Artigo/Post de Canal em Conhecimento RAG
+
+**O que muda**: Botao no painel admin (SpaceContent e admin/Channels) que permite transformar um artigo publicado ou post de canal em documento RAG com um clique.
+
+**Detalhes tecnicos**:
+- Novo hook `useConvertToRAG()` em `src/hooks/useRAGDocuments.ts`:
+  - Recebe `{ title, content, layer?, tags?, source_type: "space_update" | "channel_post" }`
+  - Monta o source_content com frontmatter automatico:
+    ```
+    ---
+    title: "{title}"
+    layer: biblioteca
+    priority: 50
+    tags: ["artigo", "space_update"]
+    ---
+    {content_stripped_of_html}
+    ```
+  - Chama `ingest-document` edge function
+  - Depois chama `generate-chunks` automaticamente
+
+- **SpaceContent.tsx**: Adicionar item "Converter em RAG" no DropdownMenu de acoes de cada artigo publicado
+- **admin/Channels.tsx**: Verificar se tem listagem de posts; se sim, adicionar botao similar
+
+- Strip HTML do conteudo usando regex `content.replace(/<[^>]*>/g, '')` antes de montar o documento
+
+---
+
+## Correcao Pre-existente: Build Error
+
+O erro em `usePushNotifications.ts` (Property 'pushManager') sera corrigido adicionando uma declaracao de tipo ou cast para `ServiceWorkerRegistration` que inclua `pushManager`. Isso e um fix de tipagem pre-existente e nao relacionado as 8 tarefas acima, mas sera incluido para limpar o build.
+
+---
+
+## Ordem de Implementacao
+
+1. Migracao SQL (coluna `top_p`)
+2. Fix build error (`usePushNotifications.ts`)
+3. Edge function `ai-assistant/index.ts` (tarefas 2-7 todas no mesmo arquivo)
+4. Admin UI: `AIAssistant.tsx` (tarefa 1)
+5. Hook + UI: converter conteudo em RAG (tarefa 8)
+
+## Arquivos Modificados
+
+| Arquivo | Tarefas |
+|---------|---------|
+| `supabase/functions/ai-assistant/index.ts` | 2, 3, 4, 5, 6, 7 |
+| `src/pages/admin/settings/AIAssistant.tsx` | 1 |
+| `src/hooks/useRAGDocuments.ts` | 8 |
+| `src/pages/admin/SpaceContent.tsx` | 8 |
+| `src/hooks/usePushNotifications.ts` | Fix build |
+| Migracao SQL | 1 (coluna top_p) |
