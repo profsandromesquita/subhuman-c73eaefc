@@ -19,6 +19,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/hooks/useProfile";
 import { useState, useEffect, useRef } from "react";
 
@@ -58,6 +59,7 @@ const menuItems = [
 export default function Profile() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
+  const queryClient = useQueryClient();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const isLoggingOut = useRef(false);
@@ -72,8 +74,9 @@ export default function Profile() {
   const handleLogout = async () => {
     isLoggingOut.current = true;
     await signOut();
+    queryClient.clear();
     toast.success("Você saiu da sua conta");
-    navigate("/");
+    navigate("/login");
   };
 
   const getInitials = (name: string | null) => {
