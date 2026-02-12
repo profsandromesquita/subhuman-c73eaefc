@@ -1,44 +1,63 @@
 
+# Correção: Avatar e Nome Clicável nos Comentários
 
-# Reset de Senha para Contas de Teste
+## Problemas Identificados
 
-## Situacao
+### 1. Avatar não aparece nos comentários de artigos
+- O hook `usePostDetail.ts` busca apenas `id, full_name` dos perfis dos comentaristas (linha 128) -- falta `avatar_url`
+- O componente `CommentItem` não recebe nem renderiza avatar -- usa sempre o ícone genérico `User`
+- O componente `CommentSection` também não passa dados de avatar
 
-As 3 contas existem no banco:
+### 2. Nome do comentarista não é clicável (artigos)
+- Em `CommentItem.tsx` linha 131: `<span className="font-semibold text-sm">{authorName}</span>` -- texto puro, sem interatividade
+- Não há integração com `AuthorModal` para mostrar o card do perfil
 
-| Email | ID |
-|-------|-----|
-| roboticmente@gmail.com | 1a0c2ffe-... |
-| subhumano.ia@gmail.com | 9bbfe6c7-... |
-| contato@arduinoceara.cc | 3a290b90-... |
+### 3. Nome do comentarista não é clicável (canais)
+- Em `ChannelPostDetail.tsx` linha 254: `<span className="text-sm font-medium">{comment.author_name}</span>` -- texto puro
+- Já tem o avatar renderizado corretamente (Avatar com `comment.author_avatar`)
 
-Senhas sao armazenadas como hashes criptograficos (bcrypt) e nao podem ser lidas. Precisamos usar a API administrativa do backend para redefinir.
+---
 
-## Plano
+## Plano de Correção
 
-### 1. Criar uma funcao backend temporaria `admin-reset-password`
+### Etapa 1: Buscar avatar_url no hook de artigos
 
-Essa funcao usara a chave administrativa (service role) para chamar `auth.admin.updateUserById()` e definir a nova senha para cada conta.
+**Arquivo: `src/hooks/usePostDetail.ts`**
 
-Apos o uso, a funcao pode ser removida por seguranca.
+- Linha 128: Alterar query de `"id, full_name"` para `"id, full_name, avatar_url"`
+- Linha 136: Alterar o `profilesMap` para guardar `{ full_name, avatar_url }` em vez de apenas `full_name`
+- Alterar o tipo `PostComment` para incluir `avatarUrl?: string | null`
+- Mapear `avatar_url` ao construir cada comentário
 
-### 2. Executar o reset das 3 contas
+### Etapa 2: Adicionar avatar e nome clicável no CommentItem
 
-Chamar a funcao passando os IDs e a senha padrao `K@nn1056c`.
+**Arquivo: `src/components/post/CommentItem.tsx`**
 
-### 3. Correcao do email de recuperacao de senha
+- Adicionar prop `avatarUrl?: string | null` na interface
+- Substituir o ícone `User` genérico por `Avatar` + `AvatarImage` + `AvatarFallback` (mesmo padrão do ChannelPostDetail)
+- Tornar o nome clicável: ao clicar, buscar perfil no banco e abrir `AuthorModal`
+- Importar `AuthorModal`, `Avatar`, `AvatarImage`, `AvatarFallback` e `supabase`
 
-Investigar e configurar as redirect URLs permitidas na autenticacao do backend para garantir que o fluxo de recuperacao funcione no futuro.
+### Etapa 3: Propagar avatarUrl pelo CommentSection
 
-## Detalhes tecnicos
+**Arquivo: `src/components/post/CommentSection.tsx`**
 
-```
-Edge Function: admin-reset-password
-- Recebe: lista de user IDs + nova senha
-- Valida: que o chamador e admin (via JWT)
-- Executa: supabase.auth.admin.updateUserById(id, { password })
-- Retorna: resultado de cada operacao
-```
+- Adicionar `avatarUrl?: string | null` nas interfaces `Comment` e `Reply`
+- Passar `avatarUrl` para o componente `CommentItem`
 
-Apos confirmar que as senhas foram redefinidas, a funcao sera removida do projeto.
+### Etapa 4: Nome clicável nos comentários dos canais
 
+**Arquivo: `src/pages/ChannelPostDetail.tsx`**
+
+- Na função `renderComment` (linha 254): Substituir o `<span>` do nome do autor por um `<button>` que busca o perfil pelo `user_id` e abre o `AuthorModal`
+
+---
+
+## Resumo das Alterações
+
+| Arquivo | O que muda |
+|---------|------------|
+| `src/hooks/usePostDetail.ts` | Buscar `avatar_url` dos perfis; incluir no PostComment |
+| `src/components/post/CommentSection.tsx` | Adicionar `avatarUrl` nas interfaces e propagar para CommentItem |
+| `src/components/post/CommentItem.tsx` | Renderizar Avatar real; nome clicável com AuthorModal |
+| `src/pages/ChannelPostDetail.tsx` | Nome do comentarista clicável com AuthorModal |
