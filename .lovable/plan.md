@@ -1,73 +1,121 @@
 
 
-# Correcao Definitiva: Mencoes Clicaveis + Recuperacao de Senha
+# Correcao Definitiva: Mencoes + Recuperacao de Senha
 
-## Problema 1: Mencao clicada rola para o topo da pagina
+## Problema 1: Mencao na publicacao nao abre modal
 
-### Causa raiz identificada (definitiva)
+### Causa raiz REAL (descoberta agora)
 
-O HTML da mencao gerado pelo Tiptap e:
+O `useEffect` que registra o event listener de clique (linhas 102-107 de `ChannelPostDetail.tsx`) roda ANTES do conteudo carregar. Quando o componente monta, `isLoading` e `true`, entao o `contentRef.current` e `null` (o skeleton e renderizado, nao a div do conteudo). Quando `isLoading` vira `false`, o componente re-renderiza com a div de conteudo, MAS o `useEffect` NAO re-executa porque sua dependencia (`handleMentionClick`) nao mudou. Resultado: o event listener NUNCA e registrado na div de conteudo.
 
-```html
-<a class="mention" data-mention-type="user" data-mention-id="dd98c4..." href="#">@Sandro Costa Mesquita</a>
-```
-
-O elemento e uma tag `<a>` com `href="#"`. Quando o usuario clica:
-1. O navegador segue o `href="#"` -- rola para o topo da pagina
-2. O handler JavaScript (`handleMentionClick`) nunca chama `e.preventDefault()` para impedir esse comportamento padrao do navegador
-
-A correcao e simples e cirurgica: adicionar `e.preventDefault()` no inicio do handler de clique.
-
-### Arquivos a corrigir
-
-**1. `src/pages/ChannelPostDetail.tsx` (linha 59)**
-- Adicionar `e.preventDefault()` na primeira linha de `handleMentionClick`
-
-**2. `src/components/post/PostContent.tsx` (linha 62)**
-- Adicionar `e.preventDefault()` na primeira linha de `handleMentionClick`
-
-**3. `src/components/post/CommentItem.tsx`**
-- Verificar se mencoes em comentarios tambem usam `<a href="#">` e aplicar a mesma correcao
-
----
-
-## Problema 2: Email de recuperacao de senha nao chega
-
-### Causa raiz identificada
-
-A funcao `resetPassword` em `useAuth.ts` usa:
-```typescript
-const redirectUrl = `${window.location.origin}/reset-password`;
-```
-
-Isso gera a URL do ambiente atual (preview ou publicado). O problema e que o Supabase so aceita redirect URLs que estejam na lista de URLs permitidas nas configuracoes de autenticacao. A URL de preview (`https://id-preview--38842661...lovable.app`) e a URL publicada (`https://subhuman.lovable.app`) e o dominio customizado (`https://subhumano.ia.br`) precisam estar todos configurados.
-
-Alem disso, o Supabase pode estar usando o email provider padrao (limitado) em vez de um SMTP configurado.
+**O mesmo bug existe em `PostContent.tsx`** -- o useEffect depende apenas de `handleMentionClick`, mas o `contentRef` pode nao estar disponivel no momento da montagem.
 
 ### Correcao
 
-**1. Configurar as redirect URLs permitidas no Supabase Auth** usando a ferramenta configure-auth para adicionar:
-- `https://subhuman.lovable.app/reset-password`
-- `https://subhumano.ia.br/reset-password`
-- A URL de preview
+Adicionar `post` (ou `data`) como dependencia do `useEffect` para que ele re-execute apos o conteudo carregar:
 
-**2. Usar URL fixa do dominio de producao** em vez de `window.location.origin`:
-- No `useAuth.ts`, alterar `resetPassword` para usar `https://subhumano.ia.br/reset-password` como URL fixa de redirect, garantindo que funcione independentemente de onde o usuario esta acessando
+```typescript
+// ChannelPostDetail.tsx
+useEffect(() => {
+  const el = contentRef.current;
+  if (!el) return;
+  el.addEventListener('click', handleMentionClick);
+  return () => el.removeEventListener('click', handleMentionClick);
+}, [handleMentionClick, post]); // <-- adicionar post como dependencia
+```
+
+```typescript
+// PostContent.tsx  
+useEffect(() => {
+  const el = contentRef.current;
+  if (!el) return;
+  el.addEventListener('click', handleMentionClick);
+  return () => el.removeEventListener('click', handleMentionClick);
+}, [handleMentionClick, content]); // <-- adicionar content como dependencia
+```
 
 ---
 
-## Resumo tecnico de alteracoes
+## Problema 2: Mencoes nos comentarios do canal nao sao clicaveis
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/pages/ChannelPostDetail.tsx` | Adicionar `e.preventDefault()` no handler de mencao |
-| `src/components/post/PostContent.tsx` | Adicionar `e.preventDefault()` no handler de mencao |
-| `src/components/post/CommentItem.tsx` | Verificar e corrigir handler de mencao |
-| `src/hooks/useAuth.ts` | Usar URL de producao fixa para redirect de recuperacao de senha |
-| Configuracao Auth | Adicionar redirect URLs permitidas |
+### Causa raiz
+
+Em `ChannelPostDetail.tsx`, os comentarios sao renderizados na funcao `renderComment` (linha 254):
+
+```typescript
+<p className="text-sm mt-1">{comment.content}</p>
+```
+
+Isso renderiza o conteudo como TEXTO PURO. Mencoes como `@Sandro Costa Mesquita` aparecem como texto normal, sem nenhuma interatividade.
+
+### Correcao
+
+Importar e usar o componente `MentionText` do `CommentItem.tsx` (ou criar um inline) para renderizar o conteudo dos comentarios com mencoes clicaveis:
+
+```typescript
+// Substituir:
+<p className="text-sm mt-1">{comment.content}</p>
+
+// Por:
+<MentionText text={comment.content} />
+```
+
+Mas o `MentionText` atual tem um bug de regex (veja problema 3).
+
+---
+
+## Problema 3: Regex do MentionText so captura uma palavra
+
+### Causa raiz
+
+O regex atual em `CommentItem.tsx` linha 91:
+
+```typescript
+const parts = text.split(/(@\S+)/g);
+```
+
+Para o texto `@Sandro Costa Mesquita`, isso captura apenas `@Sandro` -- o `\S+` para no primeiro espaco. "Costa Mesquita" vira texto normal.
+
+### Correcao
+
+Trocar a logica para detectar mencoes que comecam com `@` e continuam ate o proximo `@` ou fim da frase. Uma abordagem mais robusta: usar um regex que capture `@` seguido de palavras com letras maiusculas (nomes proprios):
+
+```typescript
+const parts = text.split(/(@[A-Z\u00C0-\u024F][a-z\u00C0-\u024F]+(?:\s+[A-Z\u00C0-\u024F][a-z\u00C0-\u024F]+)*)/g);
+```
+
+Isso captura `@Sandro Costa Mesquita` como um bloco unico (nomes proprios com iniciais maiusculas).
+
+---
+
+## Problema 4: Recuperacao de senha -- URL de redirect
+
+### Causa raiz
+
+A URL `https://subhumano.ia.br/reset-password` precisa estar na lista de redirect URLs permitidas na configuracao de autenticacao do backend.
+
+### Correcao
+
+Usar a ferramenta `configure-auth` para adicionar as URLs de redirect permitidas:
+- `https://subhumano.ia.br/reset-password`
+- `https://subhuman.lovable.app/reset-password`
+
+---
+
+## Resumo de alteracoes
+
+| Arquivo | Alteracao | Impacto |
+|---------|-----------|---------|
+| `src/pages/ChannelPostDetail.tsx` | 1. Adicionar `post` como dep do useEffect | Mencoes no post ficam clicaveis |
+| `src/pages/ChannelPostDetail.tsx` | 2. Usar MentionText nos comentarios | Mencoes nos comentarios ficam clicaveis |
+| `src/components/post/PostContent.tsx` | 3. Adicionar `content` como dep do useEffect | Mencoes em artigos ficam clicaveis |
+| `src/components/post/CommentItem.tsx` | 4. Corrigir regex para nomes compostos | Nomes como "Sandro Costa Mesquita" completos |
+| Configuracao Auth | 5. Adicionar redirect URLs | Email de recuperacao funciona |
 
 ### Ordem de execucao
-1. Corrigir `e.preventDefault()` nos 3 componentes de mencao
-2. Corrigir URL de redirect no `useAuth.ts`
-3. Configurar redirect URLs permitidas no auth
+1. Corrigir useEffect em ChannelPostDetail.tsx (adicionar dep + usar MentionText nos comentarios)
+2. Corrigir useEffect em PostContent.tsx (adicionar dep)
+3. Corrigir regex do MentionText em CommentItem.tsx
+4. Exportar MentionText para reutilizacao
+5. Configurar redirect URLs no auth
 
