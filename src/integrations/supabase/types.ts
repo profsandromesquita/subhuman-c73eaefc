@@ -366,6 +366,122 @@ export type Database = {
           },
         ]
       }
+      companies: {
+        Row: {
+          city: string | null
+          cnpj: string | null
+          created_at: string
+          description: string | null
+          id: string
+          industry: string | null
+          instagram_url: string | null
+          is_active: boolean
+          is_verified: boolean
+          linkedin_url: string | null
+          logo_url: string | null
+          name: string
+          owner_id: string
+          slug: string
+          state: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          instagram_url?: string | null
+          is_active?: boolean
+          is_verified?: boolean
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name: string
+          owner_id: string
+          slug: string
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          instagram_url?: string | null
+          is_active?: boolean
+          is_verified?: boolean
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name?: string
+          owner_id?: string
+          slug?: string
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_members: {
+        Row: {
+          company_id: string
+          id: string
+          job_title: string | null
+          requested_at: string
+          responded_at: string | null
+          role: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          job_title?: string | null
+          requested_at?: string
+          responded_at?: string | null
+          role?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          job_title?: string | null
+          requested_at?: string
+          responded_at?: string | null
+          role?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupon_redemptions: {
         Row: {
           coupon_id: string
@@ -407,6 +523,51 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mentions: {
+        Row: {
+          author_id: string
+          context_id: string
+          context_type: string
+          created_at: string
+          id: string
+          mentioned_company_id: string | null
+          mentioned_user_id: string | null
+        }
+        Insert: {
+          author_id: string
+          context_id: string
+          context_type: string
+          created_at?: string
+          id?: string
+          mentioned_company_id?: string | null
+          mentioned_user_id?: string | null
+        }
+        Update: {
+          author_id?: string
+          context_id?: string
+          context_type?: string
+          created_at?: string
+          id?: string
+          mentioned_company_id?: string | null
+          mentioned_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mentions_mentioned_company_id_fkey"
+            columns: ["mentioned_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mentions_mentioned_user_id_fkey"
+            columns: ["mentioned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -710,6 +871,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_type: string
           ai_experience_level: string | null
           avatar_url: string | null
           bio: string | null
@@ -736,6 +898,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_type?: string
           ai_experience_level?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -762,6 +925,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_type?: string
           ai_experience_level?: string | null
           avatar_url?: string | null
           bio?: string | null

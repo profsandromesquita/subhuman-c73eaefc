@@ -14,13 +14,16 @@ import {
   ShieldCheck,
   CaretRight,
   SignOut,
-  BookmarkSimple
+  BookmarkSimple,
+  Buildings,
+  MagnifyingGlass
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/hooks/useProfile";
+import { useMyCompany } from "@/hooks/useCompany";
 import { useState, useEffect, useRef } from "react";
 
 const menuItems = [
@@ -61,6 +64,7 @@ export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: myCompany } = useMyCompany();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const isLoggingOut = useRef(false);
 
@@ -164,11 +168,60 @@ export default function Profile() {
           </button>
         </motion.div>
 
+        {/* Company & Search */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.12 }}
+          className="mb-2"
+        >
+          <Link to="/search">
+            <Card className="hover:border-muted-foreground/30 transition-all duration-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary">
+                    <MagnifyingGlass className="w-5 h-5" weight="bold" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-sm">Buscar</h3>
+                    <p className="text-xs text-muted-foreground">Pessoas e empresas</p>
+                  </div>
+                  <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.14 }}
+          className="mb-2"
+        >
+          <Link to="/profile/company">
+            <Card className="hover:border-muted-foreground/30 transition-all duration-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary">
+                    <Buildings className="w-5 h-5" weight="bold" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-sm">{myCompany ? "Minha empresa" : "Criar perfil empresa"}</h3>
+                    <p className="text-xs text-muted-foreground">{myCompany ? myCompany.name : "Cadastre sua empresa"}</p>
+                  </div>
+                  <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </motion.div>
+
         {/* Menu Items */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.16 }}
           className="space-y-2 mb-8"
         >
           {menuItems.map((item, index) => (

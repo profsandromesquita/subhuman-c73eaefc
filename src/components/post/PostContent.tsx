@@ -132,10 +132,10 @@ export function PostContent({
         {/* Divider */}
         <div className="w-full h-px bg-border mb-8" />
 
-        {/* Content */}
+        {/* Content - mentions rendered as clickable links via data attributes */}
         <div 
-          className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '') }}
+          className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
         />
 
         {/* Media Gallery */}
