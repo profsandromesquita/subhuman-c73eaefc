@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, PaperPlaneTilt } from "@phosphor-icons/react";
@@ -25,6 +26,7 @@ export default function CreateChannelPost() {
   const { user, loading: authLoading } = useAuth();
   const { hasAccess, loading: accessLoading } = useChannelAccess(channelId);
   const { saveMediaToPost } = useMediaUpload();
+  const queryClient = useQueryClient();
 
   const isEditMode = !!postId;
 
@@ -160,6 +162,8 @@ export default function CreateChannelPost() {
           return;
         }
 
+        await queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
+        await queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
         toast.success("Publicação atualizada!");
         navigate(`/channels/${channelId}/post/${postId}`);
       } else {
@@ -186,6 +190,9 @@ export default function CreateChannelPost() {
           await saveMediaToPost(post.id, media);
         }
 
+        await queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
+        await queryClient.invalidateQueries({ queryKey: ["channels"] });
+        await queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
         toast.success("Publicação criada!");
         navigate(`/channels/${channelId}/post/${post.id}`);
       }
