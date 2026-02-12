@@ -137,7 +137,8 @@ export default function Login() {
           const secs = Math.ceil(duration / 1000);
           toast.error(`Credenciais incorretas. Conta bloqueada por ${formatCountdown(secs)}.`);
         } else {
-          toast.error("Email ou senha incorretos");
+          const remaining = 3 - attempts;
+          toast.error(`Email ou senha incorretos. ${remaining === 1 ? "Mais 1 tentativa antes do bloqueio." : `Mais ${remaining} tentativas antes do bloqueio.`}`);
         }
 
         setIsLoading(false);
