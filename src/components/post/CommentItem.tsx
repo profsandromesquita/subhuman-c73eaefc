@@ -3,18 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Heart, User, Pencil, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { AuthorModal } from "@/components/post/AuthorModal";
-import { supabase } from "@/integrations/supabase/client";
-
-interface Author {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  education: string | null;
-  instagram_url: string | null;
-  linkedin_url: string | null;
-}
+import { MentionText } from "@/components/post/MentionText";
 
 interface Reply {
   id: string;
@@ -43,78 +32,7 @@ interface CommentItemProps {
   isReply?: boolean;
 }
 
-function MentionText({ text }: { text: string }) {
-  const [mentionAuthor, setMentionAuthor] = useState<Author | null>(null);
-  const [showModal, setShowModal] = useState(false);
-
-  const handleMentionClick = async (name: string) => {
-    try {
-      // Search by name in profiles
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
-        .ilike('full_name', name.replace('@', ''))
-        .limit(1)
-        .single();
-
-      if (data) {
-        setMentionAuthor(data);
-        setShowModal(true);
-        return;
-      }
-
-      // Fallback: search in companies
-      const { data: companyData } = await supabase
-        .from('companies')
-        .select('id, name, logo_url, description, instagram_url, linkedin_url, industry')
-        .ilike('name', name.replace('@', ''))
-        .limit(1)
-        .single();
-
-      if (companyData) {
-        setMentionAuthor({
-          id: companyData.id,
-          full_name: companyData.name,
-          avatar_url: companyData.logo_url,
-          bio: companyData.description,
-          education: companyData.industry,
-          instagram_url: companyData.instagram_url,
-          linkedin_url: companyData.linkedin_url,
-        });
-        setShowModal(true);
-      }
-    } catch (err) {
-      console.error('Error fetching mention:', err);
-    }
-  };
-
-  const parts = text.split(/(@\S+)/g);
-
-  return (
-    <>
-      <p className="text-sm text-foreground/90 leading-relaxed">
-        {parts.map((part, i) =>
-          part.startsWith("@") ? (
-            <button
-              key={i}
-              onClick={() => handleMentionClick(part)}
-              className="text-primary font-medium hover:underline cursor-pointer"
-            >
-              {part}
-            </button>
-          ) : (
-            <span key={i}>{part}</span>
-          )
-        )}
-      </p>
-      <AuthorModal
-        author={mentionAuthor}
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
-    </>
-  );
-}
+// MentionText is now imported from @/components/post/MentionText
 
 export function CommentItem({
   id,
