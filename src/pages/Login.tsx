@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
-import { ArrowLeft, Eye, EyeSlash } from "@phosphor-icons/react";
+import { ArrowLeft, Eye, EyeSlash, LockSimple } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,22 +11,82 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { GoogleButton } from "@/components/GoogleButton";
 import { AuthDivider } from "@/components/AuthDivider";
 
+// --- Rate limiting helpers ---
+const STORAGE_KEYS = {
+  attempts: "login_failed_attempts",
+  lockoutUntil: "login_lockout_until",
+};
+
+function getLockoutDuration(attempts: number): number {
+  if (attempts >= 8) return 10 * 60 * 1000; // 10 min
+  if (attempts >= 5) return 2 * 60 * 1000;   // 2 min
+  if (attempts >= 3) return 30 * 1000;        // 30s
+  return 0;
+}
+
+function getFailedAttempts(): number {
+  return parseInt(localStorage.getItem(STORAGE_KEYS.attempts) || "0", 10);
+}
+
+function getLockoutUntil(): number {
+  return parseInt(localStorage.getItem(STORAGE_KEYS.lockoutUntil) || "0", 10);
+}
+
+function recordFailedAttempt() {
+  const attempts = getFailedAttempts() + 1;
+  localStorage.setItem(STORAGE_KEYS.attempts, String(attempts));
+  const duration = getLockoutDuration(attempts);
+  if (duration > 0) {
+    localStorage.setItem(STORAGE_KEYS.lockoutUntil, String(Date.now() + duration));
+  }
+}
+
+function clearFailedAttempts() {
+  localStorage.removeItem(STORAGE_KEYS.attempts);
+  localStorage.removeItem(STORAGE_KEYS.lockoutUntil);
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const navigate = useNavigate();
   const { signIn, signInWithGoogle, resendConfirmationEmail } = useAuth();
   const { refetch } = useSubscription();
+
+  const isLockedOut = lockoutRemaining > 0;
+
+  // Check and update lockout timer
+  const checkLockout = useCallback(() => {
+    const until = getLockoutUntil();
+    if (until > Date.now()) {
+      setLockoutRemaining(Math.ceil((until - Date.now()) / 1000));
+    } else {
+      setLockoutRemaining(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, [checkLockout]);
+
+  const formatCountdown = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) return `${m}min ${s.toString().padStart(2, "0")}s`;
+    return `${s}s`;
+  };
 
   const handleResendConfirmation = async () => {
     if (!email) {
       toast.error("Digite seu email para reenviar a confirmação");
       return;
     }
-    
     const { error } = await resendConfirmationEmail(email);
     if (error) {
       toast.error(error.message || "Erro ao reenviar email");
@@ -38,13 +98,22 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isLockedOut) {
+      toast.error(`Aguarde ${formatCountdown(lockoutRemaining)} antes de tentar novamente.`);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const { error } = await signIn(email, password);
 
       if (error) {
-        // Handle email not confirmed error
+        // Record failed attempt for rate limiting
+        recordFailedAttempt();
+        checkLockout();
+
         if (error.message.includes("Email not confirmed") || error.message.includes("email_not_confirmed")) {
           toast.error(
             <div className="space-y-2">
@@ -61,24 +130,29 @@ export default function Login() {
           setIsLoading(false);
           return;
         }
-        
-        toast.error(error.message || "Erro ao fazer login");
+
+        const attempts = getFailedAttempts();
+        if (attempts >= 3) {
+          const duration = getLockoutDuration(attempts);
+          const secs = Math.ceil(duration / 1000);
+          toast.error(`Credenciais incorretas. Conta bloqueada por ${formatCountdown(secs)}.`);
+        } else {
+          toast.error("Email ou senha incorretos");
+        }
+
         setIsLoading(false);
         return;
       }
 
+      // Success — clear rate limiting
+      clearFailedAttempts();
+
       toast.success("Login realizado com sucesso!");
-      
-      // Clear trial banner flag so it shows again on new login
       sessionStorage.removeItem('trial_banner_shown');
-      
-      // Wait a moment for auth state to propagate, then check subscription
+
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Get fresh subscription status after refetch
       const result = await refetch();
-      
-      // Redirect based on subscription status
+
       if (result.status === 'trial' || result.status === 'active') {
         navigate("/home", { replace: true });
       } else {
@@ -99,7 +173,6 @@ export default function Login() {
         toast.error(error.message || "Erro ao fazer login com Google");
         setIsGoogleLoading(false);
       }
-      // If no error, the page will redirect to Google OAuth
     } catch (err) {
       toast.error("Erro inesperado ao fazer login com Google");
       setIsGoogleLoading(false);
@@ -108,13 +181,11 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-background pt-safe">
-      {/* Glow effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
       </div>
 
       <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -128,7 +199,6 @@ export default function Login() {
           </Link>
         </motion.div>
 
-        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -138,7 +208,6 @@ export default function Login() {
           <Logo size="md" />
         </motion.div>
 
-        {/* Content */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -151,6 +220,24 @@ export default function Login() {
             Entre na sua conta para continuar
           </p>
 
+          {isLockedOut && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-6"
+            >
+              <LockSimple className="w-5 h-5 text-destructive flex-shrink-0" weight="bold" />
+              <div>
+                <p className="text-sm text-destructive font-medium">
+                  Acesso temporariamente bloqueado
+                </p>
+                <p className="text-xs text-destructive/70 mt-0.5">
+                  Tente novamente em {formatCountdown(lockoutRemaining)}
+                </p>
+              </div>
+            </motion.div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">
@@ -162,6 +249,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLockedOut}
               />
             </div>
 
@@ -184,6 +272,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={isLockedOut}
                 />
                 <button
                   type="button"
@@ -204,9 +293,13 @@ export default function Login() {
               variant="glow"
               size="xl"
               className="w-full mt-6"
-              disabled={isLoading}
+              disabled={isLoading || isLockedOut}
             >
-              {isLoading ? "Entrando..." : "Entrar"}
+              {isLockedOut
+                ? `Bloqueado (${formatCountdown(lockoutRemaining)})`
+                : isLoading
+                  ? "Entrando..."
+                  : "Entrar"}
             </Button>
           </form>
 

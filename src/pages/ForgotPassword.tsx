@@ -5,18 +5,30 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const { resetPassword } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
+    const { error } = await resetPassword(email);
+
+    if (error) {
+      if (error.message.includes("rate limit") || error.message.includes("429")) {
+        toast.error("Muitas tentativas. Aguarde alguns minutos.");
+      } else {
+        toast.error("Erro ao enviar email de recuperação. Tente novamente.");
+      }
+      setIsLoading(false);
+      return;
+    }
+
     setSent(true);
     toast.success("Email enviado com sucesso!");
     setIsLoading(false);
