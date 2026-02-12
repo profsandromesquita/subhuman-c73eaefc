@@ -61,6 +61,9 @@ export default function ChannelPostDetail() {
     const mentionEl = target.closest('.mention') as HTMLElement | null;
     if (!mentionEl) return;
 
+    e.preventDefault();
+    e.stopPropagation();
+
     const mentionId = mentionEl.getAttribute('data-mention-id');
     const mentionType = mentionEl.getAttribute('data-mention-type');
     if (!mentionId) return;
