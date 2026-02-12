@@ -15,6 +15,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Plans = lazy(() => import("./pages/Plans"));
 const SetupAdmin = lazy(() => import("./pages/SetupAdmin"));
 
@@ -75,6 +76,7 @@ const App = () => (
               <Route path="/register" element={<Register />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/plans" element={<Plans />} />
               <Route path="/setup-admin" element={<SetupAdmin />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
