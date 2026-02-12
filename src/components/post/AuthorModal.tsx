@@ -1,6 +1,6 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { InstagramLogo, LinkedinLogo } from "@phosphor-icons/react";
+import { InstagramLogo, LinkedinLogo, Globe } from "@phosphor-icons/react";
 
 interface Author {
   id: string;
@@ -10,6 +10,7 @@ interface Author {
   education: string | null;
   instagram_url: string | null;
   linkedin_url: string | null;
+  website?: string | null;
 }
 
 interface AuthorModalProps {
@@ -31,7 +32,7 @@ function getInitials(name: string | null): string {
 export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
   if (!author) return null;
 
-  const hasSocialLinks = author.instagram_url || author.linkedin_url;
+  const hasSocialLinks = author.instagram_url || author.linkedin_url || author.website;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -66,7 +67,7 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
 
           {/* Redes Sociais */}
           {hasSocialLinks && (
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap justify-center">
               {author.instagram_url && (
                 <a 
                   href={author.instagram_url} 
@@ -87,6 +88,17 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
                 >
                   <LinkedinLogo className="w-5 h-5" />
                   <span className="text-sm">LinkedIn</span>
+                </a>
+              )}
+              {author.website && (
+                <a 
+                  href={author.website} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                >
+                  <Globe className="w-5 h-5" />
+                  <span className="text-sm">Website</span>
                 </a>
               )}
             </div>

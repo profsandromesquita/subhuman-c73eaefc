@@ -11,7 +11,8 @@ import {
   GraduationCap,
   Sparkle,
   Robot,
-  ShareNetwork
+  ShareNetwork,
+  Buildings
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppLayout } from "@/components/AppLayout";
 import { ProfileFormSection } from "@/components/profile/ProfileFormSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BRAZILIAN_STATES,
@@ -52,16 +55,23 @@ interface Profile {
   goals: string | null;
   instagram_url: string | null;
   linkedin_url: string | null;
+  account_type: string;
+  cnpj: string | null;
+  website: string | null;
 }
 
 export default function PersonalData() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isCompany = profile?.account_type === "company";
 
   // Form state
   const [formData, setFormData] = useState({
@@ -80,6 +90,8 @@ export default function PersonalData() {
     goals: "",
     instagram_url: "",
     linkedin_url: "",
+    cnpj: "",
+    website: "",
   });
 
   useEffect(() => {
@@ -104,7 +116,7 @@ export default function PersonalData() {
 
       if (error) throw error;
 
-      setProfile(data);
+      setProfile(data as Profile);
       setFormData({
         full_name: data?.full_name || "",
         city: data?.city || "",
@@ -121,6 +133,8 @@ export default function PersonalData() {
         goals: data?.goals || "",
         instagram_url: data?.instagram_url || "",
         linkedin_url: data?.linkedin_url || "",
+        cnpj: (data as any)?.cnpj || "",
+        website: (data as any)?.website || "",
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -205,31 +219,40 @@ export default function PersonalData() {
         .map(s => s.trim())
         .filter(s => s.length > 0);
 
+      const updateData: Record<string, any> = {
+        full_name: formData.full_name || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        occupation_type: formData.occupation_type || null,
+        company_name: formData.company_name || null,
+        job_title: formData.job_title || null,
+        industry: formData.industry || null,
+        education: formData.education || null,
+        skills: skillsArray.length > 0 ? skillsArray : null,
+        hobbies: formData.hobbies || null,
+        bio: formData.bio || null,
+        ai_experience_level: formData.ai_experience_level || null,
+        goals: formData.goals || null,
+        instagram_url: formData.instagram_url || null,
+        linkedin_url: formData.linkedin_url || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Include company fields if account is company
+      if (isCompany) {
+        updateData.cnpj = formData.cnpj || null;
+        updateData.website = formData.website || null;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: formData.full_name || null,
-          city: formData.city || null,
-          state: formData.state || null,
-          occupation_type: formData.occupation_type || null,
-          company_name: formData.company_name || null,
-          job_title: formData.job_title || null,
-          industry: formData.industry || null,
-          education: formData.education || null,
-          skills: skillsArray.length > 0 ? skillsArray : null,
-          hobbies: formData.hobbies || null,
-          bio: formData.bio || null,
-          ai_experience_level: formData.ai_experience_level || null,
-          goals: formData.goals || null,
-          instagram_url: formData.instagram_url || null,
-          linkedin_url: formData.linkedin_url || null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', user.id);
 
       if (error) throw error;
 
       toast.success("Dados atualizados com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
       setProfile(prev => prev ? {
         ...prev,
         ...formData,
@@ -240,6 +263,56 @@ export default function PersonalData() {
       toast.error("Erro ao atualizar dados");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSwitchToCompany = async () => {
+    if (!user) return;
+    setSwitchingAccount(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ account_type: 'company', updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setProfile(prev => prev ? { ...prev, account_type: 'company' } : null);
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Conta transformada em empresa!");
+    } catch (error) {
+      console.error('Error switching to company:', error);
+      toast.error("Erro ao transformar conta");
+    } finally {
+      setSwitchingAccount(false);
+    }
+  };
+
+  const handleSwitchToPersonal = async () => {
+    if (!user) return;
+    setSwitchingAccount(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          account_type: 'personal', 
+          cnpj: null, 
+          website: null, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setProfile(prev => prev ? { ...prev, account_type: 'personal', cnpj: null, website: null } : null);
+      setFormData(prev => ({ ...prev, cnpj: "", website: "" }));
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Conta revertida para pessoal!");
+    } catch (error) {
+      console.error('Error switching to personal:', error);
+      toast.error("Erro ao reverter conta");
+    } finally {
+      setSwitchingAccount(false);
     }
   };
 
@@ -271,7 +344,9 @@ export default function PersonalData() {
       formData.ai_experience_level !== (profile.ai_experience_level || "") ||
       formData.goals !== (profile.goals || "") ||
       formData.instagram_url !== (profile.instagram_url || "") ||
-      formData.linkedin_url !== (profile.linkedin_url || "")
+      formData.linkedin_url !== (profile.linkedin_url || "") ||
+      formData.cnpj !== (profile.cnpj || "") ||
+      formData.website !== (profile.website || "")
     );
   };
 
@@ -314,7 +389,12 @@ export default function PersonalData() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold">Dados pessoais</h1>
+          <h1 className="text-xl font-bold">
+            {isCompany ? "Dados da empresa" : "Dados pessoais"}
+          </h1>
+          <Badge variant={isCompany ? "default" : "secondary"} className="text-[10px] h-5">
+            {isCompany ? "Empresa" : "Pessoal"}
+          </Badge>
         </motion.div>
 
         {/* Avatar Section */}
@@ -346,7 +426,7 @@ export default function PersonalData() {
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2">
-            {uploadingAvatar ? "Enviando..." : "Toque para alterar a foto"}
+            {uploadingAvatar ? "Enviando..." : isCompany ? "Toque para alterar o logo" : "Toque para alterar a foto"}
           </p>
         </motion.div>
 
@@ -358,14 +438,14 @@ export default function PersonalData() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <ProfileFormSection icon={<UserIcon className="h-5 w-5" />} title="Informações básicas">
+            <ProfileFormSection icon={isCompany ? <Buildings className="h-5 w-5" /> : <UserIcon className="h-5 w-5" />} title={isCompany ? "Informações da empresa" : "Informações básicas"}>
               <div className="space-y-2">
-                <Label htmlFor="fullName">Nome completo</Label>
+                <Label htmlFor="fullName">{isCompany ? "Nome da empresa" : "Nome completo"}</Label>
                 <Input
                   id="fullName"
                   value={formData.full_name}
                   onChange={(e) => handleInputChange("full_name", e.target.value)}
-                  placeholder="Seu nome completo"
+                  placeholder={isCompany ? "Nome da empresa" : "Seu nome completo"}
                 />
               </div>
 
@@ -396,6 +476,37 @@ export default function PersonalData() {
               </div>
             </ProfileFormSection>
           </motion.div>
+
+          {/* Seção Empresa - CNPJ e Website (somente para conta empresa) */}
+          {isCompany && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+            >
+              <ProfileFormSection icon={<Buildings className="h-5 w-5" />} title="Dados empresariais">
+                <div className="space-y-2">
+                  <Label htmlFor="cnpj">CNPJ</Label>
+                  <Input
+                    id="cnpj"
+                    value={formData.cnpj}
+                    onChange={(e) => handleInputChange("cnpj", e.target.value)}
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website</Label>
+                  <Input
+                    id="website"
+                    value={formData.website}
+                    onChange={(e) => handleInputChange("website", e.target.value)}
+                    placeholder="https://www.suaempresa.com.br"
+                  />
+                </div>
+              </ProfileFormSection>
+            </motion.div>
+          )}
 
           {/* Seção 2 - Localização */}
           <motion.div
@@ -441,7 +552,7 @@ export default function PersonalData() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <ProfileFormSection icon={<Briefcase className="h-5 w-5" />} title="Dados profissionais">
+            <ProfileFormSection icon={<Briefcase className="h-5 w-5" />} title={isCompany ? "Setor de atuação" : "Dados profissionais"}>
               <div className="space-y-2">
                 <Label htmlFor="occupation_type">Ocupação</Label>
                 <Select
@@ -480,25 +591,29 @@ export default function PersonalData() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company_name">Empresa</Label>
-                <Input
-                  id="company_name"
-                  value={formData.company_name}
-                  onChange={(e) => handleInputChange("company_name", e.target.value)}
-                  placeholder="Nome da empresa atual ou anterior"
-                />
-              </div>
+              {!isCompany && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="company_name">Empresa</Label>
+                    <Input
+                      id="company_name"
+                      value={formData.company_name}
+                      onChange={(e) => handleInputChange("company_name", e.target.value)}
+                      placeholder="Nome da empresa atual ou anterior"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="job_title">Cargo / Profissão</Label>
-                <Input
-                  id="job_title"
-                  value={formData.job_title}
-                  onChange={(e) => handleInputChange("job_title", e.target.value)}
-                  placeholder="Ex: Desenvolvedor, Designer, Gerente"
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="job_title">Cargo / Profissão</Label>
+                    <Input
+                      id="job_title"
+                      value={formData.job_title}
+                      onChange={(e) => handleInputChange("job_title", e.target.value)}
+                      placeholder="Ex: Desenvolvedor, Designer, Gerente"
+                    />
+                  </div>
+                </>
+              )}
             </ProfileFormSection>
           </motion.div>
 
@@ -549,14 +664,14 @@ export default function PersonalData() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <ProfileFormSection icon={<Sparkle className="h-5 w-5" />} title="Sobre você">
+            <ProfileFormSection icon={<Sparkle className="h-5 w-5" />} title={isCompany ? "Sobre a empresa" : "Sobre você"}>
               <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
+                <Label htmlFor="bio">{isCompany ? "Descrição" : "Bio"}</Label>
                 <Textarea
                   id="bio"
                   value={formData.bio}
                   onChange={(e) => handleInputChange("bio", e.target.value.slice(0, 280))}
-                  placeholder="Conte um pouco sobre você..."
+                  placeholder={isCompany ? "Descreva sua empresa..." : "Conte um pouco sobre você..."}
                   className="resize-none"
                   rows={3}
                 />
@@ -565,15 +680,17 @@ export default function PersonalData() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="hobbies">Hobbies e interesses</Label>
-                <Input
-                  id="hobbies"
-                  value={formData.hobbies}
-                  onChange={(e) => handleInputChange("hobbies", e.target.value)}
-                  placeholder="Ex: Leitura, Games, Música"
-                />
-              </div>
+              {!isCompany && (
+                <div className="space-y-2">
+                  <Label htmlFor="hobbies">Hobbies e interesses</Label>
+                  <Input
+                    id="hobbies"
+                    value={formData.hobbies}
+                    onChange={(e) => handleInputChange("hobbies", e.target.value)}
+                    placeholder="Ex: Leitura, Games, Música"
+                  />
+                </div>
+              )}
             </ProfileFormSection>
           </motion.div>
 
@@ -606,7 +723,7 @@ export default function PersonalData() {
             </ProfileFormSection>
           </motion.div>
 
-          {/* Seção 6 - Experiência com IA */}
+          {/* Seção 7 - Experiência com IA */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -659,7 +776,7 @@ export default function PersonalData() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-6"
+          className="mt-6 space-y-3"
         >
           <Button
             className="w-full"
@@ -668,6 +785,29 @@ export default function PersonalData() {
           >
             {saving ? "Salvando..." : "Salvar alterações"}
           </Button>
+
+          {/* Account type switch */}
+          {!isCompany ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleSwitchToCompany}
+              disabled={switchingAccount}
+            >
+              <Buildings className="w-4 h-4 mr-2" />
+              {switchingAccount ? "Transformando..." : "Mudar para conta empresa"}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={handleSwitchToPersonal}
+              disabled={switchingAccount}
+            >
+              <UserIcon className="w-4 h-4 mr-2" />
+              {switchingAccount ? "Revertendo..." : "Voltar para conta pessoal"}
+            </Button>
+          )}
         </motion.div>
       </div>
     </AppLayout>

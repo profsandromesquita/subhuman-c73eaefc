@@ -876,6 +876,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           city: string | null
+          cnpj: string | null
           company_name: string | null
           created_at: string
           education: string | null
@@ -896,6 +897,7 @@ export type Database = {
           skills: string[] | null
           state: string | null
           updated_at: string
+          website: string | null
         }
         Insert: {
           account_type?: string
@@ -903,6 +905,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          cnpj?: string | null
           company_name?: string | null
           created_at?: string
           education?: string | null
@@ -923,6 +926,7 @@ export type Database = {
           skills?: string[] | null
           state?: string | null
           updated_at?: string
+          website?: string | null
         }
         Update: {
           account_type?: string
@@ -930,6 +934,7 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          cnpj?: string | null
           company_name?: string | null
           created_at?: string
           education?: string | null
@@ -950,6 +955,7 @@ export type Database = {
           skills?: string[] | null
           state?: string | null
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
