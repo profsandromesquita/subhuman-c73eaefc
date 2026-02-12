@@ -10,6 +10,7 @@ import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
+import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import tippy, { type Instance as TippyInstance } from "tippy.js";
 import { EditorToolbar } from "./EditorToolbar";
 import { MentionList, fetchMentionSuggestions, type MentionSuggestionItem } from "@/components/MentionSuggestions";
@@ -74,7 +75,7 @@ export function RichTextEditor({
             let popup: TippyInstance[];
 
             return {
-              onStart: (props: { editor: { view: { dom: HTMLElement } }; clientRect: (() => DOMRect | null) | null }) => {
+              onStart: (props: SuggestionProps) => {
                 component = new ReactRenderer(MentionList, {
                   props,
                   editor: props.editor as any,
@@ -92,7 +93,7 @@ export function RichTextEditor({
                   placement: "bottom-start",
                 });
               },
-              onUpdate: (props: { clientRect: (() => DOMRect | null) | null }) => {
+              onUpdate: (props: SuggestionProps) => {
                 component?.updateProps(props);
                 if (popup?.[0] && props.clientRect) {
                   popup[0].setProps({
@@ -100,7 +101,7 @@ export function RichTextEditor({
                   });
                 }
               },
-              onKeyDown: (props: { event: KeyboardEvent }) => {
+              onKeyDown: (props: SuggestionKeyDownProps) => {
                 if (props.event.key === "Escape") {
                   popup?.[0]?.hide();
                   return true;
