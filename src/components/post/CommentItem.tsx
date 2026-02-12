@@ -156,7 +156,15 @@ export function CommentItem({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-foreground/90 leading-relaxed">{content}</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">
+                    {content.split(/(@\S+)/g).map((part, i) =>
+                      part.startsWith("@") ? (
+                        <span key={i} className="text-primary font-medium">{part}</span>
+                      ) : (
+                        <span key={i}>{part}</span>
+                      )
+                    )}
+                  </p>
                 )}
 
                 {/* Reply action */}

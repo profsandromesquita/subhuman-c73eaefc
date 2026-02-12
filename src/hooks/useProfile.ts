@@ -20,6 +20,7 @@ export interface Profile {
   goals: string | null;
   instagram_url: string | null;
   linkedin_url: string | null;
+  account_type: string;
 }
 
 export function useProfile() {

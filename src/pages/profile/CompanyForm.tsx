@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Camera, Spinner, Buildings, Globe, MapPin, ShareNetwork
+  ArrowLeft, Camera, Spinner, Buildings, Globe, MapPin, ShareNetwork, ArrowUUpLeft
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,20 +13,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AppLayout } from "@/components/AppLayout";
 import { ProfileFormSection } from "@/components/profile/ProfileFormSection";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useMyCompany, useCreateCompany, useUpdateCompany } from "@/hooks/useCompany";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { BRAZILIAN_STATES, INDUSTRIES } from "@/lib/constants/profile";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function CompanyForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: profile } = useProfile();
   const { data: company, isLoading } = useMyCompany();
   const createCompany = useCreateCompany();
   const updateCompany = useUpdateCompany();
+  const queryClient = useQueryClient();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [showRevertDialog, setShowRevertDialog] = useState(false);
+  const [reverting, setReverting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isCompanyAccount = profile?.account_type === "company";
 
   const [form, setForm] = useState({
     name: "",
@@ -85,6 +103,7 @@ export default function CompanyForm() {
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Nome da empresa é obrigatório"); return; }
+    if (!user) return;
 
     const payload = {
       name: form.name,
@@ -105,10 +124,35 @@ export default function CompanyForm() {
       } else {
         await createCompany.mutateAsync(payload);
       }
-      toast.success(company ? "Empresa atualizada!" : "Empresa cadastrada!");
+
+      // Update account_type to company
+      await supabase.from("profiles").update({ account_type: "company" }).eq("id", user.id);
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+
+      toast.success(isCompanyAccount ? "Dados da empresa atualizados!" : "Conta transformada em empresa!");
       navigate("/profile");
     } catch {
       toast.error("Erro ao salvar empresa");
+    }
+  };
+
+  const handleRevertToPersonal = async () => {
+    if (!user || !company) return;
+    setReverting(true);
+    try {
+      // Delete company
+      await supabase.from("companies").delete().eq("id", company.id);
+      // Revert account_type
+      await supabase.from("profiles").update({ account_type: "personal" }).eq("id", user.id);
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["my-company"] });
+      toast.success("Conta revertida para pessoal!");
+      navigate("/profile");
+    } catch {
+      toast.error("Erro ao reverter conta");
+    } finally {
+      setReverting(false);
+      setShowRevertDialog(false);
     }
   };
 
@@ -133,8 +177,19 @@ export default function CompanyForm() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/profile")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold">{company ? "Editar empresa" : "Cadastrar empresa"}</h1>
+          <h1 className="text-xl font-bold">
+            {isCompanyAccount ? "Dados da empresa" : "Mudar para conta empresa"}
+          </h1>
         </motion.div>
+
+        {!isCompanyAccount && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 p-4 rounded-xl bg-secondary/50 border border-border">
+            <p className="text-sm text-muted-foreground">
+              Ao preencher os dados abaixo, sua conta pessoal será transformada em uma conta empresa. 
+              Você poderá reverter para conta pessoal a qualquer momento.
+            </p>
+          </motion.div>
+        )}
 
         {/* Logo */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-col items-center mb-8">
@@ -213,11 +268,39 @@ export default function CompanyForm() {
           </ProfileFormSection>
         </div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-6 space-y-3">
           <Button className="w-full" onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando..." : company ? "Salvar alterações" : "Cadastrar empresa"}
+            {saving ? "Salvando..." : isCompanyAccount ? "Salvar alterações" : "Transformar em conta empresa"}
           </Button>
+
+          {isCompanyAccount && (
+            <Button 
+              variant="outline" 
+              className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+              onClick={() => setShowRevertDialog(true)}
+            >
+              <ArrowUUpLeft className="w-4 h-4 mr-2" />
+              Voltar para conta pessoal
+            </Button>
+          )}
         </motion.div>
+
+        <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Voltar para conta pessoal?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Os dados da empresa serão removidos. Você poderá criar uma conta empresa novamente no futuro.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRevertToPersonal} disabled={reverting}>
+                {reverting ? "Revertendo..." : "Confirmar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
