@@ -34,6 +34,7 @@ export interface PostComment {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -125,7 +126,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
         const uniqueUserIds = [...new Set(commentsData.map((c) => c.user_id))];
 
         const [profilesResult, commentLikesResult, userCommentLikesResult] = await Promise.all([
-          supabase.from("profiles").select("id, full_name").in("id", uniqueUserIds),
+          supabase.from("profiles").select("id, full_name, avatar_url").in("id", uniqueUserIds),
           supabase.from("comment_likes").select("comment_id").in("comment_id", commentIds),
           user
             ? supabase.from("comment_likes").select("comment_id").in("comment_id", commentIds).eq("user_id", user.id)
@@ -133,7 +134,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
         ]);
 
         const profilesMap = new Map(
-          profilesResult.data?.map((p) => [p.id, p.full_name]) || []
+          profilesResult.data?.map((p) => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }]) || []
         );
 
         const likesCountMap: Record<string, number> = {};
@@ -145,17 +146,21 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
           (userCommentLikesResult.data || []).map((l: any) => l.comment_id)
         );
 
-        const commentsWithLikes = commentsData.map((comment) => ({
+        const commentsWithLikes = commentsData.map((comment) => {
+          const profile = profilesMap.get(comment.user_id);
+          return {
           id: comment.id,
           content: comment.content,
-          authorName: profilesMap.get(comment.user_id) || "Usuário",
+          authorName: profile?.full_name || "Usuário",
+          avatarUrl: profile?.avatar_url || null,
           createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
           likesCount: likesCountMap[comment.id] || 0,
           isLiked: userLikedSet.has(comment.id),
           userId: comment.user_id,
           parentId: comment.parent_id,
           replies: [] as PostComment[],
-        }));
+        };
+        });
 
         const parentComments: PostComment[] = [];
         const replyMap = new Map<string, PostComment[]>();

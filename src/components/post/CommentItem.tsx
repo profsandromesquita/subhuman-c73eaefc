@@ -1,14 +1,18 @@
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, User, Pencil, Trash } from "@phosphor-icons/react";
+import { Heart, Pencil, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MentionText } from "@/components/post/MentionText";
+import { AuthorModal } from "@/components/post/AuthorModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Reply {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -19,6 +23,7 @@ interface CommentItemProps {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -32,12 +37,20 @@ interface CommentItemProps {
   isReply?: boolean;
 }
 
-// MentionText is now imported from @/components/post/MentionText
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
 
 export function CommentItem({
   id,
   content,
   authorName,
+  avatarUrl,
   createdAt,
   likesCount,
   isLiked,
@@ -54,6 +67,8 @@ export function CommentItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [authorProfile, setAuthorProfile] = useState<any>(null);
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
 
   const visibleReplies = replies.slice(0, visibleRepliesCount);
   const remainingReplies = replies.length - visibleRepliesCount;
@@ -63,6 +78,23 @@ export function CommentItem({
   const isLongPress = useRef(false);
 
   const isOwner = currentUserId && userId && currentUserId === userId;
+
+  const handleAuthorClick = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data) {
+        setAuthorProfile(data);
+        setShowAuthorModal(true);
+      }
+    } catch (err) {
+      console.error("Error fetching commenter profile:", err);
+    }
+  }, [userId]);
 
   const handleSaveEdit = () => {
     if (editContent.trim() && onEdit) {
@@ -120,15 +152,25 @@ export function CommentItem({
         onMouseLeave={handleTouchEnd}
       >
         <div className="flex gap-3">
-          <div className={`${isReply ? "w-7 h-7" : "w-9 h-9"} rounded-full bg-secondary flex items-center justify-center flex-shrink-0`}>
-            <User className={`${isReply ? "w-3.5 h-3.5" : "w-4 h-4"}`} weight="bold" />
-          </div>
+          <button onClick={handleAuthorClick} className="flex-shrink-0">
+            <Avatar className={isReply ? "w-7 h-7" : "w-9 h-9"}>
+              <AvatarImage src={avatarUrl || undefined} />
+              <AvatarFallback className="text-xs bg-secondary">
+                {getInitials(authorName)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-sm">{authorName}</span>
+                  <button
+                    onClick={handleAuthorClick}
+                    className="font-semibold text-sm hover:underline text-left"
+                  >
+                    {authorName}
+                  </button>
                   <span className="text-xs text-muted-foreground">{createdAt}</span>
                 </div>
 
@@ -199,6 +241,7 @@ export function CommentItem({
                 id={reply.id}
                 content={reply.content}
                 authorName={reply.authorName}
+                avatarUrl={reply.avatarUrl}
                 createdAt={reply.createdAt}
                 likesCount={reply.likesCount}
                 isLiked={reply.isLiked}
@@ -261,6 +304,12 @@ export function CommentItem({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AuthorModal
+        author={authorProfile}
+        isOpen={showAuthorModal}
+        onClose={() => setShowAuthorModal(false)}
+      />
     </>
   );
 }

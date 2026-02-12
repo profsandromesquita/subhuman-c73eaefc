@@ -251,7 +251,27 @@ export default function ChannelPostDetail() {
         </Avatar>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{comment.author_name}</span>
+            <button
+              onClick={async () => {
+                if (!comment.user_id) return;
+                try {
+                  const { data } = await supabase
+                    .from("profiles")
+                    .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
+                    .eq("id", comment.user_id)
+                    .maybeSingle();
+                  if (data) {
+                    setMentionAuthor(data);
+                    setShowMentionModal(true);
+                  }
+                } catch (err) {
+                  console.error("Error fetching commenter profile:", err);
+                }
+              }}
+              className="text-sm font-medium hover:underline text-left"
+            >
+              {comment.author_name}
+            </button>
             <span className="text-xs text-muted-foreground">{formatTime(comment.created_at)}</span>
           </div>
           <MentionText text={comment.content} />

@@ -5,6 +5,7 @@ interface Reply {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -15,6 +16,7 @@ interface Comment {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -60,22 +62,23 @@ export function CommentSection({
       ) : (
         <div className="space-y-6">
           {comments.map((comment) => (
-            <CommentItem
-              key={comment.id}
-              id={comment.id}
-              content={comment.content}
-              authorName={comment.authorName}
-              createdAt={comment.createdAt}
-              likesCount={comment.likesCount}
-              isLiked={comment.isLiked}
-              userId={comment.userId}
-              currentUserId={currentUserId}
-              replies={comment.replies}
-              onLikeToggle={onLikeComment}
-              onReply={onReplyComment}
-              onEdit={onEditComment}
-              onDelete={onDeleteComment}
-            />
+              <CommentItem
+                key={comment.id}
+                id={comment.id}
+                content={comment.content}
+                authorName={comment.authorName}
+                avatarUrl={comment.avatarUrl}
+                createdAt={comment.createdAt}
+                likesCount={comment.likesCount}
+                isLiked={comment.isLiked}
+                userId={comment.userId}
+                currentUserId={currentUserId}
+                replies={comment.replies}
+                onLikeToggle={onLikeComment}
+                onReply={onReplyComment}
+                onEdit={onEditComment}
+                onDelete={onDeleteComment}
+              />
           ))}
         </div>
       )}
