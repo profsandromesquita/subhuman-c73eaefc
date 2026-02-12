@@ -1,30 +1,39 @@
 
-# Correcao: Contador de Tentativas Restantes no Login
+# Correcao: Atualizacao de Posts Apos Publicacao nos Canais
 
-## Problema
+## Causa Raiz
 
-Quando o usuario erra a senha, a mensagem exibida e apenas "Email ou senha incorretos" (para tentativas 1 e 2). O bloqueio acontece na tentativa 3 sem aviso previo, causando surpresa e ma experiencia.
+O arquivo `src/pages/CreateChannelPost.tsx` cria/edita posts e navega de volta para a pagina do canal, mas **nunca invalida o cache do React Query**. A query `useChannelPosts` (query key: `["channel-posts", channelId]`) usa o `staleTime` padrao de 5 minutos, entao o usuario ve dados antigos ate o cache expirar.
 
 ## Solucao
 
-Alterar a mensagem de erro nas tentativas 1 e 2 para incluir quantas tentativas restam antes do bloqueio.
+Invalidar as queries relevantes no `CreateChannelPost.tsx` imediatamente apos criar ou editar um post com sucesso, **antes** de navegar.
 
-**Arquivo**: `src/pages/Login.tsx`
+## Mudancas
 
-**Mudanca**: No bloco `else` (linha 139-141), substituir a mensagem generica por uma que inclua o contador:
+**Arquivo**: `src/pages/CreateChannelPost.tsx`
+
+1. Importar `useQueryClient` do `@tanstack/react-query`
+2. Obter a instancia com `const queryClient = useQueryClient()`
+3. Apos criar ou editar um post com sucesso, invalidar as queries:
 
 ```text
-// ANTES:
-toast.error("Email ou senha incorretos");
+// Apos criacao bem-sucedida:
+queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
+queryClient.invalidateQueries({ queryKey: ["channels"] });
+queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
 
-// DEPOIS:
-const remaining = 3 - attempts;
-toast.error(`Email ou senha incorretos. ${remaining === 1 ? "Mais 1 tentativa antes do bloqueio." : `Mais ${remaining} tentativas antes do bloqueio.`}`);
+// Apos edicao bem-sucedida:
+queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
+queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
 ```
 
-Mensagens resultantes:
-- Tentativa 1: "Email ou senha incorretos. Mais 2 tentativas antes do bloqueio."
-- Tentativa 2: "Email ou senha incorretos. Mais 1 tentativa antes do bloqueio."
-- Tentativa 3+: "Credenciais incorretas. Conta bloqueada por 30s." (ja existe)
+As invalidacoes sao chamadas **antes** do `navigate()` para garantir que quando o usuario chegar na pagina do canal, o React Query ja estara buscando dados frescos.
+
+## Resumo
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/CreateChannelPost.tsx` | Adicionar invalidacao de cache apos criar/editar post |
 
 Nenhum outro arquivo sera modificado.
