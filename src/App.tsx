@@ -38,9 +38,13 @@ const Security = lazy(() => import("./pages/profile/Security"));
 const NotificationPreferences = lazy(() => import("./pages/profile/NotificationPreferences"));
 const Settings = lazy(() => import("./pages/profile/Settings"));
 const SavedContent = lazy(() => import("./pages/profile/SavedContent"));
+const CompanyForm = lazy(() => import("./pages/profile/CompanyForm"));
+const CompanyMembers = lazy(() => import("./pages/profile/CompanyMembers"));
+const CompanyProfile = lazy(() => import("./pages/CompanyProfile"));
+const Search = lazy(() => import("./pages/Search"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
- const AIAssistant = lazy(() => import("./pages/AIAssistant"));
+const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -101,7 +105,11 @@ const App = () => (
               <Route path="/profile/notifications" element={<SubscriptionGuard><NotificationPreferences /></SubscriptionGuard>} />
               <Route path="/profile/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>} />
               <Route path="/profile/saved" element={<SubscriptionGuard><SavedContent /></SubscriptionGuard>} />
-               <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
+              <Route path="/profile/company" element={<SubscriptionGuard><CompanyForm /></SubscriptionGuard>} />
+              <Route path="/profile/company/members" element={<SubscriptionGuard><CompanyMembers /></SubscriptionGuard>} />
+              <Route path="/company/:slug" element={<SubscriptionGuard><CompanyProfile /></SubscriptionGuard>} />
+              <Route path="/search" element={<SubscriptionGuard><Search /></SubscriptionGuard>} />
+              <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
 
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
