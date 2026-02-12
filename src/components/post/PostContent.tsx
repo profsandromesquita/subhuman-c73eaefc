@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { PlayCircle, Clock, User } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import { AuthorModal } from "@/components/post/AuthorModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MediaItem {
   id: string;
@@ -54,6 +55,60 @@ export function PostContent({
   author,
 }: PostContentProps) {
   const [showAuthorModal, setShowAuthorModal] = useState(false);
+  const [mentionAuthor, setMentionAuthor] = useState<Author | null>(null);
+  const [showMentionModal, setShowMentionModal] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleMentionClick = useCallback(async (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const mentionEl = target.closest('.mention') as HTMLElement | null;
+    if (!mentionEl) return;
+
+    const mentionId = mentionEl.getAttribute('data-mention-id');
+    const mentionType = mentionEl.getAttribute('data-mention-type');
+    if (!mentionId) return;
+
+    try {
+      if (mentionType === 'company') {
+        const { data } = await supabase
+          .from('companies')
+          .select('id, name, logo_url, description, instagram_url, linkedin_url, website, industry')
+          .eq('id', mentionId)
+          .single();
+        if (data) {
+          setMentionAuthor({
+            id: data.id,
+            full_name: data.name,
+            avatar_url: data.logo_url,
+            bio: data.description,
+            education: data.industry,
+            instagram_url: data.instagram_url,
+            linkedin_url: data.linkedin_url,
+          });
+          setShowMentionModal(true);
+        }
+      } else {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
+          .eq('id', mentionId)
+          .single();
+        if (data) {
+          setMentionAuthor(data);
+          setShowMentionModal(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching mention profile:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.addEventListener('click', handleMentionClick);
+    return () => el.removeEventListener('click', handleMentionClick);
+  }, [handleMentionClick]);
 
   return (
     <motion.article
@@ -81,7 +136,6 @@ export function PostContent({
               </motion.div>
             </div>
           )}
-          {/* Gradient overlay at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent" />
         </div>
       )}
@@ -134,6 +188,7 @@ export function PostContent({
 
         {/* Content - mentions rendered as clickable links via data attributes */}
         <div 
+          ref={contentRef}
           className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
         />
@@ -151,6 +206,13 @@ export function PostContent({
         author={author || null} 
         isOpen={showAuthorModal} 
         onClose={() => setShowAuthorModal(false)} 
+      />
+
+      {/* Mention Modal */}
+      <AuthorModal 
+        author={mentionAuthor} 
+        isOpen={showMentionModal} 
+        onClose={() => setShowMentionModal(false)} 
       />
     </motion.article>
   );

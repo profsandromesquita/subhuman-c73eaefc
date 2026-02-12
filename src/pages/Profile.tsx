@@ -26,39 +26,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/hooks/useProfile";
 import { useState, useEffect, useRef } from "react";
 
-const menuItems = [
-  {
-    icon: BookmarkSimple,
-    label: "Conteúdos salvos",
-    description: "Artigos e podcasts",
-    path: "/profile/saved",
-  },
-  {
-    icon: UserIcon,
-    label: "Dados pessoais",
-    description: "Nome, email e foto",
-    path: "/profile/personal",
-  },
-  {
-    icon: ShieldCheck,
-    label: "Senha e segurança",
-    description: "Alterar senha",
-    path: "/profile/security",
-  },
-  {
-    icon: Bell,
-    label: "Preferências de notificação",
-    description: "Gerenciar alertas",
-    path: "/profile/notifications",
-  },
-  {
-    icon: Gear,
-    label: "Configurações",
-    description: "App e preferências",
-    path: "/profile/settings",
-  },
-];
-
 export default function Profile() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
@@ -93,6 +60,40 @@ export default function Profile() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Menu items - "Dados pessoais" label changes based on account type
+  const menuItems = [
+    {
+      icon: BookmarkSimple,
+      label: "Conteúdos salvos",
+      description: "Artigos e podcasts",
+      path: "/profile/saved",
+    },
+    {
+      icon: isCompanyAccount ? Buildings : UserIcon,
+      label: isCompanyAccount ? "Dados da empresa" : "Dados pessoais",
+      description: isCompanyAccount ? "CNPJ, site e informações" : "Nome, email e foto",
+      path: "/profile/personal",
+    },
+    {
+      icon: ShieldCheck,
+      label: "Senha e segurança",
+      description: "Alterar senha",
+      path: "/profile/security",
+    },
+    {
+      icon: Bell,
+      label: "Preferências de notificação",
+      description: "Gerenciar alertas",
+      path: "/profile/notifications",
+    },
+    {
+      icon: Gear,
+      label: "Configurações",
+      description: "App e preferências",
+      path: "/profile/settings",
+    },
+  ];
 
   if (authLoading || profileLoading) {
     return (
@@ -199,36 +200,7 @@ export default function Profile() {
           </Link>
         </motion.div>
 
-        {/* Account Type: Transform or Edit Company */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.14 }}
-          className="mb-2"
-        >
-          <Link to="/profile/company">
-            <Card className="hover:border-muted-foreground/30 transition-all duration-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-secondary">
-                    <Buildings className="w-5 h-5" weight="bold" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-sm">
-                      {isCompanyAccount ? "Dados da empresa" : "Mudar para conta empresa"}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {isCompanyAccount ? "Editar informações da empresa" : "Transformar sua conta pessoal"}
-                    </p>
-                  </div>
-                  <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        </motion.div>
-
-        {/* Menu Items */}
+        {/* Menu Items - single list, no separate company link */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

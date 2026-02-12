@@ -21,6 +21,8 @@ export interface Profile {
   instagram_url: string | null;
   linkedin_url: string | null;
   account_type: string;
+  cnpj: string | null;
+  website: string | null;
 }
 
 export function useProfile() {
@@ -38,7 +40,7 @@ export function useProfile() {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Profile;
     },
     enabled: !!user,
   });

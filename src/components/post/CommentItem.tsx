@@ -3,6 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Heart, User, Pencil, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { AuthorModal } from "@/components/post/AuthorModal";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Author {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
+}
 
 interface Reply {
   id: string;
@@ -29,6 +41,79 @@ interface CommentItemProps {
   onEdit?: (commentId: string, newContent: string) => void;
   onDelete?: (commentId: string) => void;
   isReply?: boolean;
+}
+
+function MentionText({ text }: { text: string }) {
+  const [mentionAuthor, setMentionAuthor] = useState<Author | null>(null);
+  const [showModal, setShowModal] = useState(false);
+
+  const handleMentionClick = async (name: string) => {
+    try {
+      // Search by name in profiles
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
+        .ilike('full_name', name.replace('@', ''))
+        .limit(1)
+        .single();
+
+      if (data) {
+        setMentionAuthor(data);
+        setShowModal(true);
+        return;
+      }
+
+      // Fallback: search in companies
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('id, name, logo_url, description, instagram_url, linkedin_url, industry')
+        .ilike('name', name.replace('@', ''))
+        .limit(1)
+        .single();
+
+      if (companyData) {
+        setMentionAuthor({
+          id: companyData.id,
+          full_name: companyData.name,
+          avatar_url: companyData.logo_url,
+          bio: companyData.description,
+          education: companyData.industry,
+          instagram_url: companyData.instagram_url,
+          linkedin_url: companyData.linkedin_url,
+        });
+        setShowModal(true);
+      }
+    } catch (err) {
+      console.error('Error fetching mention:', err);
+    }
+  };
+
+  const parts = text.split(/(@\S+)/g);
+
+  return (
+    <>
+      <p className="text-sm text-foreground/90 leading-relaxed">
+        {parts.map((part, i) =>
+          part.startsWith("@") ? (
+            <button
+              key={i}
+              onClick={() => handleMentionClick(part)}
+              className="text-primary font-medium hover:underline cursor-pointer"
+            >
+              {part}
+            </button>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </p>
+      <AuthorModal
+        author={mentionAuthor}
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+      />
+    </>
+  );
 }
 
 export function CommentItem({
@@ -75,15 +160,11 @@ export function CommentItem({
 
   const handleTouchStart = useCallback(() => {
     if (!isOwner) return;
-    
     isLongPress.current = false;
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       setShowContextMenu(true);
-      // Vibração sutil para feedback
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
+      if (navigator.vibrate) navigator.vibrate(50);
     }, 500);
   }, [isOwner]);
 
@@ -103,11 +184,8 @@ export function CommentItem({
 
   const handleContextAction = (action: 'edit' | 'delete') => {
     setShowContextMenu(false);
-    if (action === 'edit') {
-      setIsEditing(true);
-    } else if (action === 'delete') {
-      onDelete?.(id);
-    }
+    if (action === 'edit') setIsEditing(true);
+    else if (action === 'delete') onDelete?.(id);
   };
 
   return (
@@ -124,12 +202,10 @@ export function CommentItem({
         onMouseLeave={handleTouchEnd}
       >
         <div className="flex gap-3">
-          {/* Avatar */}
           <div className={`${isReply ? "w-7 h-7" : "w-9 h-9"} rounded-full bg-secondary flex items-center justify-center flex-shrink-0`}>
             <User className={`${isReply ? "w-3.5 h-3.5" : "w-4 h-4"}`} weight="bold" />
           </div>
 
-          {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
@@ -156,18 +232,9 @@ export function CommentItem({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-foreground/90 leading-relaxed">
-                    {content.split(/(@\S+)/g).map((part, i) =>
-                      part.startsWith("@") ? (
-                        <span key={i} className="text-primary font-medium">{part}</span>
-                      ) : (
-                        <span key={i}>{part}</span>
-                      )
-                    )}
-                  </p>
+                  <MentionText text={content} />
                 )}
 
-                {/* Reply action */}
                 {!isEditing && !isReply && (
                   <div className="mt-2">
                     <Button
@@ -182,7 +249,6 @@ export function CommentItem({
                 )}
               </div>
 
-              {/* Like button - direita */}
               {!isEditing && (
                 <div className="flex flex-col items-center gap-0.5 ml-2">
                   <Button
@@ -207,7 +273,6 @@ export function CommentItem({
           </div>
         </div>
 
-        {/* Replies */}
         {visibleRepliesCount > 0 && visibleReplies.length > 0 && (
           <div className="mt-3 space-y-3">
             {visibleReplies.map((reply) => (
@@ -231,7 +296,6 @@ export function CommentItem({
           </div>
         )}
 
-        {/* Show more replies */}
         {replies.length > 0 && hasMoreReplies && (
           <Button
             variant="ghost"
@@ -244,7 +308,6 @@ export function CommentItem({
         )}
       </motion.div>
 
-      {/* Context Menu Overlay */}
       <AnimatePresence>
         {showContextMenu && isOwner && (
           <motion.div
