@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import DOMPurify from "dompurify";
+import { AuthorModal } from "@/components/post/AuthorModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,56 @@ export default function ChannelPostDetail() {
 
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [mentionAuthor, setMentionAuthor] = useState<any>(null);
+  const [showMentionModal, setShowMentionModal] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleMentionClick = useCallback(async (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const mentionEl = target.closest('.mention') as HTMLElement | null;
+    if (!mentionEl) return;
+
+    const mentionId = mentionEl.getAttribute('data-mention-id');
+    const mentionType = mentionEl.getAttribute('data-mention-type');
+    if (!mentionId) return;
+
+    try {
+      if (mentionType === 'company') {
+        const { data } = await supabase
+          .from('companies')
+          .select('id, name, logo_url, description, instagram_url, linkedin_url, website, industry')
+          .eq('id', mentionId)
+          .maybeSingle();
+        if (data) {
+          setMentionAuthor({
+            id: data.id, full_name: data.name, avatar_url: data.logo_url,
+            bio: data.description, education: data.industry,
+            instagram_url: data.instagram_url, linkedin_url: data.linkedin_url, website: data.website,
+          });
+          setShowMentionModal(true);
+        }
+      } else {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website')
+          .eq('id', mentionId)
+          .maybeSingle();
+        if (data) {
+          setMentionAuthor(data);
+          setShowMentionModal(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching mention profile:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.addEventListener('click', handleMentionClick);
+    return () => el.removeEventListener('click', handleMentionClick);
+  }, [handleMentionClick]);
 
   // Local optimistic state for likes
   const [optimisticLike, setOptimisticLike] = useState<{ isLiked: boolean; likesCount: number } | null>(null);
@@ -343,8 +394,9 @@ export default function ChannelPostDetail() {
             <h1 className="text-xl font-bold mb-3">{post.title}</h1>
           )}
           <div 
-            className="prose prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+            ref={contentRef}
+            className="prose prose-sm dark:prose-invert max-w-none [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content, { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
           />
 
           {/* Media Gallery */}
@@ -402,6 +454,12 @@ export default function ChannelPostDetail() {
           </div>
         </div>
       </div>
+
+      <AuthorModal 
+        author={mentionAuthor} 
+        isOpen={showMentionModal} 
+        onClose={() => setShowMentionModal(false)} 
+      />
     </AppLayout>
   );
 }
