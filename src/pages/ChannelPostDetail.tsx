@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Heart, ChatCircle, DotsThree, Pencil, Trash } from "@phosphor-icons/react";
 import { MentionCommentInput, type MentionData } from "@/components/MentionCommentInput";
+import { MentionText } from "@/components/post/MentionText";
 import { useCreateMentions } from "@/hooks/useMentions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -99,17 +100,19 @@ export default function ChannelPostDetail() {
     }
   }, []);
 
+  const post = data?.post ?? null;
+
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
     el.addEventListener('click', handleMentionClick);
     return () => el.removeEventListener('click', handleMentionClick);
-  }, [handleMentionClick]);
+  }, [handleMentionClick, post]);
 
   // Local optimistic state for likes
   const [optimisticLike, setOptimisticLike] = useState<{ isLiked: boolean; likesCount: number } | null>(null);
 
-  const post = data?.post ?? null;
+  // post already declared above
   const media = data?.media ?? [];
   const comments = data?.comments ?? [];
   const likesCount = optimisticLike?.likesCount ?? data?.likesCount ?? 0;
@@ -251,7 +254,7 @@ export default function ChannelPostDetail() {
             <span className="text-sm font-medium">{comment.author_name}</span>
             <span className="text-xs text-muted-foreground">{formatTime(comment.created_at)}</span>
           </div>
-          <p className="text-sm mt-1">{comment.content}</p>
+          <MentionText text={comment.content} />
           <div className="flex items-center gap-3 mt-2">
             <Button
               variant="ghost"

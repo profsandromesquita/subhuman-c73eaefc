@@ -111,7 +111,7 @@ export function PostContent({
     if (!el) return;
     el.addEventListener('click', handleMentionClick);
     return () => el.removeEventListener('click', handleMentionClick);
-  }, [handleMentionClick]);
+  }, [handleMentionClick, content]);
 
   return (
     <motion.article
