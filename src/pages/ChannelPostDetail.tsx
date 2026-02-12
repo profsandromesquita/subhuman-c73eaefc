@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Heart, ChatCircle, PaperPlaneTilt, DotsThree, Pencil, Trash } from "@phosphor-icons/react";
+import { ArrowLeft, Heart, ChatCircle, DotsThree, Pencil, Trash } from "@phosphor-icons/react";
+import { MentionCommentInput, type MentionData } from "@/components/MentionCommentInput";
+import { useCreateMentions } from "@/hooks/useMentions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -43,13 +44,12 @@ export default function ChannelPostDetail() {
   const { isAdminOrModerator } = useAdminAuth();
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteChannelPost();
-  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const commentSectionRef = useRef<HTMLDivElement>(null);
+  const createMentions = useCreateMentions();
 
   const { data, isLoading } = useChannelPostDetail(postId);
 
-  const [commentContent, setCommentContent] = useState("");
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
-  const [submittingComment, setSubmittingComment] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Local optimistic state for likes
@@ -115,34 +115,39 @@ export default function ChannelPostDetail() {
     queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
   };
 
-  const handleSubmitComment = async () => {
+  const handleSubmitComment = async (content: string, mentions: MentionData[], parentId?: string) => {
     if (!user) {
       toast.error("Você precisa estar logado para comentar");
       return;
     }
-    if (!commentContent.trim()) return;
 
-    setSubmittingComment(true);
-
-    const { error } = await supabase.from("channel_post_comments").insert({
+    const { data: commentData, error } = await supabase.from("channel_post_comments").insert({
       post_id: postId,
       user_id: user.id,
-      content: commentContent.trim(),
-      parent_id: replyTo?.id || null,
-    });
+      content,
+      parent_id: parentId || null,
+    }).select("id").single();
 
     if (error) {
       console.error("Error creating comment:", error);
       toast.error("Erro ao enviar comentário");
     } else {
-      toast.success(replyTo ? "Resposta enviada!" : "Comentário enviado!");
-      setCommentContent("");
+      // Save mentions
+      if (mentions.length > 0 && commentData) {
+        createMentions.mutate(
+          mentions.map((m) => ({
+            mentionedUserId: m.type === "user" ? m.id : undefined,
+            mentionedCompanyId: m.type === "company" ? m.id : undefined,
+            contextType: "channel_comment",
+            contextId: commentData.id,
+          }))
+        );
+      }
+      toast.success(parentId ? "Resposta enviada!" : "Comentário enviado!");
       setReplyTo(null);
       queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
       queryClient.invalidateQueries({ queryKey: ["recent-discussions"] });
     }
-
-    setSubmittingComment(false);
   };
 
   const formatTime = (dateString: string) => {
@@ -209,7 +214,6 @@ export default function ChannelPostDetail() {
               className="h-6 px-1.5 text-xs text-muted-foreground"
               onClick={() => {
                 setReplyTo({ id: comment.id, name: comment.author_name });
-                commentInputRef.current?.focus();
               }}
             >
               Responder
@@ -363,7 +367,7 @@ export default function ChannelPostDetail() {
             <Button
               variant="ghost"
               className="gap-2"
-              onClick={() => commentInputRef.current?.focus()}
+              onClick={() => commentSectionRef.current?.scrollIntoView({ behavior: "smooth" })}
             >
               <ChatCircle className="w-5 h-5" />
               <span>{comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)} comentários</span>
@@ -390,38 +394,11 @@ export default function ChannelPostDetail() {
         {/* Comment Input */}
         <div className="fixed bottom-20 left-0 right-0 bg-background border-t p-4">
           <div className="max-w-lg mx-auto">
-            {replyTo && (
-              <div className="flex items-center justify-between mb-2 text-sm">
-                <span className="text-muted-foreground">
-                  Respondendo a <span className="font-medium text-foreground">{replyTo.name}</span>
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setReplyTo(null)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Textarea
-                ref={commentInputRef}
-                placeholder={replyTo ? "Escreva sua resposta..." : "Escreva um comentário..."}
-                value={commentContent}
-                onChange={(e) => setCommentContent(e.target.value)}
-                className="min-h-[44px] max-h-32 resize-none"
-                rows={1}
-              />
-              <Button
-                size="icon"
-                onClick={handleSubmitComment}
-                disabled={submittingComment || !commentContent.trim()}
-              >
-                <PaperPlaneTilt className="w-5 h-5" weight="fill" />
-              </Button>
-            </div>
+            <MentionCommentInput
+              onSubmit={handleSubmitComment}
+              replyTo={replyTo ? { id: replyTo.id, authorName: replyTo.name } : null}
+              onCancelReply={() => setReplyTo(null)}
+            />
           </div>
         </div>
       </div>

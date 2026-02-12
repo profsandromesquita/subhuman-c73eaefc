@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
 import { 
   User as UserIcon, 
@@ -23,7 +24,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/hooks/useProfile";
-import { useMyCompany } from "@/hooks/useCompany";
 import { useState, useEffect, useRef } from "react";
 
 const menuItems = [
@@ -64,9 +64,10 @@ export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile, isLoading: profileLoading } = useProfile();
-  const { data: myCompany } = useMyCompany();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const isLoggingOut = useRef(false);
+
+  const isCompanyAccount = profile?.account_type === "company";
 
   useEffect(() => {
     if (isLoggingOut.current) return;
@@ -135,7 +136,12 @@ export default function Profile() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-bold">{profile?.full_name || "Usuário"}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">{profile?.full_name || "Usuário"}</h1>
+              <Badge variant={isCompanyAccount ? "default" : "secondary"} className="text-[10px] h-5">
+                {isCompanyAccount ? "Empresa" : "Pessoal"}
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
           </div>
         </motion.div>
@@ -168,7 +174,7 @@ export default function Profile() {
           </button>
         </motion.div>
 
-        {/* Company & Search */}
+        {/* Search */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -193,6 +199,7 @@ export default function Profile() {
           </Link>
         </motion.div>
 
+        {/* Account Type: Transform or Edit Company */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -207,8 +214,12 @@ export default function Profile() {
                     <Buildings className="w-5 h-5" weight="bold" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-medium text-sm">{myCompany ? "Minha empresa" : "Criar perfil empresa"}</h3>
-                    <p className="text-xs text-muted-foreground">{myCompany ? myCompany.name : "Cadastre sua empresa"}</p>
+                    <h3 className="font-medium text-sm">
+                      {isCompanyAccount ? "Dados da empresa" : "Mudar para conta empresa"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {isCompanyAccount ? "Editar informações da empresa" : "Transformar sua conta pessoal"}
+                    </p>
                   </div>
                   <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
                 </div>

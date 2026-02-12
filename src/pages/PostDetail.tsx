@@ -6,9 +6,11 @@ import { PostContent } from "@/components/post/PostContent";
 import { PostEngagement } from "@/components/post/PostEngagement";
 import { CommentSection } from "@/components/post/CommentSection";
 import { CommentInput } from "@/components/post/CommentInput";
+import { type MentionData } from "@/components/MentionCommentInput";
 import { useAuth } from "@/hooks/useAuth";
 import { useLikeSpaceUpdate, useAddSpaceUpdateComment } from "@/hooks/usePosts";
 import { usePostDetail, PostComment } from "@/hooks/usePostDetail";
+import { useCreateMentions } from "@/hooks/useMentions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +29,7 @@ export default function PostDetail() {
 
   const likeMutation = useLikeSpaceUpdate();
   const commentMutation = useAddSpaceUpdateComment();
+  const createMentions = useCreateMentions();
 
   const { data: postDetail, isLoading } = usePostDetail(spaceSlug, postSlug);
 
@@ -127,13 +130,24 @@ export default function PostDetail() {
     setReplyTo({ id: commentId, authorName });
   };
 
-  const handleSubmitComment = async (content: string, parentId?: string) => {
+  const handleSubmitComment = async (content: string, parentId?: string, mentions?: MentionData[]) => {
     if (!user) { setShowAuthPrompt(true); return; }
     if (!postId) return;
 
     try {
       await commentMutation.mutateAsync({ updateId: postId, content, parentId });
-      setLocalComments(null); // Reset to let React Query refetch
+      // Save mentions if any
+      if (mentions && mentions.length > 0) {
+        createMentions.mutate(
+          mentions.map((m) => ({
+            mentionedUserId: m.type === "user" ? m.id : undefined,
+            mentionedCompanyId: m.type === "company" ? m.id : undefined,
+            contextType: "update_comment",
+            contextId: postId,
+          }))
+        );
+      }
+      setLocalComments(null);
       setReplyTo(null);
       toast.success("Comentário enviado!");
     } catch {
