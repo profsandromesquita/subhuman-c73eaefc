@@ -118,17 +118,17 @@ export function useSubscribedSpaces() {
       // Get update counts in a single batch query
       const spaceIds = subscriptions.map((s) => s.space_id);
       
-      const { data: updateCounts } = await supabase
-        .from("space_updates")
-        .select("space_id")
-        .in("space_id", spaceIds)
-        .eq("is_published", true);
-
-      // Count updates per space
+      // Count updates per space using individual count queries in parallel
       const countsMap: Record<string, number> = {};
-      updateCounts?.forEach((update) => {
-        countsMap[update.space_id] = (countsMap[update.space_id] || 0) + 1;
+      const countPromises = spaceIds.map(async (spaceId) => {
+        const { count } = await supabase
+          .from("space_updates")
+          .select("id", { count: "exact", head: true })
+          .eq("space_id", spaceId)
+          .eq("is_published", true);
+        countsMap[spaceId] = count || 0;
       });
+      await Promise.all(countPromises);
 
       return subscriptions.map((sub) => {
         const space = sub.spaces as any;

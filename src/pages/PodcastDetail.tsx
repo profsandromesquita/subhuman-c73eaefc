@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { PodcastPlayer } from "@/components/podcast/PodcastPlayer";
@@ -29,6 +29,21 @@ export default function PodcastDetail() {
   const { data: podcast, isLoading } = usePodcastBySlug(podcastSlug);
   const { data: savedProgress } = usePodcastProgress(podcast?.id);
   const { data: engagement } = usePodcastEngagement(podcast?.id);
+
+  // Preload audio metadata as soon as podcast data is available
+  useEffect(() => {
+    if (podcast?.audio_url) {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "fetch";
+      link.href = podcast.audio_url;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+      return () => {
+        document.head.removeChild(link);
+      };
+    }
+  }, [podcast?.audio_url]);
   const likeMutation = useLikePodcast();
   const saveMutation = useSavePodcast();
   const commentMutation = useAddPodcastComment();
