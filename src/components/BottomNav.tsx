@@ -1,4 +1,4 @@
- import { House, SquaresFour, Microphone, Robot, ChatCircle, User } from "@phosphor-icons/react";
+ import { House, SquaresFour, Microphone, Robot, ChatCircle, CalendarBlank, User } from "@phosphor-icons/react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -7,8 +7,9 @@ const navItems = [
   { icon: House, label: "Início", path: "/home" },
   { icon: SquaresFour, label: "Espaços", path: "/spaces" },
   { icon: Microphone, label: "Podcast", path: "/podcasts" },
-   { icon: Robot, label: "IA", path: "/ai-assistant" },
+  { icon: Robot, label: "IA", path: "/ai-assistant" },
   { icon: ChatCircle, label: "Canais", path: "/channels" },
+  { icon: CalendarBlank, label: "Eventos", path: "/events" },
   { icon: User, label: "Perfil", path: "/profile" },
 ];
 
@@ -25,7 +26,7 @@ export function BottomNav() {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] transition-all duration-200",
+                "flex flex-col items-center justify-center gap-1 px-2 py-2 min-w-[48px] transition-all duration-200",
                 isActive ? "text-foreground" : "text-muted-foreground"
               )}
             >
@@ -39,7 +40,7 @@ export function BottomNav() {
                   />
                 )}
               </div>
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <span className="text-[9px] font-medium">{item.label}</span>
             </Link>
           );
         })}

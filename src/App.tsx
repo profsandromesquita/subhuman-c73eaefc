@@ -45,6 +45,7 @@ const Search = lazy(() => import("./pages/Search"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
+const Events = lazy(() => import("./pages/Events"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -65,6 +66,7 @@ const AIAssistantSettings = lazy(() => import("./pages/admin/settings/AIAssistan
 const RAGDocuments = lazy(() => import("./pages/admin/rag/Documents"));
 const RAGChunks = lazy(() => import("./pages/admin/rag/Chunks"));
 const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
+const AdminEvents = lazy(() => import("./pages/admin/Events"));
 
 const App = () => (
   <ErrorBoundary>
@@ -110,6 +112,7 @@ const App = () => (
               <Route path="/company/:slug" element={<SubscriptionGuard><CompanyProfile /></SubscriptionGuard>} />
               <Route path="/search" element={<SubscriptionGuard><Search /></SubscriptionGuard>} />
               <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
+              <Route path="/events" element={<SubscriptionGuard><Events /></SubscriptionGuard>} />
 
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
@@ -122,6 +125,7 @@ const App = () => (
               <Route path="/admin/podcasts" element={<AdminGuard><AdminPodcasts /></AdminGuard>} />
               <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
               <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
+              <Route path="/admin/events" element={<AdminGuard><AdminEvents /></AdminGuard>} />
               <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
               <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
               <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />
