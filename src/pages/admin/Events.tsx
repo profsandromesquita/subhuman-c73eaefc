@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { DataTable } from "@/components/admin/DataTable";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,11 @@ import {
   type AdminEvent,
   type SessionInput,
 } from "@/hooks/useAdminEvents";
-import { Plus, Pencil, Trash, CalendarBlank, X } from "@phosphor-icons/react";
+import { Plus, Pencil, Trash, CalendarBlank, X, Image, UploadSimple } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const typeOptions = [
   { value: "workshop", label: "Workshop" },
@@ -95,9 +97,17 @@ export default function AdminEvents() {
   const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
 
+  // Cover upload state
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const resetForm = () => {
     setFormData(emptyForm);
     setSelectedEvent(null);
+    setCoverFile(null);
+    setCoverPreview(null);
   };
 
   const openCreateModal = () => {
@@ -124,7 +134,56 @@ export default function AdminEvents() {
         session_url: s.session_url || "",
       })),
     });
+    setCoverFile(null);
+    setCoverPreview(event.cover_url || null);
     setIsModalOpen(true);
+  };
+
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione apenas arquivos de imagem");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 5MB");
+      return;
+    }
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const uploadCover = async (): Promise<string | null> => {
+    if (!coverFile) return coverPreview; // Return existing URL if no new file
+    
+    setIsUploading(true);
+    try {
+      const ext = coverFile.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("event-covers")
+        .upload(fileName, coverFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("event-covers")
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Erro ao fazer upload da imagem");
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const addSession = () => {
@@ -151,6 +210,8 @@ export default function AdminEvents() {
   const handleSubmit = async (publish: boolean) => {
     if (!formData.title.trim()) return;
 
+    const coverUrl = await uploadCover();
+
     const payload = {
       title: formData.title.trim(),
       description: formData.description.trim() || null,
@@ -163,6 +224,7 @@ export default function AdminEvents() {
       checkout_url: formData.checkout_url.trim() || null,
       ticto_offer_id: formData.ticto_offer_id.trim() || null,
       is_published: publish,
+      cover_url: coverUrl,
       sessions: formData.sessions.filter((s) => s.starts_at && s.ends_at),
     };
 
@@ -189,9 +251,17 @@ export default function AdminEvents() {
       header: "Evento",
       render: (event: AdminEvent) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-            <CalendarBlank className="w-5 h-5 text-muted-foreground" />
-          </div>
+          {event.cover_url ? (
+            <img
+              src={event.cover_url}
+              alt={event.title}
+              className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+              <CalendarBlank className="w-5 h-5 text-muted-foreground" />
+            </div>
+          )}
           <p className="font-medium">{event.title}</p>
         </div>
       ),
@@ -296,6 +366,61 @@ export default function AdminEvents() {
           </DialogHeader>
 
           <div className="space-y-5 py-4">
+            {/* Cover Image Upload */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Imagem de capa</label>
+              <div
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className="relative cursor-pointer border-2 border-dashed border-border rounded-xl overflow-hidden transition-colors hover:border-muted-foreground/50"
+              >
+                {coverPreview ? (
+                  <div className="relative aspect-video">
+                    <img
+                      src={coverPreview}
+                      alt="Preview da capa"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="text-center text-white">
+                        <UploadSimple className="w-6 h-6 mx-auto mb-1" />
+                        <span className="text-sm">Trocar imagem</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverFile(null);
+                        setCoverPreview(null);
+                      }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <Image className="w-10 h-10 mb-2" />
+                    <p className="text-sm font-medium">Arraste uma imagem ou clique para selecionar</p>
+                    <p className="text-xs mt-1">PNG, JPG ou WebP • Máx. 5MB</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Título *</label>
               <Input
@@ -471,16 +596,16 @@ export default function AdminEvents() {
                 variant="outline"
                 className="flex-1"
                 onClick={() => handleSubmit(false)}
-                disabled={createEvent.isPending || updateEvent.isPending}
+                disabled={createEvent.isPending || updateEvent.isPending || isUploading}
               >
-                Salvar rascunho
+                {isUploading ? "Enviando..." : "Salvar rascunho"}
               </Button>
               <Button
                 className="flex-1"
                 onClick={() => handleSubmit(true)}
-                disabled={createEvent.isPending || updateEvent.isPending}
+                disabled={createEvent.isPending || updateEvent.isPending || isUploading}
               >
-                Publicar
+                {isUploading ? "Enviando..." : "Publicar"}
               </Button>
             </div>
           </div>
