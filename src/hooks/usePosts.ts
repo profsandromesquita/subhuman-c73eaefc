@@ -282,35 +282,63 @@ export function useRecentDiscussions() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: posts, error } = await supabase
+      // Step 1: Fetch posts (no joins - channel_posts has no FK to profiles)
+      let { data: posts, error } = await supabase
         .from("channel_posts")
-        .select(`
-          id, title, content, created_at, channel_id, author_id,
-          channels!inner(name, slug),
-          profiles:author_id(full_name)
-        `)
+        .select("id, title, content, created_at, channel_id, author_id")
         .eq("is_moderated", false)
         .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: false })
         .limit(50);
 
       if (error) throw error;
+
+      // Fallback: if no posts in last 30 days, fetch 5 most recent from any time
+      if (!posts || posts.length === 0) {
+        const { data: fallbackPosts, error: fallbackError } = await supabase
+          .from("channel_posts")
+          .select("id, title, content, created_at, channel_id, author_id")
+          .eq("is_moderated", false)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (fallbackError) throw fallbackError;
+        posts = fallbackPosts;
+      }
+
       if (!posts || posts.length === 0) return [];
 
       const postIds = posts.map((p) => p.id);
+      const authorIds = [...new Set(posts.map((p) => p.author_id).filter(Boolean))] as string[];
+      const channelIds = [...new Set(posts.map((p) => p.channel_id))];
 
-      // Use view for stats + media + user likes in parallel
-      const [statsResult, mediaResult, userLikesResult] = await Promise.all([
-        supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
-        supabase
-          .from("channel_post_media")
-          .select("post_id, file_url")
-          .in("post_id", postIds)
-          .in("file_type", ["image", "video"]),
-        user
-          ? supabase.from("channel_post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id)
-          : Promise.resolve({ data: [] }),
-      ]);
+      // Step 2: Batch fetch profiles, channels, stats, media, user likes in parallel
+      const [profilesResult, channelsResult, statsResult, mediaResult, userLikesResult] =
+        await Promise.all([
+          authorIds.length > 0
+            ? supabase.from("profiles").select("id, full_name").in("id", authorIds)
+            : Promise.resolve({ data: [] }),
+          supabase.from("channels").select("id, name, slug").in("id", channelIds),
+          supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
+          supabase
+            .from("channel_post_media")
+            .select("post_id, file_url")
+            .in("post_id", postIds)
+            .in("file_type", ["image", "video"]),
+          user
+            ? supabase.from("channel_post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id)
+            : Promise.resolve({ data: [] }),
+        ]);
+
+      const profilesMap: Record<string, string> = {};
+      (profilesResult.data || []).forEach((p: any) => {
+        profilesMap[p.id] = p.full_name || "Usuário";
+      });
+
+      const channelsMap: Record<string, { name: string; slug: string }> = {};
+      (channelsResult.data || []).forEach((c: any) => {
+        channelsMap[c.id] = { name: c.name, slug: c.slug || "" };
+      });
 
       const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
       (statsResult.data || []).forEach((s: any) => {
@@ -328,20 +356,20 @@ export function useRecentDiscussions() {
 
       const discussions = posts.map((post) => ({
         id: post.id,
-        title: (post as any).title || post.content.substring(0, 100),
+        title: post.title || post.content.substring(0, 100),
         content: post.content,
         created_at: post.created_at,
         channel_id: post.channel_id,
-        channel_name: (post.channels as any)?.name || "",
-        channel_slug: (post.channels as any)?.slug || "",
-        author_name: (post.profiles as any)?.full_name || "Usuário",
+        channel_name: channelsMap[post.channel_id]?.name || "",
+        channel_slug: channelsMap[post.channel_id]?.slug || "",
+        author_name: post.author_id ? (profilesMap[post.author_id] || "Usuário") : "Usuário",
         likes_count: statsMap[post.id]?.likes_count || 0,
         comments_count: statsMap[post.id]?.comments_count || 0,
         is_liked: likedSet.has(post.id),
         thumbnail_url: mediaMap[post.id] || null,
       }));
 
-      // Sort by engagement
+      // Sort by engagement, fallback to chronological
       return discussions
         .sort((a, b) => {
           const engA = a.likes_count + a.comments_count;
@@ -353,7 +381,7 @@ export function useRecentDiscussions() {
         })
         .slice(0, 5);
     },
-    enabled: !!user,
+    enabled: true,
     refetchOnWindowFocus: true,
     staleTime: 1000 * 60 * 2,
   });
