@@ -1,50 +1,60 @@
 
-# Correcao do modal de interacao para usuarios Freemium logados
+
+# Correcao global da visibilidade dos selos premium
 
 ## Problema
 
-Na pagina `PostDetail.tsx`, quando um usuario freemium (logado, mas sem assinatura) tenta curtir ou comentar, o sistema mostra o `AuthPromptDialog` com a mensagem "Entre para interagir / Criar conta / Ja tenho conta". Isso esta errado porque o usuario **ja esta logado**. O modal correto deveria ser um prompt de upgrade com:
+Os selos premium (azul e dourado) nao aparecem para nenhum usuario ao visualizar perfis de **outros** usuarios. Isso afeta:
 
-- **Titulo**: "Desbloqueie este conteudo com seu Passe VIP"
-- **Descricao**: "Leia artigos completos e tenha acesso a todo o conteudo."
-- **Botao**: "Ver planos" (navega para `/plans`)
+- Resultados de busca (pagina Search)
+- Autor do post (PostContent)
+- Comentarios (CommentItem)
+- Modal de perfil (AuthorModal)
+- Posts de canais (ChannelPostDetail)
 
 ## Causa raiz
 
-Linha 272 de `src/pages/PostDetail.tsx`:
+A tabela `subscriptions` possui uma politica RLS que so permite cada usuario ver **suas proprias** assinaturas:
 
 ```
-onLikeToggle={canLike ? handleLikeToggle : () => setShowAuthPrompt(true)}
+"Users can view own subscriptions" -> qual: (auth.uid() = user_id)
 ```
 
-Quando `canLike` e `false`, independente de o usuario estar logado ou nao, mostra o `AuthPromptDialog`. Falta distinguir entre "nao logado" e "logado sem permissao".
+O hook `useUserBadge` consulta a tabela `subscriptions` buscando o `plan_type` de **outros** usuarios, mas a RLS bloqueia a leitura. O resultado e sempre vazio, logo nenhum selo e exibido.
 
-## Plano de correcao
+## Solucao
 
-### Arquivo: `src/pages/PostDetail.tsx`
+Adicionar uma politica RLS que permite qualquer usuario autenticado ler o status de assinatura de outros usuarios. Os dados expostos (user_id, plan_type, status) nao sao sensiveis - sao essencialmente informacoes publicas de status de membro.
 
-1. Adicionar um novo estado `showUpgradePrompt` (`useState(false)`)
-2. Criar uma logica condicional nos handlers:
-   - Se `!user` -> mostrar `AuthPromptDialog` (manter comportamento atual para visitantes)
-   - Se `user` mas `!canLike` / `!canComment` -> mostrar um dialog de upgrade
-3. Importar e usar o `SubscriptionModal` existente (ou criar um dialog inline simples) para o prompt de upgrade
-4. Atualizar a linha 272 para:
-   ```
-   onLikeToggle={canLike ? handleLikeToggle : () => {
-     if (!user) setShowAuthPrompt(true);
-     else setShowUpgradePrompt(true);
-   }}
-   ```
-5. Tambem corrigir `handleLikeToggle` (linha 55), `handleSaveToggle` (linha 71), `handleLikeComment` (linha 96), e `handleSubmitComment` (linha 136) para usar a mesma logica condicional
-6. Adicionar o dialog de upgrade no JSX com o texto especificado pelo usuario:
-   - Icone de cadeado
-   - "Desbloqueie este conteudo com seu Passe VIP"
-   - "Leia artigos completos e tenha acesso a todo o conteudo."
-   - Botao "Ver planos" que navega para `/plans`
+### Migracao SQL
 
-### Impacto
+```sql
+CREATE POLICY "Authenticated users can view active subscriptions for badges"
+  ON public.subscriptions
+  FOR SELECT
+  TO authenticated
+  USING (status = 'active');
+```
 
-- 1 arquivo editado: `src/pages/PostDetail.tsx`
-- Nenhuma alteracao de banco ou backend
-- O `AuthPromptDialog` continua funcionando para visitantes nao logados
-- Usuarios freemium logados verao o prompt correto de upgrade
+Esta politica permite que usuarios autenticados vejam apenas assinaturas ativas, que e exatamente o que o `useUserBadge` consulta.
+
+## Impacto
+
+- 1 migracao SQL (nova politica RLS)
+- 0 arquivos de codigo alterados
+- Corrige a exibicao de selos em **todos** os 5 pontos de uso simultaneamente
+- Usuarios nao autenticados (visitantes) continuam sem acesso a tabela
+- Apenas assinaturas com status "active" sao visiveis
+
+## Auditoria dos pontos de uso
+
+| Componente | Arquivo | Status apos correcao |
+|---|---|---|
+| Busca | Search.tsx | Corrigido |
+| Autor do post | PostContent.tsx | Corrigido |
+| Comentarios | CommentItem.tsx | Corrigido |
+| Modal de perfil | AuthorModal.tsx | Corrigido |
+| Post de canal | ChannelPostDetail.tsx | Corrigido |
+
+Todos usam o mesmo hook `useUserBadge`, que faz a mesma query. A correcao na RLS resolve todos de uma vez.
+
