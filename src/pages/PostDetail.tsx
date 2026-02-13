@@ -17,8 +17,15 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AuthPromptDialog } from "@/components/AuthPromptDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "@phosphor-icons/react";
+import { ArrowRight, Lock } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ptBR } from "date-fns/locale";
 
 export default function PostDetail() {
@@ -42,6 +49,12 @@ export default function PostDetail() {
   const [localComments, setLocalComments] = useState<PostComment[] | null>(null);
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+
+  const showAccessPrompt = () => {
+    if (!user) setShowAuthPrompt(true);
+    else setShowUpgradePrompt(true);
+  };
 
   const post = postDetail?.post || null;
   const postId = post?.id || null;
@@ -52,7 +65,7 @@ export default function PostDetail() {
   const media = postDetail?.media ?? [];
 
   const handleLikeToggle = async () => {
-    if (!user) { setShowAuthPrompt(true); return; }
+    if (!user) { showAccessPrompt(); return; }
     if (!postId) return;
 
     const wasLiked = isLiked;
@@ -68,7 +81,7 @@ export default function PostDetail() {
   };
 
   const handleSaveToggle = async () => {
-    if (!user) { setShowAuthPrompt(true); return; }
+    if (!user) { showAccessPrompt(); return; }
     if (!postId) return;
 
     const wasSaved = isSaved;
@@ -93,7 +106,7 @@ export default function PostDetail() {
   };
 
   const handleLikeComment = async (commentId: string) => {
-    if (!user) { setShowAuthPrompt(true); return; }
+    if (!user) { showAccessPrompt(); return; }
 
     const currentComments = comments;
     let isCurrentlyLiked = false;
@@ -133,7 +146,7 @@ export default function PostDetail() {
   };
 
   const handleSubmitComment = async (content: string, parentId?: string, mentions?: MentionData[]) => {
-    if (!user) { setShowAuthPrompt(true); return; }
+    if (!user) { showAccessPrompt(); return; }
     if (!postId) return;
 
     try {
@@ -269,7 +282,7 @@ export default function PostDetail() {
         likesCount={likesCount}
         commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
         isLiked={isLiked}
-        onLikeToggle={canLike ? handleLikeToggle : () => setShowAuthPrompt(true)}
+        onLikeToggle={canLike ? handleLikeToggle : showAccessPrompt}
         onCommentClick={handleCommentClick}
       />
 
@@ -293,6 +306,28 @@ export default function PostDetail() {
           />
         </>
       )}
+
+      <Dialog open={showUpgradePrompt} onOpenChange={setShowUpgradePrompt}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader className="items-center text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-elevated">
+              <Lock className="h-6 w-6 text-muted-foreground" weight="bold" />
+            </div>
+            <DialogTitle className="text-lg font-semibold">
+              Desbloqueie este conteúdo com seu Passe VIP
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Leia artigos completos e tenha acesso a todo o conteúdo.
+            </DialogDescription>
+          </DialogHeader>
+          <Button
+            className="w-full bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/90"
+            onClick={() => { setShowUpgradePrompt(false); navigate("/plans"); }}
+          >
+            Ver planos
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
