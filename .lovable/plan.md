@@ -1,38 +1,58 @@
 
 
-# Correcao Critica: Exigir Login Antes de Assinar
+# Correcao: Inconsistencia de Like na Home (Destaques)
 
-## Problema
+## Causa raiz
 
-As funcoes `handleSubscribe` (assinar plano) e `handleEventPurchase` (comprar evento) redirecionam para o checkout da Ticto sem verificar se o usuario esta logado. Sem o `user.id` no parametro `src`, o webhook da Ticto nao consegue associar o pagamento ao usuario correto.
+A query `useHighlights` em `src/hooks/usePosts.ts` busca contagens de likes/comentarios da view `space_update_stats`, mas nunca consulta a tabela `update_likes` para verificar se o usuario logado curtiu cada post. O campo `is_liked` (que ja existe na interface `SpaceUpdate`) nunca e preenchido -- fica `undefined`.
 
-As funcoes `handleStartTrial` e `handleRedeemCoupon` ja possuem essa verificacao, mas as duas principais ficaram sem.
+Na Home (`src/pages/Home.tsx`), o icone Heart e renderizado sempre com estilo outline (linha 172), sem considerar `is_liked`.
 
 ## Solucao
 
-Adicionar verificacao de autenticacao no inicio de `handleSubscribe` e `handleEventPurchase`. Se `!user`, exibir toast informativo e redirecionar para `/login` com um parametro de retorno para que, apos o login, o usuario volte para `/plans`.
+### 1. Ajustar a query `useHighlights` (`src/hooks/usePosts.ts`, linhas 137-165)
 
-## Detalhes tecnicos
+Apos buscar os `updateIds`, adicionar uma consulta a tabela `update_likes` filtrando pelo `user.id`:
 
-**Arquivo**: `src/pages/Plans.tsx`
+```typescript
+// Fetch user's likes
+const { data: userLikes } = await supabase
+  .from("update_likes")
+  .select("update_id")
+  .eq("user_id", user.id)
+  .in("update_id", updateIds);
 
-**`handleSubscribe` (linha 90)** - adicionar no inicio:
-```
-if (!user) {
-  toast.error("Voce precisa estar logado para assinar um plano.");
-  navigate("/login", { state: { from: "/plans" } });
-  return;
-}
-```
-
-**`handleEventPurchase` (linha 101)** - adicionar no inicio:
-```
-if (!user) {
-  toast.error("Voce precisa estar logado para comprar.");
-  navigate("/login", { state: { from: "/plans" } });
-  return;
-}
+const likedSet = new Set((userLikes || []).map(l => l.update_id));
 ```
 
-Duas linhas de codigo em cada funcao. Nenhum outro arquivo precisa ser alterado, pois a pagina de Login ja suporta redirecionamento pos-login via state ou o usuario naturalmente navega de volta.
+Depois, no `map` que monta `highlightsData`, adicionar:
 
+```typescript
+is_liked: likedSet.has(update.id),
+```
+
+### 2. Ajustar a renderizacao na Home (`src/pages/Home.tsx`, linhas 170-174)
+
+Alterar o icone Heart para refletir o estado `is_liked`:
+
+```tsx
+<Heart 
+  className={`h-3.5 w-3.5 ${highlight.is_liked ? 'text-red-500' : ''}`}
+  weight={highlight.is_liked ? "fill" : "regular"}
+/>
+```
+
+### 3. Aplicar a mesma correcao para Discussions (bonus)
+
+Verificar se `useRecentDiscussions` tem o mesmo problema com `channel_post_likes` e corrigir da mesma forma.
+
+## Arquivos a editar
+
+1. `src/hooks/usePosts.ts` -- adicionar query de `update_likes` em `useHighlights` (e possivelmente `useRecentDiscussions`)
+2. `src/pages/Home.tsx` -- usar `highlight.is_liked` para estilo do Heart (e `discussion.is_liked` se aplicavel)
+
+## Impacto
+
+- Nenhuma alteracao de schema ou migration necessaria
+- A tabela `update_likes` ja tem RLS permitindo SELECT publico
+- Adiciona apenas 1 query extra (leve, filtra por user_id + IN de IDs)
