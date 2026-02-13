@@ -219,16 +219,7 @@ export default function Home() {
             </Button>
           </div>
 
-          {!user ? (
-            <Card className="p-6 text-center">
-              <p className="text-muted-foreground mb-3">
-                Faça login para ver as discussões
-              </p>
-              <Button size="sm" onClick={() => navigate("/login")}>
-                Fazer login
-              </Button>
-            </Card>
-          ) : loadingDiscussions || authLoading ? (
+          {loadingDiscussions || authLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-20 w-full rounded-xl" />
