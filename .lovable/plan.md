@@ -1,71 +1,34 @@
 
-# Ajustes: Selos Premium e Filtros de Eventos
 
-## Problema 1: Selos Premium nao aparecem
+# Ajuste de UX/UI no Assistente de IA
 
-O componente `PremiumBadge` existe, e o `useUserAccess` retorna `hasPremiumBadge` para o usuario logado. Porem, os selos precisam aparecer para **outros** usuarios (autores de posts, comentaristas, resultados de busca). Atualmente, nenhum componente busca o plano de assinatura de outros usuarios para exibir o selo.
+## Problema
 
-### Solucao
+Na tela de boas-vindas do chat, o conteudo esta centralizado verticalmente com `justify-center` e `h-full` dentro de um container flex. Em telas com pouca altura (mobile), o texto "Como posso ajudar?" fica cortado atras do header fixo, pois o conteudo nao tem scroll e tenta se centralizar em um espaco insuficiente.
 
-Criar um hook utilitario `useUserBadge(userId)` que consulta a tabela `subscriptions` para determinar se um usuario tem selo azul (yearly) ou dourado (lifetime). Depois, integrar o `PremiumBadge` nos 4 locais:
+## Solucao
 
-**Novo arquivo:** `src/hooks/useUserBadge.ts`
-- Recebe um `userId` (string ou undefined)
-- Faz query em `subscriptions` filtrando `user_id`, `status = 'active'`, `plan_type in ('yearly', 'lifetime')`
-- Retorna `'blue' | 'gold' | null`
-- Usa `staleTime` de 5 minutos para cache
+Modificar o container do estado vazio (sem mensagens) no arquivo `src/pages/AIAssistant.tsx`:
 
-**Arquivos modificados:**
+1. Remover `h-full` e `justify-center` do container do estado vazio para que o conteudo flua naturalmente do topo
+2. Adicionar `pt-6` como padding-top para dar espaco abaixo do header
+3. O container pai (`flex-1 overflow-y-auto`) ja possui scroll habilitado, entao o conteudo ficara rolavel automaticamente quando exceder a altura disponivel
 
-1. **`src/components/post/PostContent.tsx`** (autor do artigo)
-   - Importar `useUserBadge` e `PremiumBadge`
-   - Chamar `useUserBadge(author?.id)` para obter o tipo de selo
-   - Renderizar `PremiumBadge` ao lado do nome do autor na area de meta info
+## Detalhe tecnico
 
-2. **`src/components/post/CommentItem.tsx`** (avatar dos comentarios)
-   - Importar `useUserBadge` e `PremiumBadge`
-   - Chamar `useUserBadge(userId)` para cada comentario
-   - Renderizar `PremiumBadge` ao lado do nome do comentarista
+**Arquivo:** `src/pages/AIAssistant.tsx`
 
-3. **`src/pages/ChannelPostDetail.tsx`** (autor do post de canal + comentarios)
-   - Para o autor do post: buscar badge via `useUserBadge(post.author_id)`
-   - Para cada comentario no `renderComment`: criar um sub-componente `ChannelComment` que use `useUserBadge`
-   - Renderizar `PremiumBadge` ao lado dos nomes
+Alterar a div do estado vazio (linha onde esta `messages.length === 0`):
 
-4. **`src/pages/Search.tsx`** (resultados de busca de usuarios)
-   - Importar `useUserBadge` e `PremiumBadge`
-   - Criar sub-componente `SearchResultCard` para cada resultado, que chama `useUserBadge` quando o tipo for "user"
-   - Renderizar `PremiumBadge` ao lado do nome
+De:
+```
+<div className="flex flex-col items-center justify-center h-full gap-6">
+```
 
-5. **`src/components/post/AuthorModal.tsx`** (modal de perfil)
-   - Importar `useUserBadge` e `PremiumBadge`
-   - Chamar `useUserBadge(author.id)` dentro do modal
-   - Renderizar `PremiumBadge` ao lado do nome no modal
+Para:
+```
+<div className="flex flex-col items-center gap-6 pt-6">
+```
 
----
+Isso remove a centralizacao vertical forcada e permite que o conteudo comece abaixo do header, com scroll natural quando necessario.
 
-## Problema 2: Filtros da pagina de Eventos
-
-Atualmente os filtros usam chips horizontais (`FilterChips`). A solicitacao e mudar para menus suspensos (dropdowns/selects).
-
-### Solucao
-
-**Arquivo modificado:** `src/pages/Events.tsx`
-- Remover o componente `FilterChips`
-- Substituir os 3 blocos de filtros por 3 componentes `Select` (do Radix/shadcn) em uma linha horizontal
-- Cada select tera as mesmas opcoes que os chips atuais:
-  - Periodo: Todos, Futuros, Passados
-  - Modalidade: Todos, Online, Presencial, Hibrido
-  - Tipo: Todos, Workshop, Palestra, Live, Mentoria, Curso
-- Estilizar com fundo `bg-card`, texto `text-foreground`, e borda `border-border`
-- Garantir que o `SelectContent` tenha `bg-card` e `z-50` para nao ficar transparente
-
----
-
-## Ordem de implementacao
-
-1. Criar `useUserBadge.ts`
-2. Integrar badge em `PostContent.tsx`, `CommentItem.tsx`, `AuthorModal.tsx`
-3. Integrar badge em `ChannelPostDetail.tsx` (extrair sub-componente para comentarios)
-4. Integrar badge em `Search.tsx` (extrair sub-componente)
-5. Refatorar filtros em `Events.tsx` para dropdowns
