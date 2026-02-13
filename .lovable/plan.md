@@ -1,117 +1,87 @@
 
 
-# Relatorio de Diagnostico de Performance Web
+# Correcao: "Em alta nos canais" sempre vazio
 
-Auditoria completa do codigo-fonte da aplicacao Subhumano, focando em gargalos que degradam a experiencia em redes moveis (4G/5G).
+## Causa raiz
 
----
+A query `useRecentDiscussions` (linha 290 de `src/hooks/usePosts.ts`) usa um join PostgREST que nao funciona:
 
-## GARGALO 1: Podcast - Over-fetching com `SELECT *`
-
-**Impacto**: Alto
-
-**Problema**: O hook `usePodcasts()` (linha 36, `src/hooks/usePodcasts.ts`) executa `select("*, spaces(id, name, slug, icon)")` buscando TODOS os campos da tabela `podcasts`, incluindo `description` completa e `audio_url` para cada item da listagem. Em uma lista de 20+ podcasts, isso transfere dados desnecessarios (URLs de audio, descricoes longas) que so sao usados na pagina de detalhe.
-
-**Solucao**: Projetar apenas os campos necessarios para o card:
-```sql
-select("id, title, slug, cover_url, duration_seconds, tags, published_at, spaces(id, name, slug, icon)")
+```typescript
+profiles:author_id(full_name)
 ```
-Isso reduz o payload de listagem significativamente, especialmente com descricoes longas.
 
----
+A tabela `channel_posts` **nao possui nenhuma foreign key** definida (nem para `profiles`, nem para `channels`). Quando o PostgREST tenta resolver esse join, retorna um erro 400 (relationship not found). O `try/catch` implicito do React Query captura o erro e a query retorna vazio. Resultado: o estado vazio "Nenhuma discussao em alta no momento" e exibido permanentemente.
 
-## GARGALO 2: Podcast Player - Sem Preload Inteligente
+O hook `useChannelPosts` (que funciona na pagina Canais) **nao usa esse join** -- ele busca profiles separadamente via `.in("id", authorIds)`, por isso funciona.
 
-**Impacto**: Alto
+Alem disso, o `channels!inner(name, slug)` tambem pode falhar pela mesma razao (sem FK), porem o PostgREST pode inferi-lo pelo nome da tabela se houver uma relacao implicita. De qualquer forma, a abordagem segura e buscar separadamente.
 
-**Problema**: O `PodcastPlayer` (linha 147 de `PodcastPlayer.tsx`) usa `preload="metadata"`, o que e correto para nao baixar o arquivo inteiro. Porem, o streaming depende do servidor de armazenamento (Supabase Storage / bucket `podcast-media`) suportar Range Requests. O bucket e publico e servido via CDN do Supabase, que suporta Range Requests nativamente. O problema real e que nao ha **nenhum preloading** do audio quando o usuario navega para a pagina de detalhe - o download so inicia quando o componente monta. Em redes 4G com alta latencia (~100ms RTT), isso gera um atraso perceptivel no Time to Play.
+## Solucao
 
-**Solucao**: Implementar `<link rel="preload" as="fetch">` no componente `PodcastDetail` para iniciar o download dos metadados do audio antes do player montar. Alternativamente, usar `preload="auto"` para episodios curtos (menos de 10min).
+### 1. Refatorar `useRecentDiscussions` (`src/hooks/usePosts.ts`)
 
----
+**Remover os joins problematicos** e buscar profiles e channels separadamente (mesmo padrao do `useChannelPosts` que ja funciona):
 
-## GARGALO 3: Cascata de Requisicoes (Waterfall) na Home
+```typescript
+// ANTES (quebrado):
+.select(`
+  id, title, content, created_at, channel_id, author_id,
+  channels!inner(name, slug),
+  profiles:author_id(full_name)
+`)
 
-**Impacto**: Alto
+// DEPOIS (funcional):
+.select("id, title, content, created_at, channel_id, author_id")
+```
 
-**Problema**: A pagina Home (`src/pages/Home.tsx`) dispara 3 queries independentes: `useHighlights()`, `useRecentDiscussions()` e `useSubscribedSpaces()`. Embora paralelas no React, cada uma delas internamente tem uma cascata:
+Depois, buscar profiles e channels em paralelo:
 
-- `useHighlights`: Busca subscricoes -> Busca updates -> Busca stats + likes (3 etapas sequenciais)
-- `useRecentDiscussions`: Busca posts -> Busca stats + media + likes (2 etapas)
-- `useSubscribedSpaces`: Busca subscricoes -> Busca contagem de updates (2 etapas)
+```typescript
+const authorIds = [...new Set(posts.map(p => p.author_id).filter(Boolean))];
+const channelIds = [...new Set(posts.map(p => p.channel_id))];
 
-Isso cria um total de **7-8 requisicoes sequenciais** ao banco, cada uma com latencia de rede. Em 4G, cada round-trip pode levar 100-200ms, somando 700-1600ms so de latencia.
+const [profilesResult, channelsResult, statsResult, mediaResult, userLikesResult] = 
+  await Promise.all([
+    authorIds.length > 0
+      ? supabase.from("profiles").select("id, full_name").in("id", authorIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from("channels").select("id, name, slug").in("id", channelIds),
+    // ... stats, media, likes (sem alteracao)
+  ]);
+```
 
-**Solucao**: Criar uma **database view** ou **RPC function** que consolide os dados da Home em uma unica chamada. Por exemplo, uma funcao `get_home_feed(user_id)` que retorne highlights, discussions e subscribed spaces em um unico round-trip.
+### 2. Adicionar logica de fallback
 
----
+Se nenhum post tiver engajamento (likes + comments > 0), a query ja retorna os mais recentes por ordem cronologica (o sort atual faz isso como desempate). O problema real e a query falhando, nao a logica de ranking.
 
-## GARGALO 4: useSubscribedSpaces - Contagem Ineficiente
+Porem, para garantir que a secao **nunca fique vazia** enquanto existirem posts, adicionar um fallback:
 
-**Impacto**: Medio
+- Se a busca dos ultimos 30 dias retornar vazio, repetir sem filtro de data (buscar os 5 mais recentes de qualquer epoca).
+- Se ainda assim nao houver posts, ai sim exibir o estado vazio.
 
-**Problema**: O hook `useSubscribedSpaces` (linha 121-131, `src/hooks/useSpaces.ts`) busca TODOS os `space_updates` publicados dos espacos inscritos apenas para contar quantos existem por espaco. Se um espaco tem 500 updates, o Supabase retorna 500 linhas so para incrementar um contador.
+### 3. Tornar a secao visivel para usuarios nao logados
 
-**Solucao**: Usar `.select("space_id", { count: 'exact', head: true })` agrupado por espaco, ou melhor ainda, criar uma coluna pre-calculada `updates_count` na tabela `spaces` atualizada por trigger, ou usar a view existente `space_update_stats`.
+Atualmente `enabled: !!user` (linha 356) impede a query para visitantes. Mudar para `enabled: true` e simplesmente nao buscar `user likes` se nao houver usuario. Isso permite que visitantes vejam a atividade da comunidade (engajamento).
 
----
+**Nota sobre RLS**: A tabela `channel_posts` ja tem a policy "Anyone can view non-moderated posts" com `USING (is_moderated = false)`, entao posts de canais com `access_type = 'subscribers'` sao visiveis na listagem. O controle de acesso ao conteudo completo e feito no `ChannelDetail`, nao na listagem da Home. Isso e aceitavel para a secao "Em alta" que mostra apenas titulo e preview.
 
-## GARGALO 5: Imagens sem Dimensoes Explicitas (CLS)
+## Arquivos a editar
 
-**Impacto**: Medio
+1. **`src/hooks/usePosts.ts`** (funcao `useRecentDiscussions`, linhas 276-360):
+   - Remover joins de `channels` e `profiles` do select
+   - Buscar profiles e channels separadamente em paralelo
+   - Adicionar fallback: se 30 dias vazio, buscar sem filtro de data
+   - Mudar `enabled: !!user` para `enabled: true`
+   - Ajustar `is_liked` para retornar `false` quando nao ha usuario
 
-**Problema**: As imagens de thumbnails nos cards da Home (linhas 186-192) e nos PodcastCards (linhas 29-34) usam `loading="lazy"` corretamente, porem nao possuem atributos `width` e `height` explicitos. Isso causa **Cumulative Layout Shift (CLS)** - o layout "pula" quando a imagem carrega, degradando a percepcao de velocidade.
+2. **`src/pages/Home.tsx`** (linhas 222-230):
+   - Remover o bloco que exige login para ver discussoes (ja que agora funciona sem usuario)
+   - Manter o restante da renderizacao inalterado
 
-**Solucao**: Adicionar `width` e `height` fixos nos elementos `<img>` ou usar containers com `aspect-ratio` definido via CSS (os cards ja usam classes fixas como `w-20 h-20`, entao o impacto e reduzido nesses casos, mas o cover do podcast `aspect-video` nao tem fallback de altura).
+## Impacto
 
----
-
-## GARGALO 6: Framer Motion em Todos os Cards da Home
-
-**Impacto**: Medio
-
-**Problema**: Cada card na Home e envolvido em `<motion.div>` com animacoes de `opacity` e `y` (linhas 149-153, 246-250). Em dispositivos moveis de baixo desempenho, animar multiplos elementos simultaneamente durante o carregamento inicial causa **jank** (queda de FPS), piorando a percepcao de velocidade.
-
-**Solucao**: Limitar as animacoes de entrada apenas ao primeiro carregamento (usando `initial={false}` apos o primeiro render) ou substituir por CSS transitions simples (`@starting-style` ou classes de transicao), que sao mais leves que JS-driven animations do Framer Motion. A constante `MAX_STAGGER_ITEMS = 4` ja limita parcialmente, mas os items alem do 4o ainda animam com o mesmo delay.
-
----
-
-## GARGALO 7: Podcast Cover sem Lazy Loading
-
-**Impacto**: Baixo
-
-**Problema**: Na pagina `PodcastDetail.tsx`, a imagem de capa do podcast (renderizada dentro do `PodcastPlayer`, linha 147-152) nao usa `loading="lazy"` pois esta above-the-fold. Isso e correto. Porem, no `PodcastCard.tsx` (linha 31), as imagens de capa na listagem tambem **nao** usam `loading="lazy"`, o que significa que todas as capas sao carregadas de uma vez, mesmo as que estao fora da viewport.
-
-**Solucao**: Adicionar `loading="lazy"` nas imagens do `PodcastCard`.
-
----
-
-## GARGALO 8: Formato de Imagem (WebP/AVIF)
-
-**Impacto**: Baixo (limitacao de infraestrutura)
-
-**Problema**: As imagens sao servidas pelo Supabase Storage no formato original de upload (provavelmente JPEG/PNG). Nao ha transformacao automatica para formatos modernos como WebP ou AVIF.
-
-**Solucao**: Isso e uma limitacao do Supabase Storage que nao oferece transformacao de imagem automatica no plano gratuito. A solucao seria: (1) fazer upload ja em formato WebP pelo admin, ou (2) usar um CDN com transformacao de imagem (Cloudflare Images, imgproxy) na frente do Supabase Storage.
-
----
-
-## Resumo de Prioridades
-
-| Prioridade | Gargalo | Impacto | Esforco |
-|---|---|---|---|
-| 1 | Cascata de requisicoes na Home | Alto | Alto (criar RPC) |
-| 2 | Over-fetching no usePodcasts | Alto | Baixo (ajustar select) |
-| 3 | Preload do audio do podcast | Alto | Baixo (adicionar preload) |
-| 4 | Contagem ineficiente useSubscribedSpaces | Medio | Medio (refatorar query) |
-| 5 | Lazy loading no PodcastCard | Baixo | Baixo (1 atributo) |
-| 6 | Animacoes Framer Motion | Medio | Medio (refatorar) |
-| 7 | CLS em imagens | Medio | Baixo |
-| 8 | Formato de imagem | Baixo | Alto (infra) |
-
-## Recomendacao de Acao Imediata
-
-Os gargalos 2 (over-fetching podcasts) e 5 (lazy loading PodcastCard) podem ser corrigidos em menos de 10 minutos com alteracoes de 1-2 linhas cada. O gargalo 3 (preload audio) requer adicionar um `<link>` no PodcastDetail. Esses 3 juntos ja trazem melhoria significativa para redes moveis.
-
-O gargalo 1 (cascata na Home) e o de maior impacto absoluto mas requer criar uma funcao RPC no banco, sendo um esforco maior.
+- Nenhuma migration de banco necessaria (o problema e no frontend)
+- Nenhuma alteracao de RLS necessaria
+- A pagina Canais continua funcionando como antes (usa `useChannelPosts`, nao afetado)
+- Adiciona ~1 query extra (channels) mas remove 2 joins problematicos, resultando em mais estabilidade
 
