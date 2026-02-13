@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, ArrowLeft, Gift, Ticket, GraduationCap } from "@phosphor-icons/react";
+import { Check, ArrowLeft, Gift, Ticket, GraduationCap, CalendarDots, Monitor, MapPin } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,21 +10,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { TrialOfferModal } from "@/components/TrialOfferModal";
 import { useRedeemCoupon } from "@/hooks/useCoupons";
-
-const workshopProduct = {
-  id: "workshop",
-  title: "Crie seu software em 6h usando IA",
-  subtitle: "Mesmo sem saber programar",
-  price: "R$ 19,90",
-  period: "pagamento único",
-  checkoutUrl: "https://checkout.ticto.app/WORKSHOP_PLACEHOLDER",
-  features: [
-    "Workshop prático de 6 horas",
-    "Aulas ao vivo dias 7 e 14/03",
-    "Mesmo sem saber programar",
-    "Certificado de participação",
-  ],
-};
+import { useEvents } from "@/hooks/useEvents";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const subscriptionPlans = [
   {
@@ -83,6 +71,10 @@ export default function Plans() {
   const { user } = useAuth();
   const { status, loading: subLoading, refetch } = useSubscription();
   const redeemCoupon = useRedeemCoupon();
+  const { data: allEvents } = useEvents({ period: "future" });
+
+  // Filter paid future events
+  const paidEvents = (allEvents || []).filter((e) => !e.is_free && e.checkout_url);
 
   const showExpiredMessage = status === 'expired';
   const canStartTrial = status === 'none';
@@ -107,8 +99,8 @@ export default function Plans() {
     window.location.href = checkoutUrl.toString();
   };
 
-  const handleWorkshopPurchase = () => {
-    const checkoutUrl = new URL(workshopProduct.checkoutUrl);
+  const handleEventPurchase = (eventCheckoutUrl: string) => {
+    const checkoutUrl = new URL(eventCheckoutUrl);
     if (user?.email) checkoutUrl.searchParams.set('email', user.email);
     if (user?.id) checkoutUrl.searchParams.set('src', user.id);
     checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
@@ -272,60 +264,94 @@ export default function Plans() {
             </motion.div>
           )}
 
-          {/* Divider - Workshop */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-sm text-muted-foreground">ou adquira um produto</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* Workshop Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-6"
-          >
-            <div className="relative p-5 rounded-xl border border-amber-500/30 bg-card">
-              <div className="absolute -top-3 left-4">
-                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-black rounded-full">
-                  Workshop
-                </span>
+          {/* Paid Events Section */}
+          {paidEvents.length > 0 && (
+            <>
+              <div className="flex items-center gap-4 my-6">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-sm text-muted-foreground">ou adquira um produto</span>
+                <div className="flex-1 h-px bg-border" />
               </div>
 
-              <div className="flex items-start gap-4 mt-2">
-                <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <GraduationCap className="w-6 h-6 text-amber-500" weight="fill" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg">{workshopProduct.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {workshopProduct.subtitle}
-                  </p>
-                  <div className="mb-4">
-                    <span className="text-2xl font-bold">{workshopProduct.price}</span>
-                    <span className="text-sm text-muted-foreground ml-1">{workshopProduct.period}</span>
+              {paidEvents.map((event, index) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + index * 0.05 }}
+                  className="mb-4"
+                >
+                  <div className="relative rounded-xl border border-amber-500/30 bg-card overflow-hidden">
+                    {/* Cover image */}
+                    {event.cover_url && (
+                      <img
+                        src={event.cover_url}
+                        alt={event.title}
+                        className="w-full h-40 object-cover"
+                      />
+                    )}
+                    <div className="p-5">
+                      <div className="absolute top-3 left-4">
+                        <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-black rounded-full">
+                          {event.event_type === "workshop" ? "Workshop" : event.event_type}
+                        </span>
+                      </div>
+
+                      <div className="flex items-start gap-4 mt-1">
+                        {!event.cover_url && (
+                          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                            <GraduationCap className="w-6 h-6 text-amber-500" weight="fill" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg">{event.title}</h3>
+                          {event.description && (
+                            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                              {event.description}
+                            </p>
+                          )}
+
+                          {/* Session dates */}
+                          {event.sessions.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {event.sessions.slice(0, 3).map((s) => (
+                                <span key={s.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <CalendarDots className="w-3 h-3" />
+                                  {format(new Date(s.starts_at), "dd/MM 'às' HH'h'", { locale: ptBR })}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+                            {event.modality === "online" ? (
+                              <><Monitor className="w-3.5 h-3.5" /> Online</>
+                            ) : (
+                              <><MapPin className="w-3.5 h-3.5" /> {event.location || event.modality}</>
+                            )}
+                          </div>
+
+                          <div className="mb-4">
+                            <span className="text-2xl font-bold">
+                              R$ {Number(event.price).toFixed(2).replace(".", ",")}
+                            </span>
+                            <span className="text-sm text-muted-foreground ml-1">pagamento único</span>
+                          </div>
+
+                          <Button
+                            onClick={() => handleEventPurchase(event.checkout_url!)}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                          >
+                            Garantir minha vaga
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  <ul className="space-y-1.5 mb-4">
-                    {workshopProduct.features.map((feature) => (
-                      <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Check className="w-3.5 h-3.5 text-amber-500" weight="bold" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Button
-                    onClick={handleWorkshopPurchase}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
-                  >
-                    Garantir minha vaga - R$ 19,90
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+                </motion.div>
+              ))}
+            </>
+          )}
 
           {/* Divider - Subscriptions */}
           <div className="flex items-center gap-4 my-6">
