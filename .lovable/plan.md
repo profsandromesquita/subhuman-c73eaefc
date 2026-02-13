@@ -1,77 +1,127 @@
 
 
-# Correcao: Mencoes Clicaveis e Error Boundary Inteligente
+# Upgrade: Gestao de Eventos - Upload de Capa e Integracao Dinamica
 
-## Problema 1: Mencoes (@) nao abrem modal
+## Visao Geral
 
-### Causa raiz identificada
-
-A regex atual no `MentionText.tsx` exige que **toda palavra** apos o `@` comece com letra maiuscula:
-
-```
-/@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*/g
-```
-
-No exemplo da imagem, o texto e `@Ana Priscilla de Sousa Coelho Mesquita`. A palavra **"de"** comeca com minuscula, entao a regex para em `@Ana Priscilla` e nao captura o nome completo. Quando busca no banco com `ilike('full_name', 'Ana Priscilla')`, nao encontra nenhum perfil chamado exatamente assim, e o modal nao abre.
-
-### Solucao
-
-Alterar a regex para aceitar palavras com inicio minusculo (preposicoes como "de", "da", "dos", "e"):
-
-```
-/@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ][a-zà-öø-ÿ]+)*/g
-```
-
-A diferenca e que apos o primeiro nome (que deve comecar com maiuscula para nao capturar texto normal), as palavras seguintes podem comecar com qualquer letra. A captura para quando encontra pontuacao, quebra de linha ou texto sem padrao de nome.
-
-Alem disso, melhorar a busca no banco: em vez de buscar `ilike('full_name', cleanName)` que exige correspondencia exata, usar `ilike('full_name', '%' + cleanName + '%')` para busca parcial como fallback.
-
-**Arquivo:** `src/components/post/MentionText.tsx`
+Tres areas precisam de ajustes: o formulario admin precisa de upload de imagem, a pagina de Planos precisa buscar eventos do banco, e a Landing Page precisa exibir o proximo evento dinamicamente.
 
 ---
 
-## Problema 2: Error Boundary com ChunkLoadError
+## 1. Upload de Capa no Admin
 
-### Causa raiz
+**Problema**: O formulario de criar/editar evento em `/admin/events` nao possui campo de upload de imagem. A tabela `events` ja tem a coluna `cover_url`, mas nao e preenchida.
 
-A aplicacao usa `lazy()` para todas as paginas (code splitting). Apos um deploy, os nomes dos arquivos JS mudam (hash no nome). Usuarios com a aba aberta tentam navegar, o browser tenta carregar o chunk antigo que nao existe mais, e o `ChunkLoadError` dispara o ErrorBoundary mostrando "Algo deu errado".
+**Solucao**:
 
-### Solucao
+- Criar um bucket de storage chamado `event-covers` (publico) com politica RLS para admins fazerem upload
+- Adicionar campo `cover_url` ao `FormData` do componente admin
+- Adicionar um componente de upload de imagem no formulario (file picker com preview)
+- Ao selecionar uma imagem, fazer upload para o bucket `event-covers` usando a mesma logica do `useMediaUpload` (mas com bucket diferente)
+- Ao editar evento existente, exibir preview da imagem ja salva com opcao de trocar
+- Gravar a URL publica no campo `cover_url` ao submeter
 
-Implementar duas camadas de protecao:
+**Arquivo**: `src/pages/admin/Events.tsx`
+- Adicionar estado `coverFile` e `coverPreview` ao formulario
+- Adicionar secao de upload com drag-and-drop ou file picker antes do campo Titulo
+- No `handleSubmit`, fazer upload da imagem se houver arquivo novo, obter URL publica, e incluir `cover_url` no payload
+- No `openEditModal`, carregar `cover_url` existente no preview
 
-**Camada 1 - ErrorBoundary inteligente** (`src/components/ErrorBoundary.tsx`):
-- No `componentDidCatch`, verificar se o erro e um `ChunkLoadError` (nome do erro ou mensagem contendo "Loading chunk" / "dynamically imported module")
-- Se for ChunkLoadError e ainda nao tentou reload (usar `sessionStorage` como flag), fazer `window.location.reload()` automatico
-- Se ja tentou reload uma vez (flag existe), mostrar a tela de erro normal (evitar loop infinito)
-
-**Camada 2 - Handler global de rejeicoes** (`src/main.tsx`):
-- Adicionar `window.addEventListener('unhandledrejection', ...)` para capturar `ChunkLoadError` que ocorre fora do ciclo de renderizacao do React (lazy imports rejeitados)
-- Mesma logica: reload automatico uma unica vez
-
-**Feedback visual melhorado** na tela de erro para bugs reais:
-- Adicionar botao "Ver detalhes" que expande/colapsa a mensagem de erro (disponivel em producao, nao apenas dev)
-- Incluir timestamp do erro para facilitar debug
-- Manter o botao "Recarregar pagina"
-
-### Detalhes tecnicos
-
-**`src/components/ErrorBoundary.tsx`:**
-- Adicionar metodo `isChunkLoadError(error)` que verifica `error.name === 'ChunkLoadError'` ou `error.message.includes('Failed to fetch dynamically imported module')` ou `error.message.includes('Loading chunk')`
-- No `componentDidCatch`: se `isChunkLoadError` e `!sessionStorage.getItem('chunk_reload')`, setar flag e `window.location.reload()`
-- No `render`: adicionar estado `showDetails` com botao toggle para mostrar stack trace
-- Adicionar timestamp formatado na UI de erro
-
-**`src/main.tsx`:**
-- Adicionar handler `unhandledrejection` antes do `createRoot`
-- Verificar se `event.reason?.name === 'ChunkLoadError'` ou mensagem similar
-- Fazer reload com flag de sessionStorage
+**Migration SQL**: Criar bucket `event-covers` com politica de upload para admins
 
 ---
 
-## Ordem de implementacao
+## 2. Pagina de Planos - Eventos Dinamicos
 
-1. Corrigir regex e busca no `MentionText.tsx`
-2. Atualizar `ErrorBoundary.tsx` com deteccao de ChunkLoadError e feedback melhorado
-3. Adicionar handler global em `main.tsx`
+**Problema**: A pagina `/plans` tem um card de workshop hardcoded (linhas 14-27 do Plans.tsx) com titulo, preco e datas fixas. Nao reflete eventos criados no admin.
 
+**Solucao**:
+
+- Buscar eventos pagos e publicados da tabela `events` usando o hook `useEvents` ja existente
+- Filtrar apenas eventos futuros e que nao sao gratuitos (produtos avulsos)
+- Renderizar um card para cada evento encontrado na secao "ou adquira um produto"
+- Usar `checkout_url` do evento (cadastrado no admin) como destino do botao de compra
+- Exibir a imagem de capa (`cover_url`) se disponivel
+- Se nao houver eventos pagos, ocultar a secao inteira
+
+**Arquivo**: `src/pages/Plans.tsx`
+- Remover o objeto `workshopProduct` hardcoded
+- Importar `useEvents` e buscar eventos publicados
+- Mapear eventos pagos futuros em cards dinamicos
+- Usar `event.checkout_url` em vez de URL fixa
+
+---
+
+## 3. Landing Page - Proximo Evento Dinamico
+
+**Problema**: O componente `LandingEvents` (landing page) tem titulo, descricao, datas e preco totalmente hardcoded.
+
+**Solucao**:
+
+- Buscar o proximo evento publicado (futuro) diretamente da tabela `events` com suas sessoes
+- Renderizar dinamicamente titulo, descricao, tipo, modalidade, datas das sessoes, preco e link de checkout
+- Exibir a imagem de capa se disponivel
+- Se nao houver proximo evento, ocultar a secao inteira
+
+**Arquivo**: `src/components/landing/LandingEvents.tsx`
+- Importar `useEvents` ou fazer query direta com `supabase`
+- Buscar primeiro evento futuro publicado
+- Substituir dados hardcoded pelos dados do banco
+- Condicionar renderizacao: se nao houver evento, retornar `null`
+
+---
+
+## Detalhes Tecnicos
+
+### Migration SQL
+
+```text
+-- Criar bucket para capas de eventos
+INSERT INTO storage.buckets (id, name, public) VALUES ('event-covers', 'event-covers', true);
+
+-- Politica: admins podem fazer upload
+CREATE POLICY "Admins can upload event covers"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'event-covers'
+  AND public.is_admin_or_moderator(auth.uid())
+);
+
+-- Politica: admins podem atualizar
+CREATE POLICY "Admins can update event covers"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'event-covers'
+  AND public.is_admin_or_moderator(auth.uid())
+);
+
+-- Politica: admins podem deletar
+CREATE POLICY "Admins can delete event covers"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'event-covers'
+  AND public.is_admin_or_moderator(auth.uid())
+);
+
+-- Politica: qualquer pessoa pode ver (bucket publico)
+CREATE POLICY "Anyone can view event covers"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'event-covers');
+```
+
+### Arquivos a serem editados
+
+1. `src/pages/admin/Events.tsx` - Upload de capa no formulario
+2. `src/pages/Plans.tsx` - Cards de eventos dinamicos
+3. `src/components/landing/LandingEvents.tsx` - Proximo evento dinamico
+
+### Ordem de implementacao
+
+1. Criar bucket de storage (migration)
+2. Adicionar upload de capa no admin
+3. Tornar Plans dinamico
+4. Tornar Landing Page dinamica
