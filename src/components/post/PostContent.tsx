@@ -9,6 +9,8 @@ import { MediaGallery } from "@/components/post/MediaGallery";
 import { AuthorModal } from "@/components/post/AuthorModal";
 import { ContentPaywall } from "@/components/ContentPaywall";
 import { useUserAccess } from "@/hooks/useUserAccess";
+import { useUserBadge } from "@/hooks/useUserBadge";
+import { PremiumBadge } from "@/components/PremiumBadge";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MediaItem {
@@ -61,6 +63,7 @@ export function PostContent({
   const [showMentionModal, setShowMentionModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const { canReadFullArticles } = useUserAccess();
+  const badgeType = useUserBadge(author?.id);
 
   const handleMentionClick = useCallback(async (e: MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -179,6 +182,7 @@ export function PostContent({
             <span className={`font-medium text-foreground ${author ? 'hover:underline cursor-pointer' : ''}`}>
               {authorName}
             </span>
+            <PremiumBadge type={badgeType} size={16} />
           </button>
           <span>•</span>
           <span>{publishedAt}</span>

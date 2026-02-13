@@ -6,6 +6,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -47,33 +48,7 @@ const modalityLabels: Record<string, string> = {
   hibrido: "Híbrido",
 };
 
-function FilterChips({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-            value === opt.value
-              ? "bg-foreground text-background"
-              : "bg-card text-muted-foreground hover:bg-secondary"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// FilterChips removed — replaced by Select dropdowns
 
 function formatSessionDates(sessions: Event["sessions"]): string {
   if (!sessions.length) return "Sem datas definidas";
@@ -238,22 +213,37 @@ export default function Events() {
         </div>
 
         {/* Filters */}
-        <div className="space-y-3">
-          <FilterChips
-            options={periodOptions}
-            value={filters.period || "all"}
-            onChange={(v) => setFilters((f) => ({ ...f, period: v as any }))}
-          />
-          <FilterChips
-            options={modalityOptions}
-            value={filters.modality || "all"}
-            onChange={(v) => setFilters((f) => ({ ...f, modality: v }))}
-          />
-          <FilterChips
-            options={typeOptions}
-            value={filters.eventType || "all"}
-            onChange={(v) => setFilters((f) => ({ ...f, eventType: v }))}
-          />
+        <div className="flex gap-2">
+          <Select value={filters.period || "all"} onValueChange={(v) => setFilters((f) => ({ ...f, period: v as any }))}>
+            <SelectTrigger className="flex-1 bg-card border-border text-foreground h-9 text-xs">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border z-50">
+              {periodOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.modality || "all"} onValueChange={(v) => setFilters((f) => ({ ...f, modality: v }))}>
+            <SelectTrigger className="flex-1 bg-card border-border text-foreground h-9 text-xs">
+              <SelectValue placeholder="Modalidade" />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border z-50">
+              {modalityOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.eventType || "all"} onValueChange={(v) => setFilters((f) => ({ ...f, eventType: v }))}>
+            <SelectTrigger className="flex-1 bg-card border-border text-foreground h-9 text-xs">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border z-50">
+              {typeOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Event List */}

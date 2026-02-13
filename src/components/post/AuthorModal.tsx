@@ -1,6 +1,8 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InstagramLogo, LinkedinLogo, Globe } from "@phosphor-icons/react";
+import { useUserBadge } from "@/hooks/useUserBadge";
+import { PremiumBadge } from "@/components/PremiumBadge";
 
 interface Author {
   id: string;
@@ -33,6 +35,7 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
   if (!author) return null;
 
   const hasSocialLinks = author.instagram_url || author.linkedin_url || author.website;
+  const badgeType = useUserBadge(author.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -47,8 +50,9 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
           </Avatar>
 
           {/* Nome */}
-          <h2 className="text-xl font-bold mb-1">
+          <h2 className="text-xl font-bold mb-1 flex items-center gap-1.5 justify-center">
             {author.full_name || "Autor"}
+            <PremiumBadge type={badgeType} size={18} />
           </h2>
 
           {/* Formação */}

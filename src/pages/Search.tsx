@@ -10,12 +10,45 @@ import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { useSearch, SearchType, SearchResult } from "@/hooks/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useUserBadge } from "@/hooks/useUserBadge";
+import { PremiumBadge } from "@/components/PremiumBadge";
 
 const tabs: { label: string; value: SearchType }[] = [
   { label: "Todos", value: "all" },
   { label: "Pessoas", value: "users" },
   { label: "Empresas", value: "companies" },
 ];
+
+function SearchResultCard({ result, onClick }: { result: SearchResult; onClick: (r: SearchResult) => void }) {
+  const badgeType = useUserBadge(result.type === "user" ? result.id : undefined);
+  return (
+    <Card
+      className="cursor-pointer hover:border-muted-foreground/30 transition-all"
+      onClick={() => onClick(result)}
+    >
+      <CardContent className="p-3 flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={(result.type === "user" ? result.avatar_url : result.logo_url) || undefined} />
+          <AvatarFallback className="bg-secondary">
+            {result.type === "user" ? <User className="w-4 h-4" /> : <Buildings className="w-4 h-4" />}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate flex items-center gap-1">
+            {result.name}
+            {result.type === "user" && <PremiumBadge type={badgeType} size={14} />}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {result.type === "user" ? result.job_title || result.bio || "Pessoa" : result.industry || result.description || "Empresa"}
+          </p>
+        </div>
+        <Badge variant="secondary" className="text-[10px] shrink-0">
+          {result.type === "user" ? "Pessoa" : "Empresa"}
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Search() {
   const navigate = useNavigate();
@@ -89,29 +122,7 @@ export default function Search() {
         ) : (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
             {results.map((result) => (
-              <Card
-                key={`${result.type}-${result.id}`}
-                className="cursor-pointer hover:border-muted-foreground/30 transition-all"
-                onClick={() => handleResultClick(result)}
-              >
-                <CardContent className="p-3 flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={(result.type === "user" ? result.avatar_url : result.logo_url) || undefined} />
-                    <AvatarFallback className="bg-secondary">
-                      {result.type === "user" ? <User className="w-4 h-4" /> : <Buildings className="w-4 h-4" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{result.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {result.type === "user" ? result.job_title || result.bio || "Pessoa" : result.industry || result.description || "Empresa"}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
-                    {result.type === "user" ? "Pessoa" : "Empresa"}
-                  </Badge>
-                </CardContent>
-              </Card>
+              <SearchResultCard key={`${result.type}-${result.id}`} result={result} onClick={handleResultClick} />
             ))}
           </motion.div>
         )}
