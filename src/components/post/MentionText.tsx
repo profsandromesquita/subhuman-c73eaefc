@@ -19,12 +19,24 @@ export function MentionText({ text }: { text: string }) {
   const handleMentionClick = async (name: string) => {
     const cleanName = name.replace('@', '').trim();
     try {
-      const { data } = await supabase
+      // Try exact match first
+      let { data } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
         .ilike('full_name', cleanName)
         .limit(1)
         .maybeSingle();
+
+      // Fallback: partial match
+      if (!data) {
+        const partial = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
+          .ilike('full_name', `%${cleanName}%`)
+          .limit(1)
+          .maybeSingle();
+        data = partial.data;
+      }
 
       if (data) {
         setMentionAuthor(data);
@@ -32,12 +44,35 @@ export function MentionText({ text }: { text: string }) {
         return;
       }
 
+      // Try companies
       const { data: companyData } = await supabase
         .from('companies')
         .select('id, name, logo_url, description, instagram_url, linkedin_url, industry')
         .ilike('name', cleanName)
         .limit(1)
         .maybeSingle();
+
+      if (!companyData) {
+        const partial = await supabase
+          .from('companies')
+          .select('id, name, logo_url, description, instagram_url, linkedin_url, industry')
+          .ilike('name', `%${cleanName}%`)
+          .limit(1)
+          .maybeSingle();
+        if (partial.data) {
+          setMentionAuthor({
+            id: partial.data.id,
+            full_name: partial.data.name,
+            avatar_url: partial.data.logo_url,
+            bio: partial.data.description,
+            education: partial.data.industry,
+            instagram_url: partial.data.instagram_url,
+            linkedin_url: partial.data.linkedin_url,
+          });
+          setShowModal(true);
+        }
+        return;
+      }
 
       if (companyData) {
         setMentionAuthor({
@@ -56,8 +91,8 @@ export function MentionText({ text }: { text: string }) {
     }
   };
 
-  // Regex: captures @Name with capitalized words (supports accented chars)
-  const parts = text.split(/(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*)/g);
+  // Regex: first word must start uppercase, subsequent words can start with any letter (supports "de", "da", etc.)
+  const parts = text.split(/(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ][a-zà-öø-ÿ]+)*)/g);
 
   return (
     <>
