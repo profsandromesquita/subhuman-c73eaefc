@@ -154,7 +154,7 @@ export default function AIAssistant() {
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {messages.length === 0 ? <div className="flex flex-col items-center justify-center h-full gap-6">
+          {messages.length === 0 ? <div className="flex flex-col items-center gap-6 pt-6">
               <div className="text-center">
                 
                 <h2 className="text-lg font-medium text-foreground mb-2">Como posso ajudar?</h2>
