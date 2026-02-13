@@ -13,6 +13,8 @@ import { useCreateMentions } from "@/hooks/useMentions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useUserAccess } from "@/hooks/useUserAccess";
+import { ContentPaywall } from "@/components/ContentPaywall";
 import { useDeleteChannelPost } from "@/hooks/usePosts";
 import { useChannelPostDetail, type ChannelPostComment } from "@/hooks/useChannelPostDetail";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +46,7 @@ export default function ChannelPostDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdminOrModerator } = useAdminAuth();
+  const { canReadFullChannelPosts, canComment, canLike } = useUserAccess();
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteChannelPost();
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -419,11 +422,21 @@ export default function ChannelPostDetail() {
           {post.title && (
             <h1 className="text-xl font-bold mb-3">{post.title}</h1>
           )}
-          <div 
-            ref={contentRef}
-            className="prose prose-sm dark:prose-invert max-w-none [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content, { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
-          />
+          {canReadFullChannelPosts ? (
+            <div 
+              ref={contentRef}
+              className="prose prose-sm dark:prose-invert max-w-none [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content, { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
+            />
+          ) : (
+            <ContentPaywall maxLines={1} type="channel">
+              <div 
+                ref={contentRef}
+                className="prose prose-sm dark:prose-invert max-w-none [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content, { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
+              />
+            </ContentPaywall>
+          )}
 
           {/* Media Gallery */}
           {media.length > 0 && (
@@ -437,7 +450,7 @@ export default function ChannelPostDetail() {
             <Button
               variant="ghost"
               className={`gap-2 ${isLiked ? 'text-red-500' : ''}`}
-              onClick={handleLikePost}
+              onClick={canLike ? handleLikePost : () => toast.error("Assine para curtir conteúdos")}
             >
               <Heart className="w-5 h-5" weight={isLiked ? "fill" : "regular"} />
               <span>{likesCount} curtidas</span>
@@ -456,29 +469,33 @@ export default function ChannelPostDetail() {
         <Separator className="my-6" />
 
         {/* Comments Section */}
-        <div className="space-y-6 mb-6">
-          <h2 className="font-semibold">Comentários</h2>
-          {comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhum comentário ainda. Seja o primeiro!
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {comments.map(comment => renderComment(comment))}
+        {canComment && (
+          <>
+            <div className="space-y-6 mb-6">
+              <h2 className="font-semibold">Comentários</h2>
+              {comments.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum comentário ainda. Seja o primeiro!
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {comments.map(comment => renderComment(comment))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Comment Input */}
-        <div className="fixed bottom-20 left-0 right-0 bg-background border-t p-4">
-          <div className="max-w-lg mx-auto">
-            <MentionCommentInput
-              onSubmit={handleSubmitComment}
-              replyTo={replyTo ? { id: replyTo.id, authorName: replyTo.name } : null}
-              onCancelReply={() => setReplyTo(null)}
-            />
-          </div>
-        </div>
+            {/* Comment Input */}
+            <div className="fixed bottom-20 left-0 right-0 bg-background border-t p-4">
+              <div className="max-w-lg mx-auto">
+                <MentionCommentInput
+                  onSubmit={handleSubmitComment}
+                  replyTo={replyTo ? { id: replyTo.id, authorName: replyTo.name } : null}
+                  onCancelReply={() => setReplyTo(null)}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <AuthorModal 

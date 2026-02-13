@@ -9,6 +9,8 @@ import { CommentInput } from "@/components/post/CommentInput";
 import { usePodcastBySlug, useLikePodcast, useSavePodcast, useAddPodcastComment, useLikePodcastComment, usePodcastProgress } from "@/hooks/usePodcasts";
 import { usePodcastEngagement } from "@/hooks/usePodcastEngagement";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserAccess } from "@/hooks/useUserAccess";
+import { ContentPaywall } from "@/components/ContentPaywall";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +22,7 @@ export default function PodcastDetail() {
   const { podcastSlug } = useParams<{ podcastSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canListenPodcast, canComment } = useUserAccess();
   const queryClient = useQueryClient();
   const commentSectionRef = useRef<HTMLDivElement>(null);
   
@@ -203,14 +206,22 @@ export default function PodcastDetail() {
 
       <div className="pt-14">
         <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
-          <PodcastPlayer
-            audioUrl={podcast.audio_url}
-            title={podcast.title}
-            coverUrl={podcast.cover_url}
-            podcastId={podcast.id}
-            durationSeconds={podcast.duration_seconds}
-            initialProgress={savedProgress?.completed ? null : savedProgress?.progress_seconds}
-          />
+          {canListenPodcast ? (
+            <PodcastPlayer
+              audioUrl={podcast.audio_url}
+              title={podcast.title}
+              coverUrl={podcast.cover_url}
+              podcastId={podcast.id}
+              durationSeconds={podcast.duration_seconds}
+              initialProgress={savedProgress?.completed ? null : savedProgress?.progress_seconds}
+            />
+          ) : (
+            <ContentPaywall maxLines={0} type="podcast">
+              <div className="aspect-video w-full rounded-2xl bg-secondary flex items-center justify-center">
+                <img src={podcast.cover_url || ''} alt="" className="w-full h-full object-cover rounded-2xl opacity-50" />
+              </div>
+            </ContentPaywall>
+          )}
 
           <div className="space-y-4 text-center">
             <h1 className="text-2xl font-bold text-foreground">{podcast.title}</h1>
@@ -250,23 +261,27 @@ export default function PodcastDetail() {
           />
         </div>
 
-        <div ref={commentSectionRef}>
-          <CommentSection
-            comments={comments}
-            currentUserId={user?.id}
-            onLikeComment={handleLikeComment}
-            onReplyComment={handleReplyComment}
-            onEditComment={handleEditComment}
-            onDeleteComment={handleDeleteComment}
-          />
-        </div>
-      </div>
+        {canComment && (
+          <>
+            <div ref={commentSectionRef}>
+              <CommentSection
+                comments={comments}
+                currentUserId={user?.id}
+                onLikeComment={handleLikeComment}
+                onReplyComment={handleReplyComment}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
+              />
+            </div>
 
-      <CommentInput
-        onSubmit={handleSubmitComment}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-      />
+            <CommentInput
+              onSubmit={handleSubmitComment}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
+            />
+          </>
+        )}
+      </div>
     </AppLayout>
   );
 }
