@@ -5,7 +5,6 @@ import { Check, ArrowLeft, Gift, Ticket, GraduationCap, CalendarDots, Monitor, M
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { TrialOfferModal } from "@/components/TrialOfferModal";
@@ -32,9 +31,9 @@ const subscriptionPlans = [
   {
     id: "yearly",
     name: "Anual",
-    price: "R$ 299,90",
+    price: "R$ 239,90",
     period: "/ano",
-    description: "Economize 17%",
+    description: "Economize 33%",
     badge: "Mais popular",
     checkoutUrl: "https://payment.ticto.app/O40A9D8E6",
     features: [
@@ -74,7 +73,7 @@ export default function Plans() {
   const { data: allEvents } = useEvents({ period: "future" });
 
   // Filter paid future events
-  const paidEvents = (allEvents || []).filter((e) => !e.is_free && e.checkout_url);
+  const paidEvents = (allEvents || []).filter((e) => !e.is_free);
 
   const showExpiredMessage = status === 'expired';
   const canStartTrial = status === 'none';
@@ -128,57 +127,25 @@ export default function Plans() {
     }
   };
 
-  const handleStartTrial = async () => {
+  const TRIAL_CHECKOUT_URL = "TRIAL_CHECKOUT_PLACEHOLDER";
+
+  const handleStartTrial = () => {
     if (!user) {
       toast.error("Você precisa estar logado para iniciar o período de teste.");
       navigate("/login");
       return;
     }
 
-    setIsTrialLoading(true);
-
-    try {
-      const { data: existingTrial, error: checkError } = await supabase
-        .from('subscriptions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('plan_type', 'trial')
-        .limit(1)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      if (existingTrial) {
-        toast.error("Você já utilizou seu período de teste gratuito.");
-        setIsTrialLoading(false);
-        return;
-      }
-
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-      const { error: insertError } = await supabase
-        .from('subscriptions')
-        .insert({
-          user_id: user.id,
-          plan_type: 'trial',
-          status: 'active',
-          starts_at: now.toISOString(),
-          expires_at: expiresAt.toISOString(),
-        });
-
-      if (insertError) throw insertError;
-
-      await refetch();
-      toast.success("Período de teste iniciado! Você tem 7 dias de acesso gratuito.");
-      setShowTrialModal(false);
-      navigate("/home", { replace: true });
-    } catch (error) {
-      console.error('Error starting trial:', error);
-      toast.error("Erro ao iniciar período de teste. Tente novamente.");
-    } finally {
-      setIsTrialLoading(false);
+    if (TRIAL_CHECKOUT_URL === "TRIAL_CHECKOUT_PLACEHOLDER") {
+      toast.info("Link de checkout em breve. Aguarde!");
+      return;
     }
+
+    const checkoutUrl = new URL(TRIAL_CHECKOUT_URL);
+    if (user.email) checkoutUrl.searchParams.set('email', user.email);
+    if (user.id) checkoutUrl.searchParams.set('src', user.id);
+    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    window.location.href = checkoutUrl.toString();
   };
 
   if (subLoading) {
@@ -249,7 +216,7 @@ export default function Plans() {
                   <div className="flex-1">
                     <h3 className="font-bold text-lg">Teste por 7 dias</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Acesso completo sem cartão de crédito
+                      Teste grátis por 7 dias no plano mensal
                     </p>
                     <Button
                       onClick={handleStartTrial}
@@ -339,10 +306,11 @@ export default function Plans() {
                           </div>
 
                           <Button
-                            onClick={() => handleEventPurchase(event.checkout_url!)}
-                            className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                            onClick={() => event.checkout_url && handleEventPurchase(event.checkout_url)}
+                            disabled={!event.checkout_url}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold disabled:opacity-50"
                           >
-                            Garantir minha vaga
+                            {event.checkout_url ? "Garantir minha vaga" : "Em breve"}
                           </Button>
                         </div>
                       </div>

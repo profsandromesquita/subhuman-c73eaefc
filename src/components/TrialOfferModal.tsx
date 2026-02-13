@@ -46,15 +46,15 @@ export function TrialOfferModal({
           </DialogTitle>
 
           <DialogDescription className="text-muted-foreground">
-            Você pode experimentar o Subhumano por{" "}
-            <span className="text-foreground font-semibold">7 dias</span>{" "}
-            completamente grátis.
+            Experimente o Subhumano por{" "}
+            <span className="text-foreground font-semibold">7 dias grátis</span>{" "}
+            no plano mensal. A cobrança só acontece após o período de teste.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-4 p-4 rounded-xl bg-green-500/5 border border-green-500/20">
           <p className="text-sm font-medium text-green-500 text-center mb-3">
-            ✨ Sem cartão de crédito
+            ✨ Cancele em até 7 dias sem ser cobrado
           </p>
           <ul className="space-y-2">
             {benefits.map((benefit) => (
