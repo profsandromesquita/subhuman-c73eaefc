@@ -50,7 +50,7 @@ const subscriptionPlans = [
     period: "",
     description: "Pague uma vez, acesse para sempre",
     badge: "Melhor custo-benefício",
-    checkoutUrl: "https://checkout.ticto.app/LIFETIME_PLACEHOLDER",
+    checkoutUrl: "https://checkout.ticto.app/OF16846C3",
     features: [
       "Tudo do plano anual",
       "Acesso vitalício garantido",
