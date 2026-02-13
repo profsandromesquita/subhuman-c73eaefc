@@ -81,6 +81,11 @@ export default function Plans() {
   const canStartTrial = status === 'none';
   const backDestination = user ? '/home' : '/register';
 
+  const handleTrialModalClose = () => {
+    setShowTrialModal(false);
+    navigate('/home');
+  };
+
   const handleBackClick = () => {
     if (canStartTrial) {
       setShowTrialModal(true);
@@ -493,10 +498,7 @@ export default function Plans() {
       {/* Trial Offer Modal */}
       <TrialOfferModal
         isOpen={showTrialModal}
-        onClose={() => {
-          setShowTrialModal(false);
-          navigate(backDestination);
-        }}
+        onClose={handleTrialModalClose}
         onConfirmTrial={handleStartTrial}
         isLoading={isTrialLoading}
       />

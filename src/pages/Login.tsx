@@ -154,11 +154,7 @@ export default function Login() {
       await new Promise(resolve => setTimeout(resolve, 500));
       const result = await refetch();
 
-      if (result.status === 'trial' || result.status === 'active') {
-        navigate("/home", { replace: true });
-      } else {
-        navigate("/plans", { replace: true });
-      }
+      navigate("/home", { replace: true });
     } catch (err) {
       toast.error("Erro inesperado ao fazer login");
     } finally {

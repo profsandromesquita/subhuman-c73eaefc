@@ -28,11 +28,7 @@ export default function Landing() {
     
     if (user) {
       hasRedirected.current = true;
-      if (status === 'trial' || status === 'active') {
-        navigate('/home', { replace: true });
-      } else {
-        navigate('/plans', { replace: true });
-      }
+      navigate('/home', { replace: true });
     }
   }, [user, authLoading, status, subLoading, navigate]);
 
