@@ -272,13 +272,10 @@ export default function Users() {
           className={`px-2 py-1 text-xs rounded-full ${
             item.subscription_status === 'active'
               ? 'bg-emerald-500/20 text-emerald-500'
-              : item.subscription_status === 'expired'
-              ? 'bg-red-500/20 text-red-500'
               : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {item.subscription_status === 'active' ? 'Ativo' : 
-           item.subscription_status === 'expired' ? 'Expirado' : 'Inativo'}
+          {item.subscription_status === 'active' ? 'Ativo' : 'Freemium'}
         </span>
       )
     },
@@ -416,12 +413,9 @@ export default function Users() {
                     <p className={`mt-1 ${
                       selectedUser.subscription_status === 'active' 
                         ? 'text-emerald-500' 
-                        : selectedUser.subscription_status === 'expired'
-                        ? 'text-red-500'
                         : 'text-muted-foreground'
                     }`}>
-                      {selectedUser.subscription_status === 'active' ? 'Ativa' : 
-                       selectedUser.subscription_status === 'expired' ? 'Expirada' : 'Inativa'}
+                      {selectedUser.subscription_status === 'active' ? 'Ativa' : 'Freemium'}
                     </p>
                   </div>
                   <div>

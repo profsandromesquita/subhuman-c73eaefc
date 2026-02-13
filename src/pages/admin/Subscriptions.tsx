@@ -206,10 +206,11 @@ export default function Subscriptions() {
       header: 'Plano',
        render: (item: Subscription) => {
          const planLabels: Record<string, string> = {
-           monthly: 'Mensal',
-           yearly: 'Anual',
-           trial: 'Trial',
-           promo: 'Promo'
+          monthly: 'Mensal',
+            yearly: 'Anual',
+            lifetime: 'Vitalício',
+            trial: 'Trial',
+            promo: 'Promo'
          };
          return (
            <span className="px-2 py-1 text-xs rounded-full bg-secondary text-foreground">
@@ -235,9 +236,7 @@ export default function Subscriptions() {
             ? 'Ativo'
             : item.status === 'cancelled'
             ? 'Cancelado'
-            : item.status === 'expired'
-            ? 'Expirado'
-            : 'Pendente'}
+            : 'Freemium'}
         </span>
       )
     },
@@ -366,8 +365,9 @@ export default function Subscriptions() {
                   <div>
                     <Label className="text-muted-foreground">Plano</Label>
                     <p className="font-medium">
-                      {selectedSubscription.plan_type === 'monthly' ? 'Mensal' : 
+                       {selectedSubscription.plan_type === 'monthly' ? 'Mensal' : 
                        selectedSubscription.plan_type === 'yearly' ? 'Anual' : 
+                       selectedSubscription.plan_type === 'lifetime' ? 'Vitalício' :
                        selectedSubscription.plan_type === 'trial' ? 'Trial' : 
                        selectedSubscription.plan_type}
                     </p>
@@ -379,7 +379,7 @@ export default function Subscriptions() {
                     }`}>
                       {selectedSubscription.status === 'active' ? 'Ativo' : 
                        selectedSubscription.status === 'cancelled' ? 'Cancelado' : 
-                       selectedSubscription.status}
+                       'Freemium'}
                     </p>
                   </div>
                   <div>
@@ -417,9 +417,10 @@ export default function Subscriptions() {
                     <SelectValue placeholder="Selecione o plano" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="trial">Trial (7 dias)</SelectItem>
+                     <SelectItem value="trial">Trial (7 dias)</SelectItem>
                     <SelectItem value="monthly">Mensal (R$ 29,90)</SelectItem>
                     <SelectItem value="yearly">Anual (R$ 299,90)</SelectItem>
+                    <SelectItem value="lifetime">Vitalício</SelectItem>
                     <SelectItem value="promo">Promocional</SelectItem>
                   </SelectContent>
                 </Select>
