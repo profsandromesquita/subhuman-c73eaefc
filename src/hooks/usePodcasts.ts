@@ -33,7 +33,7 @@ export function usePodcasts(spaceId?: string | null) {
       let query = supabase
         .from("podcasts")
         .select(`
-          *,
+          id, title, slug, description, cover_url, duration_seconds, tags, published_at, space_id,
           spaces(id, name, slug, icon)
         `)
         .eq("is_published", true)

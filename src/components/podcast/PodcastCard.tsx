@@ -31,6 +31,7 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0 }: Podcas
             src={podcast.cover_url}
             alt={podcast.title}
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
