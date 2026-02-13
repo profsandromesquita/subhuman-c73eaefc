@@ -10,6 +10,7 @@ export interface SearchResultUser {
   avatar_url: string | null;
   bio: string | null;
   job_title: string | null;
+  account_type: string | null;
 }
 
 export interface SearchResultCompany {
@@ -20,6 +21,7 @@ export interface SearchResultCompany {
   logo_url: string | null;
   description: string | null;
   industry: string | null;
+  owner_id: string;
 }
 
 export type SearchResult = SearchResultUser | SearchResultCompany;
@@ -35,7 +37,7 @@ export function useSearch(query: string, type: SearchType = "all") {
       if (type === "all" || type === "users") {
         const { data: users } = await supabase
           .from("profiles")
-          .select("id, full_name, avatar_url, bio, job_title")
+          .select("id, full_name, avatar_url, bio, job_title, account_type")
           .ilike("full_name", `%${query}%`)
           .limit(20);
 
@@ -48,6 +50,7 @@ export function useSearch(query: string, type: SearchType = "all") {
               avatar_url: u.avatar_url,
               bio: u.bio,
               job_title: u.job_title,
+              account_type: u.account_type,
             }))
           );
         }
@@ -56,7 +59,7 @@ export function useSearch(query: string, type: SearchType = "all") {
       if (type === "all" || type === "companies") {
         const { data: companies } = await supabase
           .from("companies")
-          .select("id, name, slug, logo_url, description, industry")
+          .select("id, name, slug, logo_url, description, industry, owner_id")
           .eq("is_active", true)
           .ilike("name", `%${query}%`)
           .limit(20);
@@ -71,6 +74,7 @@ export function useSearch(query: string, type: SearchType = "all") {
               logo_url: c.logo_url,
               description: c.description,
               industry: c.industry,
+              owner_id: c.owner_id,
             }))
           );
         }

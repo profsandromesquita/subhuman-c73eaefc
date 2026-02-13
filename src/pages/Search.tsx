@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MagnifyingGlass, User, Buildings, ArrowLeft } from "@phosphor-icons/react";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { useSearch, SearchType, SearchResult } from "@/hooks/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useUserBadge } from "@/hooks/useUserBadge";
 import { PremiumBadge } from "@/components/PremiumBadge";
+import { AuthorModal } from "@/components/post/AuthorModal";
+import { supabase } from "@/integrations/supabase/client";
 
 const tabs: { label: string; value: SearchType }[] = [
   { label: "Todos", value: "all" },
@@ -19,8 +21,31 @@ const tabs: { label: string; value: SearchType }[] = [
   { label: "Empresas", value: "companies" },
 ];
 
-function SearchResultCard({ result, onClick }: { result: SearchResult; onClick: (r: SearchResult) => void }) {
-  const badgeType = useUserBadge(result.type === "user" ? result.id : undefined);
+interface AuthorData {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
+}
+
+function SearchResultCard({
+  result,
+  onClick,
+}: {
+  result: SearchResult;
+  onClick: (r: SearchResult) => void;
+}) {
+  const badgeUserId =
+    result.type === "user" ? result.id : result.owner_id;
+  const badgeType = useUserBadge(badgeUserId);
+
+  const isEmpresa =
+    result.type === "company" ||
+    (result.type === "user" && result.account_type === "empresa");
+
   return (
     <Card
       className="cursor-pointer hover:border-muted-foreground/30 transition-all"
@@ -28,22 +53,33 @@ function SearchResultCard({ result, onClick }: { result: SearchResult; onClick: 
     >
       <CardContent className="p-3 flex items-center gap-3">
         <Avatar className="h-10 w-10">
-          <AvatarImage src={(result.type === "user" ? result.avatar_url : result.logo_url) || undefined} />
+          <AvatarImage
+            src={
+              (result.type === "user" ? result.avatar_url : result.logo_url) ||
+              undefined
+            }
+          />
           <AvatarFallback className="bg-secondary">
-            {result.type === "user" ? <User className="w-4 h-4" /> : <Buildings className="w-4 h-4" />}
+            {isEmpresa ? (
+              <Buildings className="w-4 h-4" />
+            ) : (
+              <User className="w-4 h-4" />
+            )}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate flex items-center gap-1">
             {result.name}
-            {result.type === "user" && <PremiumBadge type={badgeType} size={14} />}
+            <PremiumBadge type={badgeType} size={14} />
           </p>
           <p className="text-xs text-muted-foreground truncate">
-            {result.type === "user" ? result.job_title || result.bio || "Pessoa" : result.industry || result.description || "Empresa"}
+            {result.type === "user"
+              ? result.job_title || result.bio || "Pessoa"
+              : result.industry || result.description || "Empresa"}
           </p>
         </div>
         <Badge variant="secondary" className="text-[10px] shrink-0">
-          {result.type === "user" ? "Pessoa" : "Empresa"}
+          {isEmpresa ? "Empresa" : "Pessoa"}
         </Badge>
       </CardContent>
     </Card>
@@ -57,11 +93,32 @@ export default function Search() {
   const debouncedQuery = useDebounce(query, 300);
   const { data: results = [], isLoading } = useSearch(debouncedQuery, activeTab);
 
-  const handleResultClick = (result: SearchResult) => {
+  const [selectedAuthor, setSelectedAuthor] = useState<AuthorData | null>(null);
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
+
+  const handleResultClick = async (result: SearchResult) => {
     if (result.type === "user") {
-      // For now, no public user profile page — could navigate to a future one
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url")
+        .eq("id", result.id)
+        .maybeSingle();
+
+      if (data) {
+        setSelectedAuthor(data);
+        setShowAuthorModal(true);
+      }
     } else {
-      navigate(`/company/${result.slug}`);
+      setSelectedAuthor({
+        id: result.id,
+        full_name: result.name,
+        avatar_url: result.logo_url,
+        bio: result.description,
+        education: result.industry,
+        instagram_url: null,
+        linkedin_url: null,
+      });
+      setShowAuthorModal(true);
     }
   };
 
@@ -75,7 +132,6 @@ export default function Search() {
           <h1 className="text-xl font-bold">Buscar</h1>
         </motion.div>
 
-        {/* Search input */}
         <div className="relative mb-4">
           <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <Input
@@ -87,7 +143,6 @@ export default function Search() {
           />
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-4">
           {tabs.map((tab) => (
             <button
@@ -104,7 +159,6 @@ export default function Search() {
           ))}
         </div>
 
-        {/* Results */}
         {debouncedQuery.length < 2 ? (
           <p className="text-sm text-muted-foreground text-center py-12">
             Digite pelo menos 2 caracteres para buscar
@@ -127,6 +181,12 @@ export default function Search() {
           </motion.div>
         )}
       </div>
+
+      <AuthorModal
+        author={selectedAuthor}
+        isOpen={showAuthorModal}
+        onClose={() => setShowAuthorModal(false)}
+      />
     </AppLayout>
   );
 }

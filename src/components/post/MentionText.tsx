@@ -24,7 +24,7 @@ export function MentionText({ text }: { text: string }) {
         .select('id, full_name, avatar_url, bio, education, instagram_url, linkedin_url')
         .ilike('full_name', cleanName)
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (data) {
         setMentionAuthor(data);
@@ -37,7 +37,7 @@ export function MentionText({ text }: { text: string }) {
         .select('id, name, logo_url, description, instagram_url, linkedin_url, industry')
         .ilike('name', cleanName)
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (companyData) {
         setMentionAuthor({
