@@ -14,6 +14,7 @@ import {
   House,
   Microphone,
   Ticket,
+  CalendarCheck,
   Robot,
   Brain,
   FileText,
@@ -48,6 +49,7 @@ const contentNavItems = [
   { title: 'Conteúdos', url: '/admin/content', icon: Article },
   { title: 'Podcasts', url: '/admin/podcasts', icon: Microphone },
   { title: 'Canais', url: '/admin/channels', icon: ChatCircle },
+  { title: 'Eventos', url: '/admin/events', icon: CalendarCheck },
   { title: 'Moderação', url: '/admin/moderation', icon: Shield },
 ];
 
