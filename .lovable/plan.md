@@ -1,95 +1,50 @@
 
-# Correcao do loop de redirecionamento para usuarios Freemium
+# Correcao do modal de interacao para usuarios Freemium logados
 
-## Diagnostico completo
+## Problema
 
-Existem **3 pontos** que, juntos, criam um loop impossivel de escapar para usuarios freemium (status = 'none'):
+Na pagina `PostDetail.tsx`, quando um usuario freemium (logado, mas sem assinatura) tenta curtir ou comentar, o sistema mostra o `AuthPromptDialog` com a mensagem "Entre para interagir / Criar conta / Ja tenho conta". Isso esta errado porque o usuario **ja esta logado**. O modal correto deveria ser um prompt de upgrade com:
 
-### Causa 1: Login.tsx (linhas 157-160)
-```typescript
-if (result.status === 'trial' || result.status === 'active') {
-  navigate("/home", { replace: true });
-} else {
-  navigate("/plans", { replace: true }); // <-- freemium cai aqui SEMPRE
-}
+- **Titulo**: "Desbloqueie este conteudo com seu Passe VIP"
+- **Descricao**: "Leia artigos completos e tenha acesso a todo o conteudo."
+- **Botao**: "Ver planos" (navega para `/plans`)
+
+## Causa raiz
+
+Linha 272 de `src/pages/PostDetail.tsx`:
+
 ```
-Apos login bem-sucedido, qualquer usuario sem assinatura e mandado para `/plans`.
-
-### Causa 2: TrialOfferModal + Plans.tsx (handleBackClick)
-O botao de voltar no Plans chama `handleBackClick` que, quando `canStartTrial` e `true` (status === 'none'), abre o modal de trial. O botao "Nao, voltar para a home" do modal apenas fecha o modal (`setShowTrialModal(false)`). **Nao navega para lugar nenhum.** O usuario continua preso em `/plans`.
-
-### Causa 3: Landing.tsx (linhas 29-35)
-Se o usuario tentar acessar `/` (landing), o componente detecta que esta logado e como status e `none`, redireciona para `/plans`. Outra saida bloqueada.
-
-## Plano de correcao (3 arquivos)
-
-### 1. `src/pages/Login.tsx` (linha 157-161)
-Mudar a logica pos-login para enviar **todos** os usuarios autenticados para `/home`, independente do status de assinatura. O ContentPaywall ja cuida das restricoes de conteudo premium dentro do app.
-
-```typescript
-// ANTES:
-if (result.status === 'trial' || result.status === 'active') {
-  navigate("/home", { replace: true });
-} else {
-  navigate("/plans", { replace: true });
-}
-
-// DEPOIS:
-navigate("/home", { replace: true });
+onLikeToggle={canLike ? handleLikeToggle : () => setShowAuthPrompt(true)}
 ```
 
-### 2. `src/pages/Plans.tsx` (handleBackClick + onClose do modal)
-Dois ajustes:
-- O `handleBackClick` deve navegar diretamente para `/home` quando o usuario esta logado, sem interceptar com o modal de trial. O modal de trial so deve aparecer em contextos onde faz sentido (ex: ao tentar assinar).
-- OU: manter o modal mas fazer o `onClose` navegar para `/home` em vez de apenas fechar o modal.
+Quando `canLike` e `false`, independente de o usuario estar logado ou nao, mostra o `AuthPromptDialog`. Falta distinguir entre "nao logado" e "logado sem permissao".
 
-Abordagem escolhida: manter o modal como oportunidade de conversao, mas o `onClose` passa a navegar para `/home`:
+## Plano de correcao
 
-```typescript
-// handleBackClick permanece igual (mostra modal se canStartTrial)
+### Arquivo: `src/pages/PostDetail.tsx`
 
-// Mas o onClose do modal agora navega:
-const handleTrialModalClose = () => {
-  setShowTrialModal(false);
-  navigate('/home');
-};
-```
+1. Adicionar um novo estado `showUpgradePrompt` (`useState(false)`)
+2. Criar uma logica condicional nos handlers:
+   - Se `!user` -> mostrar `AuthPromptDialog` (manter comportamento atual para visitantes)
+   - Se `user` mas `!canLike` / `!canComment` -> mostrar um dialog de upgrade
+3. Importar e usar o `SubscriptionModal` existente (ou criar um dialog inline simples) para o prompt de upgrade
+4. Atualizar a linha 272 para:
+   ```
+   onLikeToggle={canLike ? handleLikeToggle : () => {
+     if (!user) setShowAuthPrompt(true);
+     else setShowUpgradePrompt(true);
+   }}
+   ```
+5. Tambem corrigir `handleLikeToggle` (linha 55), `handleSaveToggle` (linha 71), `handleLikeComment` (linha 96), e `handleSubmitComment` (linha 136) para usar a mesma logica condicional
+6. Adicionar o dialog de upgrade no JSX com o texto especificado pelo usuario:
+   - Icone de cadeado
+   - "Desbloqueie este conteudo com seu Passe VIP"
+   - "Leia artigos completos e tenha acesso a todo o conteudo."
+   - Botao "Ver planos" que navega para `/plans`
 
-E no JSX:
-```tsx
-<TrialOfferModal
-  isOpen={showTrialModal}
-  onClose={handleTrialModalClose}  // <-- agora navega
-  onConfirmTrial={handleStartTrial}
-  isLoading={isTrialLoading}
-/>
-```
+### Impacto
 
-### 3. `src/pages/Landing.tsx` (linhas 29-35)
-Mudar a logica para enviar usuarios logados com status `none` para `/home` em vez de `/plans`:
-
-```typescript
-// ANTES:
-if (user) {
-  if (status === 'trial' || status === 'active') {
-    navigate('/home', { replace: true });
-  } else {
-    navigate('/plans', { replace: true });
-  }
-}
-
-// DEPOIS:
-if (user) {
-  navigate('/home', { replace: true });
-}
-```
-
-Todos os usuarios logados vao para `/home`. A pagina de planos (`/plans`) continua acessivel via navegacao interna (links, botoes de upgrade, paywall).
-
-## Impacto
-
-- 3 arquivos editados: `Login.tsx`, `Plans.tsx`, `Landing.tsx`
-- Nenhuma alteracao de banco ou RLS
-- O fluxo de upgrade continua funcionando (usuario pode acessar `/plans` voluntariamente)
-- O ContentPaywall continua mostrando restricoes de conteudo premium dentro do app
-- O SubscriptionGuard ja permite freemium, entao `/home` funcionara normalmente
+- 1 arquivo editado: `src/pages/PostDetail.tsx`
+- Nenhuma alteracao de banco ou backend
+- O `AuthPromptDialog` continua funcionando para visitantes nao logados
+- Usuarios freemium logados verao o prompt correto de upgrade
