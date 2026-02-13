@@ -15,6 +15,7 @@ import {
   Crown,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserAccess } from "@/hooks/useUserAccess";
 import { useChannelAccess } from "@/hooks/useChannelAccess";
 import { useChannel } from "@/hooks/useChannels";
 import { useChannelPosts, useLikeChannelPost } from "@/hooks/usePosts";
@@ -27,6 +28,7 @@ export default function ChannelDetail() {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canPostInChannels } = useUserAccess();
   const { hasAccess, loading: accessLoading, accessType } = useChannelAccess(channelId);
   
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
@@ -166,7 +168,7 @@ export default function ChannelDetail() {
             <span>{posts.length} posts</span>
           </div>
           
-          {user && hasAccess && (
+          {user && hasAccess && canPostInChannels && (
             <Button size="sm" className="gap-1.5" onClick={handleNavigateToCreatePost}>
               <Plus className="w-4 h-4" weight="bold" />
               Publicar

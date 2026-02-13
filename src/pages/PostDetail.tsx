@@ -8,6 +8,7 @@ import { CommentSection } from "@/components/post/CommentSection";
 import { CommentInput } from "@/components/post/CommentInput";
 import { type MentionData } from "@/components/MentionCommentInput";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserAccess } from "@/hooks/useUserAccess";
 import { useLikeSpaceUpdate, useAddSpaceUpdateComment } from "@/hooks/usePosts";
 import { usePostDetail, PostComment } from "@/hooks/usePostDetail";
 import { useCreateMentions } from "@/hooks/useMentions";
@@ -24,6 +25,7 @@ export default function PostDetail() {
   const { spaceSlug, postSlug } = useParams<{ spaceSlug: string; postSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canComment, canLike } = useUserAccess();
   const queryClient = useQueryClient();
   const commentSectionRef = useRef<HTMLDivElement>(null);
 
@@ -267,26 +269,30 @@ export default function PostDetail() {
         likesCount={likesCount}
         commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
         isLiked={isLiked}
-        onLikeToggle={handleLikeToggle}
+        onLikeToggle={canLike ? handleLikeToggle : () => setShowAuthPrompt(true)}
         onCommentClick={handleCommentClick}
       />
 
-      <div ref={commentSectionRef}>
-        <CommentSection
-          comments={comments}
-          currentUserId={user?.id}
-          onLikeComment={handleLikeComment}
-          onReplyComment={handleReplyComment}
-          onEditComment={handleEditComment}
-          onDeleteComment={handleDeleteComment}
-        />
-      </div>
+      {canComment && (
+        <>
+          <div ref={commentSectionRef}>
+            <CommentSection
+              comments={comments}
+              currentUserId={user?.id}
+              onLikeComment={handleLikeComment}
+              onReplyComment={handleReplyComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+            />
+          </div>
 
-      <CommentInput
-        onSubmit={handleSubmitComment}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-      />
+          <CommentInput
+            onSubmit={handleSubmitComment}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+          />
+        </>
+      )}
     </div>
   );
 }

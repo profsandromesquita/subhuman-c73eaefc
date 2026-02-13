@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import { AuthorModal } from "@/components/post/AuthorModal";
+import { ContentPaywall } from "@/components/ContentPaywall";
+import { useUserAccess } from "@/hooks/useUserAccess";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MediaItem {
@@ -58,6 +60,7 @@ export function PostContent({
   const [mentionAuthor, setMentionAuthor] = useState<Author | null>(null);
   const [showMentionModal, setShowMentionModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { canReadFullArticles } = useUserAccess();
 
   const handleMentionClick = useCallback(async (e: MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -190,11 +193,21 @@ export function PostContent({
         <div className="w-full h-px bg-border mb-8" />
 
         {/* Content - mentions rendered as clickable links via data attributes */}
-        <div 
-          ref={contentRef}
-          className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
-        />
+        {canReadFullArticles ? (
+          <div 
+            ref={contentRef}
+            className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
+          />
+        ) : (
+          <ContentPaywall maxLines={7} type="article">
+            <div 
+              ref={contentRef}
+              className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
+            />
+          </ContentPaywall>
+        )}
 
         {/* Media Gallery */}
         {media && media.length > 0 && (

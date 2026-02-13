@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Robot, PaperPlaneRight, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users, PlusCircle } from "@phosphor-icons/react";
+import { Robot, PaperPlaneRight, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users, PlusCircle, Lock } from "@phosphor-icons/react";
 import { Logo } from "@/components/Logo";
 import ReactMarkdown from "react-markdown";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
+import { useUserAccess } from "@/hooks/useUserAccess";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -32,6 +33,7 @@ const CAPABILITIES = [{
 }];
 export default function AIAssistant() {
   const navigate = useNavigate();
+  const { canUseAI } = useUserAccess();
   const {
     messages,
     isLoading,
@@ -217,12 +219,20 @@ export default function AIAssistant() {
 
         {/* Input Area */}
         <div className="px-4 py-3 pb-28 border-t border-border bg-background shrink-0">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoading} className="flex-1" />
-            <Button type="submit" disabled={!input.trim() || isLoading} size="icon" className="shrink-0">
-              <PaperPlaneRight className="w-5 h-5" weight="fill" />
-            </Button>
-          </form>
+          {canUseAI ? (
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoading} className="flex-1" />
+              <Button type="submit" disabled={!input.trim() || isLoading} size="icon" className="shrink-0">
+                <PaperPlaneRight className="w-5 h-5" weight="fill" />
+              </Button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-3 justify-center py-2">
+              <Lock className="w-5 h-5 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Assine para usar o assistente de IA</p>
+              <Button size="sm" onClick={() => navigate('/plans')}>Ver planos</Button>
+            </div>
+          )}
         </div>
       </div>
       </div>
