@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MentionText } from "@/components/post/MentionText";
 import { AuthorModal } from "@/components/post/AuthorModal";
+import { useUserBadge } from "@/hooks/useUserBadge";
+import { PremiumBadge } from "@/components/PremiumBadge";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Reply {
@@ -78,6 +80,7 @@ export function CommentItem({
   const isLongPress = useRef(false);
 
   const isOwner = currentUserId && userId && currentUserId === userId;
+  const badgeType = useUserBadge(userId);
 
   const handleAuthorClick = useCallback(async () => {
     if (!userId) return;
@@ -171,6 +174,7 @@ export function CommentItem({
                   >
                     {authorName}
                   </button>
+                  <PremiumBadge type={badgeType} size={14} />
                   <span className="text-xs text-muted-foreground">{createdAt}</span>
                 </div>
 

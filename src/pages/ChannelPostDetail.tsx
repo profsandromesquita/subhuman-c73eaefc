@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import DOMPurify from "dompurify";
 import { AuthorModal } from "@/components/post/AuthorModal";
+import { useUserBadge } from "@/hooks/useUserBadge";
+import { PremiumBadge } from "@/components/PremiumBadge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +55,7 @@ export default function ChannelPostDetail() {
   const createMentions = useCreateMentions();
 
   const { data, isLoading } = useChannelPostDetail(postId);
+  const postAuthorBadge = useUserBadge(data?.post?.author_id ?? undefined);
 
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -240,6 +243,33 @@ export default function ChannelPostDetail() {
       .replace(" mês", " mês");
   };
 
+  function ChannelCommentName({ comment, onShowProfile }: { comment: ChannelPostComment; onShowProfile: (a: any) => void }) {
+    const badge = useUserBadge(comment.user_id || undefined);
+    return (
+      <>
+        <button
+          onClick={async () => {
+            if (!comment.user_id) return;
+            try {
+              const { data } = await supabase
+                .from("profiles")
+                .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
+                .eq("id", comment.user_id)
+                .maybeSingle();
+              if (data) onShowProfile(data);
+            } catch (err) {
+              console.error("Error fetching commenter profile:", err);
+            }
+          }}
+          className="text-sm font-medium hover:underline text-left"
+        >
+          {comment.author_name}
+        </button>
+        <PremiumBadge type={badge} size={14} />
+      </>
+    );
+  }
+
   const renderComment = (comment: ChannelPostComment, isReply = false) => (
     <motion.div
       key={comment.id}
@@ -254,27 +284,7 @@ export default function ChannelPostDetail() {
         </Avatar>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                if (!comment.user_id) return;
-                try {
-                  const { data } = await supabase
-                    .from("profiles")
-                    .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
-                    .eq("id", comment.user_id)
-                    .maybeSingle();
-                  if (data) {
-                    setMentionAuthor(data);
-                    setShowMentionModal(true);
-                  }
-                } catch (err) {
-                  console.error("Error fetching commenter profile:", err);
-                }
-              }}
-              className="text-sm font-medium hover:underline text-left"
-            >
-              {comment.author_name}
-            </button>
+            <ChannelCommentName comment={comment} onShowProfile={(author) => { setMentionAuthor(author); setShowMentionModal(true); }} />
             <span className="text-xs text-muted-foreground">{formatTime(comment.created_at)}</span>
           </div>
           <MentionText text={comment.content} />
@@ -363,7 +373,10 @@ export default function ChannelPostDetail() {
                 <AvatarFallback>{post.author_name?.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-medium">{post.author_name}</p>
+                <p className="font-medium flex items-center gap-1">
+                  {post.author_name}
+                  <PremiumBadge type={postAuthorBadge} size={16} />
+                </p>
                 <p className="text-sm text-muted-foreground">{formatTime(post.created_at)}</p>
               </div>
             </div>
