@@ -144,7 +144,7 @@ export default function Plans() {
     }
   };
 
-  const TRIAL_CHECKOUT_URL = "TRIAL_CHECKOUT_PLACEHOLDER";
+  const TRIAL_CHECKOUT_URL = "https://checkout.ticto.app/O66EDE7B0";
 
   const handleStartTrial = () => {
     if (!user) {
@@ -153,10 +153,7 @@ export default function Plans() {
       return;
     }
 
-    if (TRIAL_CHECKOUT_URL === "TRIAL_CHECKOUT_PLACEHOLDER") {
-      toast.info("Link de checkout em breve. Aguarde!");
-      return;
-    }
+    // Trial checkout URL is now configured
 
     const checkoutUrl = new URL(TRIAL_CHECKOUT_URL);
     if (user.email) checkoutUrl.searchParams.set('email', user.email);
