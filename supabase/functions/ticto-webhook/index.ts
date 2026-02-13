@@ -142,18 +142,25 @@ Deno.serve(async (req) => {
       // Determine plan type based on item info
       const offerName = payload.item?.offer_name?.toLowerCase() || ''
       const daysOfAccess = payload.item?.days_of_access
-      
-      // Check if yearly based on offer name or days of access
-      const isYearly = 
-        offerName.includes('anual') ||
-        offerName.includes('yearly') ||
-        (daysOfAccess && daysOfAccess >= 365)
 
-      const planType = isYearly ? 'yearly' : 'monthly'
-      const daysToAdd = daysOfAccess || (isYearly ? 365 : 30)
+      // Detect lifetime first
+      const isLifetime =
+        offerName.includes('vitalic') ||
+        offerName.includes('lifetime') ||
+        daysOfAccess === null ||
+        (daysOfAccess && daysOfAccess >= 36500)
+
+      const isYearly =
+        !isLifetime && (
+          offerName.includes('anual') ||
+          offerName.includes('yearly') ||
+          (daysOfAccess && daysOfAccess >= 365)
+        )
+
+      const planType = isLifetime ? 'lifetime' : isYearly ? 'yearly' : 'monthly'
 
       const now = new Date()
-      const expiresAt = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000)
+      const expiresAt = isLifetime ? null : new Date(now.getTime() + (daysOfAccess || (isYearly ? 365 : 30)) * 86400000)
 
       // Update existing subscription or create new one
       const { data: existingSub } = await supabase
@@ -169,7 +176,7 @@ Deno.serve(async (req) => {
         const { error: updateError } = await supabase
           .from('subscriptions')
           .update({
-            expires_at: expiresAt.toISOString(),
+            expires_at: expiresAt ? expiresAt.toISOString() : null,
             external_id: orderHash,
             updated_at: now.toISOString(),
           })
@@ -191,7 +198,7 @@ Deno.serve(async (req) => {
             provider: 'ticto',
             external_id: orderHash,
             starts_at: now.toISOString(),
-            expires_at: expiresAt.toISOString(),
+            expires_at: expiresAt ? expiresAt.toISOString() : null,
           })
 
         if (insertError) {
