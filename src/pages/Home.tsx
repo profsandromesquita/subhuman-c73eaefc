@@ -169,7 +169,7 @@ export default function Home() {
                         
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <Heart className="h-3.5 w-3.5" />
+                            <Heart className={`h-3.5 w-3.5 ${highlight.is_liked ? 'text-red-500' : ''}`} weight={highlight.is_liked ? "fill" : "regular"} />
                             <span>{highlight.likes_count}</span>
                           </div>
                           <div className="flex items-center gap-1">
@@ -268,7 +268,7 @@ export default function Home() {
                         </h3>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <Heart className="h-3.5 w-3.5" />
+                            <Heart className={`h-3.5 w-3.5 ${discussion.is_liked ? 'text-red-500' : ''}`} weight={discussion.is_liked ? "fill" : "regular"} />
                             <span>{discussion.likes_count}</span>
                           </div>
                           <div className="flex items-center gap-1">

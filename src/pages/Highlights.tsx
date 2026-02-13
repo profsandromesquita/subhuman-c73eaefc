@@ -27,6 +27,7 @@ interface Highlight {
   space_slug: string;
   likes_count: number;
   comments_count: number;
+  is_liked: boolean;
   read_time_minutes: number | null;
 }
 
@@ -95,15 +96,17 @@ function useHighlightsFiltered(filter: string) {
       if (!updates || updates.length === 0) return { items: [], nextPage: undefined };
 
       const updateIds = updates.map(u => u.id);
-      const { data: statsData } = await supabase
-        .from("space_update_stats")
-        .select("update_id, likes_count, comments_count")
-        .in("update_id", updateIds);
+      const [statsResult, userLikesResult] = await Promise.all([
+        supabase.from("space_update_stats").select("update_id, likes_count, comments_count").in("update_id", updateIds),
+        supabase.from("update_likes").select("update_id").eq("user_id", user.id).in("update_id", updateIds),
+      ]);
 
       const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
-      (statsData || []).forEach((s: any) => {
+      (statsResult.data || []).forEach((s: any) => {
         statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
+
+      const likedSet = new Set((userLikesResult.data || []).map((l: any) => l.update_id));
 
       const items = updates.map(update => ({
         id: update.id,
@@ -118,6 +121,7 @@ function useHighlightsFiltered(filter: string) {
         space_slug: (update.spaces as any)?.slug || "",
         likes_count: statsMap[update.id]?.likes_count || 0,
         comments_count: statsMap[update.id]?.comments_count || 0,
+        is_liked: likedSet.has(update.id),
         read_time_minutes: (update as any).read_time_minutes,
       }));
 
@@ -238,7 +242,7 @@ export default function Highlights() {
                         </div>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <Heart className="h-3.5 w-3.5" />
+                            <Heart className={`h-3.5 w-3.5 ${highlight.is_liked ? 'text-red-500' : ''}`} weight={highlight.is_liked ? "fill" : "regular"} />
                             <span>{highlight.likes_count}</span>
                           </div>
                           <div className="flex items-center gap-1">

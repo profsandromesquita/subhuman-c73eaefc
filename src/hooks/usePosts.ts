@@ -136,16 +136,18 @@ export function useHighlights() {
 
       const updateIds = updates.map((u) => u.id);
 
-      // Fetch counts from view
-      const { data: statsData } = await supabase
-        .from("space_update_stats")
-        .select("update_id, likes_count, comments_count")
-        .in("update_id", updateIds);
+      // Fetch counts from view + user likes in parallel
+      const [statsResult, userLikesResult] = await Promise.all([
+        supabase.from("space_update_stats").select("update_id, likes_count, comments_count").in("update_id", updateIds),
+        supabase.from("update_likes").select("update_id").eq("user_id", user.id).in("update_id", updateIds),
+      ]);
 
       const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
-      (statsData || []).forEach((s: any) => {
+      (statsResult.data || []).forEach((s: any) => {
         statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
       });
+
+      const likedSet = new Set((userLikesResult.data || []).map((l: any) => l.update_id));
 
       const highlightsData = updates.map((update) => ({
         id: update.id,
@@ -161,6 +163,7 @@ export function useHighlights() {
         space_slug: (update.spaces as any)?.slug || "",
         likes_count: statsMap[update.id]?.likes_count || 0,
         comments_count: statsMap[update.id]?.comments_count || 0,
+        is_liked: likedSet.has(update.id),
         read_time_minutes: (update as any).read_time_minutes,
       }));
 
@@ -296,14 +299,17 @@ export function useRecentDiscussions() {
 
       const postIds = posts.map((p) => p.id);
 
-      // Use view for stats + media in parallel
-      const [statsResult, mediaResult] = await Promise.all([
+      // Use view for stats + media + user likes in parallel
+      const [statsResult, mediaResult, userLikesResult] = await Promise.all([
         supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
         supabase
           .from("channel_post_media")
           .select("post_id, file_url")
           .in("post_id", postIds)
           .in("file_type", ["image", "video"]),
+        user
+          ? supabase.from("channel_post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
@@ -318,6 +324,8 @@ export function useRecentDiscussions() {
         }
       });
 
+      const likedSet = new Set((userLikesResult.data || []).map((l: any) => l.post_id));
+
       const discussions = posts.map((post) => ({
         id: post.id,
         title: (post as any).title || post.content.substring(0, 100),
@@ -329,6 +337,7 @@ export function useRecentDiscussions() {
         author_name: (post.profiles as any)?.full_name || "Usuário",
         likes_count: statsMap[post.id]?.likes_count || 0,
         comments_count: statsMap[post.id]?.comments_count || 0,
+        is_liked: likedSet.has(post.id),
         thumbnail_url: mediaMap[post.id] || null,
       }));
 
