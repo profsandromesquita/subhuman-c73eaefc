@@ -1,4 +1,4 @@
-import { Code2, Target, TrendingUp, Video, Heart } from "lucide-react";
+import { Code2, Target, TrendingUp, Video, Heart, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollReveal } from "./ScrollReveal";
@@ -28,6 +28,11 @@ const spaces = [
     icon: Heart,
     name: "Estilo de Vida",
     description: "IA aplicada à saúde e longevidade, sem misticismos. Tecnologias personalizadas que trazem dados reais para sua saúde.",
+  },
+  {
+    icon: GraduationCap,
+    name: "Aulas ao Vivo e Workshops",
+    description: "Workshops práticos, palestras, lives, mentorias coletivas e cursos ministrados por especialistas. Aprenda fazendo com projetos reais e suporte ao vivo.",
   },
 ];
 

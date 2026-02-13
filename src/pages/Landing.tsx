@@ -7,6 +7,7 @@ import { LandingSocialProof } from "@/components/landing/LandingSocialProof";
 import { LandingProblem } from "@/components/landing/LandingProblem";
 import { LandingSpaces } from "@/components/landing/LandingSpaces";
 import { LandingFeatures } from "@/components/landing/LandingFeatures";
+import { LandingEvents } from "@/components/landing/LandingEvents";
 import { LandingMethod } from "@/components/landing/LandingMethod";
 import { LandingAuthor } from "@/components/landing/LandingAuthor";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
@@ -51,6 +52,7 @@ export default function Landing() {
       <LandingProblem />
       <LandingSpaces />
       <LandingFeatures />
+      <LandingEvents />
       <LandingMethod />
       <LandingAuthor />
       <LandingFAQ />

@@ -527,6 +527,139 @@ export type Database = {
           },
         ]
       }
+      event_purchases: {
+        Row: {
+          event_id: string
+          external_id: string | null
+          id: string
+          purchased_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          external_id?: string | null
+          id?: string
+          purchased_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          external_id?: string | null
+          id?: string
+          purchased_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_purchases_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sessions: {
+        Row: {
+          created_at: string
+          ends_at: string
+          event_id: string
+          id: string
+          session_url: string | null
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          event_id: string
+          id?: string
+          session_url?: string | null
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          event_id?: string
+          id?: string
+          session_url?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          checkout_url: string | null
+          cover_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          event_type: string
+          id: string
+          is_active: boolean
+          is_free: boolean
+          is_published: boolean
+          location: string | null
+          max_participants: number | null
+          modality: string
+          price: number | null
+          slug: string
+          ticto_offer_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          checkout_url?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_type?: string
+          id?: string
+          is_active?: boolean
+          is_free?: boolean
+          is_published?: boolean
+          location?: string | null
+          max_participants?: number | null
+          modality?: string
+          price?: number | null
+          slug?: string
+          ticto_offer_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          checkout_url?: string | null
+          cover_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_type?: string
+          id?: string
+          is_active?: boolean
+          is_free?: boolean
+          is_published?: boolean
+          location?: string | null
+          max_participants?: number | null
+          modality?: string
+          price?: number | null
+          slug?: string
+          ticto_offer_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mentions: {
         Row: {
           author_id: string
