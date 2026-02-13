@@ -88,6 +88,11 @@ export default function Plans() {
   };
 
   const handleSubscribe = () => {
+    if (!user) {
+      toast.error("Você precisa estar logado para assinar um plano.");
+      navigate("/login", { state: { from: "/plans" } });
+      return;
+    }
     const plan = subscriptionPlans.find(p => p.id === selectedPlan);
     if (!plan) return;
 
@@ -99,6 +104,11 @@ export default function Plans() {
   };
 
   const handleEventPurchase = (eventCheckoutUrl: string) => {
+    if (!user) {
+      toast.error("Você precisa estar logado para comprar.");
+      navigate("/login", { state: { from: "/plans" } });
+      return;
+    }
     const checkoutUrl = new URL(eventCheckoutUrl);
     if (user?.email) checkoutUrl.searchParams.set('email', user.email);
     if (user?.id) checkoutUrl.searchParams.set('src', user.id);
