@@ -1,124 +1,123 @@
 
-# Sprint 2: Pagina Publica de Eventos + Admin de Eventos
+# Sprint 3: Adicionar Workshop e Vitalicio na Pagina de Planos
 
 ## Contexto
 
-As tabelas `events`, `event_sessions` e `event_purchases` ja existem no banco com RLS configurado. O workshop "Crie seu software em 6h" ja foi inserido como seed. Agora precisamos criar a UI publica e o painel admin.
+A pagina `/plans` atualmente exibe apenas 2 planos (Mensal e Anual) com radio-select + botao unico "Assinar agora". Precisamos adicionar o Workshop (R$ 19,90, pagamento unico) e o Vitalicio (R$ 1.000, pagamento unico), reorganizando a UI para separar visualmente produtos avulsos de assinaturas.
 
 ---
 
-## Novos Arquivos
+## Alteracoes
 
-### 1. `src/hooks/useEvents.ts` -- Hook publico de eventos
+### Arquivo: `src/pages/Plans.tsx`
 
-Busca eventos publicados com suas sessoes, seguindo o padrao do `usePodcasts.ts`:
+**1. Separar dados em dois arrays:**
 
-- `useEvents(filters)`: Query com filtros (modalidade, tipo, futuro/passado)
-- `useEventSessions(eventId)`: Sessoes de um evento
-- `useUserEventPurchases()`: Compras do usuario logado (para saber se ja adquiriu)
-- Tipo `Event` exportado com campos da tabela + `sessions` como array
+```text
+workshopProduct (card destacado no topo):
+  - id: "workshop"
+  - title: "Crie seu software em 6h usando IA"
+  - subtitle: "Mesmo sem saber programar"
+  - price: "R$ 19,90"
+  - period: "pagamento unico"
+  - badge: "Workshop"
+  - checkoutUrl: placeholder Ticto
+  - features: 4 itens sobre o workshop
 
-### 2. `src/hooks/useAdminEvents.ts` -- Hook admin CRUD
-
-Seguindo o padrao de `usePodcasts.ts` (useAdminPodcasts, useCreatePodcast, etc.):
-
-- `useAdminEvents()`: Lista todos os eventos (ativos e inativos)
-- `useCreateEvent()`: Mutation para criar evento + sessoes
-- `useUpdateEvent()`: Mutation para editar evento + sessoes
-- `useDeleteEvent()`: Mutation para excluir evento
-- `useEventPurchases(eventId)`: Lista inscritos de um evento
-
-### 3. `src/pages/Events.tsx` -- Pagina publica `/events`
-
-Layout seguindo o padrao de `Podcasts.tsx`:
-- `AppLayout` com `BottomNav`
-- Header: "Eventos" + Logo
-- Subtitulo: "Workshops, palestras, mentorias e mais"
-
-**Filtros** (chips horizontais com scroll):
-- Periodo: Todos | Futuros | Passados
-- Modalidade: Todos | Online | Presencial | Hibrido
-- Tipo: Todos | Workshop | Palestra | Live | Mentoria | Curso
-- Status: Todos | Inscrito | Nao inscrito
-
-**Cards de evento**:
-- Cover (se existir) ou fundo com icone
-- Badges: tipo (ex: "Workshop") + modalidade (ex: "Online")
-- Titulo, descricao resumida (2 linhas max)
-- Datas das sessoes formatadas (ex: "7 e 14 de mar, 14h-17h")
-- Preco: "R$ 19,90" ou "Gratuito" ou "Incluso no plano"
-- Botao contextual:
-  - Ja comprou ou assinante mensal+: "Acessar" (bg-green-600)
-  - Nao comprou: "Adquirir - R$ 19,90" -> /plans
-  - Evento passado: "Encerrado" (disabled)
-
-**Estados**: loading (skeletons), empty, lista
-
-### 4. `src/pages/admin/Events.tsx` -- Painel admin `/admin/events`
-
-Seguindo exatamente o padrao de `src/pages/admin/Podcasts.tsx`:
-- `AdminLayout` wrapper
-- Header com titulo "Eventos" + botao "Novo Evento"
-- `DataTable` com colunas: Evento (cover+titulo), Tipo, Modalidade, Preco, Status, Datas, Acoes (editar/excluir)
-- Dialog modal para criar/editar com campos:
-  - Titulo, Descricao (textarea)
-  - Tipo (select: workshop/palestra/live/aula_ao_vivo/mentoria/curso)
-  - Modalidade (select: online/presencial/hibrido)
-  - Preco (input numerico) + toggle "Gratuito"
-  - Localizacao (input texto)
-  - Max participantes (input numerico, opcional)
-  - URL de checkout (input texto)
-  - ID oferta Ticto (input texto, opcional)
-  - Sessoes: lista dinamica com botao "Adicionar sessao"
-    - Data/hora inicio (datetime-local)
-    - Data/hora fim (datetime-local)
-    - URL da sala (input texto, opcional)
-  - Botoes: "Salvar rascunho" e "Publicar"
-- AlertDialog para confirmar exclusao
-
----
-
-## Arquivos Modificados
-
-### 5. `src/components/BottomNav.tsx`
-
-Adicionar "Eventos" ao nav com icone `CalendarBlank` do Phosphor. Reorganizar para 7 itens ajustando `min-w` de `64px` para `52px` e texto de `10px` para `9px` para caber:
-
-```typescript
-import { CalendarBlank } from "@phosphor-icons/react";
-
-// Inserir entre Canais e Perfil:
-{ icon: CalendarBlank, label: "Eventos", path: "/events" },
+subscriptionPlans (array com 3 planos):
+  - Mensal (R$ 29,90/mes) -- existente
+  - Anual (R$ 299,90/ano) -- existente, CORRIGIR preco de R$ 239,90 para R$ 299,90 conforme memoria
+  - Vitalicio (R$ 1.000,00 pagamento unico) -- novo, badge "Melhor custo-beneficio"
 ```
 
-### 6. `src/components/admin/AdminSidebar.tsx`
+**2. Reorganizar a UI em 3 blocos visuais:**
 
-Adicionar "Eventos" ao array `contentNavItems`:
-```typescript
-import { CalendarCheck } from "@phosphor-icons/react";
-{ title: 'Eventos', url: '/admin/events', icon: CalendarCheck },
+```text
+[Trial card - ja existe, sem mudanca]
+
+--- "ou adquira um produto" ---
+
+[Workshop card - design especial com icone GraduationCap]
+  - Card com borda amber/laranja sutil
+  - Botao proprio "Garantir minha vaga - R$ 19,90"
+  - Ao clicar: redireciona para checkout Ticto do workshop
+
+--- "ou escolha um plano de assinatura" ---
+
+[3 planos de assinatura - Mensal / Anual / Vitalicio]
+  - Radio-select como ja funciona hoje
+  - Botao "Assinar agora" unificado
+  - Vitalicio com badge "Melhor custo-beneficio" e selo dourado
 ```
 
-### 7. `src/App.tsx`
+**3. Logica de checkout:**
 
-Adicionar imports lazy e rotas:
-- `const Events = lazy(() => import("./pages/Events"));`
-- `const AdminEvents = lazy(() => import("./pages/admin/Events"));`
-- Rota protegida: `<Route path="/events" element={<SubscriptionGuard><Events /></SubscriptionGuard>} />`
-- Rota admin: `<Route path="/admin/events" element={<AdminGuard><AdminEvents /></AdminGuard>} />`
+- Workshop: botao proprio no card, nao participa do radio-select
+- Assinaturas (mensal/anual/vitalicio): radio-select + botao "Assinar agora" -- logica existente `handleSubscribe` ja funciona
+- O `selectedPlan` default muda para "yearly" (mantido)
+
+**4. Estado `selectedPlan`:**
+
+- Apenas para os 3 planos de assinatura (monthly/yearly/lifetime)
+- Workshop tem seu proprio botao independente
+
+**5. Nova funcao `handleWorkshopPurchase`:**
+
+- Semelhante a `handleSubscribe`, monta URL do Ticto com email + src + redirect_url
+- Redireciona para checkout
+
+**6. Correcao do preco anual:**
+
+- De R$ 239,90 para R$ 299,90 conforme especificacao do usuario
 
 ---
 
-## Resumo
+## Resumo visual da pagina
 
-| Arquivo | Acao |
-|---------|------|
-| `src/hooks/useEvents.ts` | Criar -- hook publico com filtros |
-| `src/hooks/useAdminEvents.ts` | Criar -- CRUD admin para eventos e sessoes |
-| `src/pages/Events.tsx` | Criar -- pagina publica com filtros e cards |
-| `src/pages/admin/Events.tsx` | Criar -- painel admin com DataTable e modal |
-| `src/components/BottomNav.tsx` | Editar -- adicionar item Eventos |
-| `src/components/admin/AdminSidebar.tsx` | Editar -- adicionar Eventos ao menu Conteudo |
-| `src/App.tsx` | Editar -- adicionar rotas /events e /admin/events |
+```text
+<- Voltar
 
-Nenhuma alteracao de banco necessaria -- as tabelas ja existem.
+"Escolha seu plano"
+"Cancele quando quiser, sem compromisso"
+
+[TRIAL CARD - gratis 7 dias] (se elegivel)
+
+--- ou adquira um produto ---
+
+[WORKSHOP CARD]
+  Badge "Workshop" (amber)
+  "Crie seu software em 6h usando IA"
+  "Mesmo sem saber programar"
+  R$ 19,90 - pagamento unico
+  - Workshop pratico de 6 horas
+  - Aulas ao vivo dias 7 e 14/03
+  - Mesmo sem saber programar
+  - Certificado de participacao
+  [Garantir minha vaga - R$ 19,90]
+
+--- ou escolha um plano de assinatura ---
+
+( ) Mensal - R$ 29,90/mes
+( ) Anual - R$ 299,90/ano [Mais popular]
+( ) Vitalicio - R$ 1.000,00 [Melhor custo-beneficio]
+
+[Assinar agora]
+
+"Pagamento seguro via cartao ou PIX"
+
+[Cupom promocional]
+```
+
+---
+
+## Detalhes Tecnicos
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Arquivo editado | `src/pages/Plans.tsx` (unico arquivo) |
+| Novos imports | `GraduationCap` do lucide-react |
+| Estado | `selectedPlan` continua apenas para assinaturas |
+| Nova funcao | `handleWorkshopPurchase()` -- checkout Ticto separado |
+| Correcao | Preco anual: R$ 239,90 -> R$ 299,90 |
+| Novo plano | Vitalicio: R$ 1.000,00, `plan_type: 'lifetime'` |
+| Checkout URLs | Placeholders Ticto (usuario preenchera depois) |
