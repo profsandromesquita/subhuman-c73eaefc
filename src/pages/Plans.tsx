@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, ArrowLeft, Gift, Ticket } from "@phosphor-icons/react";
+import { Check, ArrowLeft, Gift, Ticket, GraduationCap } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -11,7 +11,22 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { TrialOfferModal } from "@/components/TrialOfferModal";
 import { useRedeemCoupon } from "@/hooks/useCoupons";
 
-const plans = [
+const workshopProduct = {
+  id: "workshop",
+  title: "Crie seu software em 6h usando IA",
+  subtitle: "Mesmo sem saber programar",
+  price: "R$ 19,90",
+  period: "pagamento único",
+  checkoutUrl: "https://checkout.ticto.app/WORKSHOP_PLACEHOLDER",
+  features: [
+    "Workshop prático de 6 horas",
+    "Aulas ao vivo dias 7 e 14/03",
+    "Mesmo sem saber programar",
+    "Certificado de participação",
+  ],
+};
+
+const subscriptionPlans = [
   {
     id: "monthly",
     name: "Mensal",
@@ -29,9 +44,9 @@ const plans = [
   {
     id: "yearly",
     name: "Anual",
-    price: "R$ 239,90",
+    price: "R$ 299,90",
     period: "/ano",
-    description: "Economize 33%",
+    description: "Economize 17%",
     badge: "Mais popular",
     checkoutUrl: "https://payment.ticto.app/O40A9D8E6",
     features: [
@@ -39,6 +54,21 @@ const plans = [
       "2 meses grátis",
       "Acesso antecipado a novidades",
       "Badge exclusivo no perfil",
+    ],
+  },
+  {
+    id: "lifetime",
+    name: "Vitalício",
+    price: "R$ 1.000",
+    period: "",
+    description: "Pague uma vez, acesse para sempre",
+    badge: "Melhor custo-benefício",
+    checkoutUrl: "https://checkout.ticto.app/LIFETIME_PLACEHOLDER",
+    features: [
+      "Tudo do plano anual",
+      "Acesso vitalício garantido",
+      "Todas as futuras atualizações",
+      "Suporte prioritário",
     ],
   },
 ];
@@ -54,13 +84,8 @@ export default function Plans() {
   const { status, loading: subLoading, refetch } = useSubscription();
   const redeemCoupon = useRedeemCoupon();
 
-  // Determine if showing expired trial message
   const showExpiredMessage = status === 'expired';
-
-  // Determine if user can start a trial (only when no subscription at all)
   const canStartTrial = status === 'none';
-
-  // Determine back navigation destination
   const backDestination = user ? '/' : '/register';
 
   const handleBackClick = () => {
@@ -72,25 +97,21 @@ export default function Plans() {
   };
 
   const handleSubscribe = () => {
-    // Find selected plan
-    const plan = plans.find(p => p.id === selectedPlan);
+    const plan = subscriptionPlans.find(p => p.id === selectedPlan);
     if (!plan) return;
 
-    // Build Ticto checkout URL with user identification
     const checkoutUrl = new URL(plan.checkoutUrl);
-    
-    // Pass user data to identify them after payment
-    if (user?.email) {
-      checkoutUrl.searchParams.set('email', user.email);
-    }
-    if (user?.id) {
-      checkoutUrl.searchParams.set('src', user.id);
-    }
-    
-    // Set return URL for after payment
+    if (user?.email) checkoutUrl.searchParams.set('email', user.email);
+    if (user?.id) checkoutUrl.searchParams.set('src', user.id);
     checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
-    
-    // Redirect to Ticto checkout
+    window.location.href = checkoutUrl.toString();
+  };
+
+  const handleWorkshopPurchase = () => {
+    const checkoutUrl = new URL(workshopProduct.checkoutUrl);
+    if (user?.email) checkoutUrl.searchParams.set('email', user.email);
+    if (user?.id) checkoutUrl.searchParams.set('src', user.id);
+    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
     window.location.href = checkoutUrl.toString();
   };
 
@@ -125,7 +146,6 @@ export default function Plans() {
     setIsTrialLoading(true);
 
     try {
-      // Check if user already had a trial
       const { data: existingTrial, error: checkError } = await supabase
         .from('subscriptions')
         .select('id')
@@ -134,9 +154,7 @@ export default function Plans() {
         .limit(1)
         .maybeSingle();
 
-      if (checkError) {
-        throw checkError;
-      }
+      if (checkError) throw checkError;
 
       if (existingTrial) {
         toast.error("Você já utilizou seu período de teste gratuito.");
@@ -144,11 +162,9 @@ export default function Plans() {
         return;
       }
 
-      // Calculate expiration date (7 days from now)
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      // Create trial subscription
       const { error: insertError } = await supabase
         .from('subscriptions')
         .insert({
@@ -159,13 +175,9 @@ export default function Plans() {
           expires_at: expiresAt.toISOString(),
         });
 
-      if (insertError) {
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
-      // Refetch subscription status before navigating
       await refetch();
-
       toast.success("Período de teste iniciado! Você tem 7 dias de acesso gratuito.");
       setShowTrialModal(false);
       navigate("/home", { replace: true });
@@ -177,7 +189,6 @@ export default function Plans() {
     }
   };
 
-  // Show loading state while checking subscription
   if (subLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -224,7 +235,7 @@ export default function Plans() {
             }
           </p>
 
-          {/* Trial Card - Prominent position BEFORE paid plans */}
+          {/* Trial Card */}
           {canStartTrial && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -233,9 +244,8 @@ export default function Plans() {
               className="mb-6"
             >
               <div className="relative p-5 rounded-xl border-2 border-green-500/50 bg-gradient-to-br from-green-500/10 to-green-500/5">
-                {/* Badge */}
                 <div className="absolute -top-3 left-4">
-                  <span className="px-3 py-1 text-xs font-bold uppercase tracking-wide bg-green-500 text-white rounded-full">
+                  <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide bg-green-500 text-white rounded-full">
                     Grátis
                   </span>
                 </div>
@@ -259,24 +269,79 @@ export default function Plans() {
                   </div>
                 </div>
               </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-4 my-6">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-sm text-muted-foreground">ou escolha um plano</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
             </motion.div>
           )}
 
-          {/* Paid Plans */}
+          {/* Divider - Workshop */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-sm text-muted-foreground">ou adquira um produto</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Workshop Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-6"
+          >
+            <div className="relative p-5 rounded-xl border border-amber-500/30 bg-card">
+              <div className="absolute -top-3 left-4">
+                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-black rounded-full">
+                  Workshop
+                </span>
+              </div>
+
+              <div className="flex items-start gap-4 mt-2">
+                <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <GraduationCap className="w-6 h-6 text-amber-500" weight="fill" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg">{workshopProduct.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {workshopProduct.subtitle}
+                  </p>
+                  <div className="mb-4">
+                    <span className="text-2xl font-bold">{workshopProduct.price}</span>
+                    <span className="text-sm text-muted-foreground ml-1">{workshopProduct.period}</span>
+                  </div>
+
+                  <ul className="space-y-1.5 mb-4">
+                    {workshopProduct.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="w-3.5 h-3.5 text-amber-500" weight="bold" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    onClick={handleWorkshopPurchase}
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                  >
+                    Garantir minha vaga - R$ 19,90
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Divider - Subscriptions */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-sm text-muted-foreground">ou escolha um plano de assinatura</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Subscription Plans */}
           <div className="space-y-4 mb-8">
-            {plans.map((plan, index) => (
+            {subscriptionPlans.map((plan, index) => (
               <motion.button
                 key={plan.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + index * 0.1 }}
+                transition={{ delay: 0.3 + index * 0.1 }}
                 onClick={() => setSelectedPlan(plan.id)}
                 className={`w-full p-5 rounded-xl border text-left transition-all duration-200 ${
                   selectedPlan === plan.id
@@ -289,7 +354,11 @@ export default function Plans() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">{plan.name}</h3>
                       {plan.badge && (
-                        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-foreground text-background rounded">
+                        <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded ${
+                          plan.id === "lifetime"
+                            ? "bg-amber-500 text-black"
+                            : "bg-foreground text-background"
+                        }`}>
                           {plan.badge}
                         </span>
                       )}
@@ -313,7 +382,7 @@ export default function Plans() {
 
                 <div className="mb-4">
                   <span className="text-2xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
+                  {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
                 </div>
 
                 <ul className="space-y-2">
