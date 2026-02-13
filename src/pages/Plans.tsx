@@ -79,7 +79,7 @@ export default function Plans() {
 
   const showExpiredMessage = status === 'expired';
   const canStartTrial = status === 'none';
-  const backDestination = user ? '/' : '/register';
+  const backDestination = user ? '/home' : '/register';
 
   const handleBackClick = () => {
     if (canStartTrial) {
