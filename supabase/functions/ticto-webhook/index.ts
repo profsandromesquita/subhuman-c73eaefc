@@ -121,6 +121,60 @@ Deno.serve(async (req) => {
     if (isApproved) {
       console.log('Processing approved payment')
 
+      // Check if this is an event purchase by matching ticto_offer_id
+      const tictoOfferId = payload.item?.offer_id ? String(payload.item.offer_id) : null
+      const offerIdStr = tictoOfferId || ''
+      console.log('Ticto offer_id:', offerIdStr)
+
+      const { data: matchedEvent } = await supabase
+        .from('events')
+        .select('id')
+        .eq('ticto_offer_id', offerIdStr)
+        .maybeSingle()
+
+      if (matchedEvent) {
+        console.log('Matched event purchase:', matchedEvent.id)
+
+        // Check for duplicate event purchase
+        const { data: existingPurchase } = await supabase
+          .from('event_purchases')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('event_id', matchedEvent.id)
+          .eq('status', 'active')
+          .maybeSingle()
+
+        if (existingPurchase) {
+          console.log('Event already purchased:', matchedEvent.id)
+          return new Response(
+            JSON.stringify({ success: true, message: 'Event already purchased' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const { error: purchaseError } = await supabase
+          .from('event_purchases')
+          .insert({
+            user_id: user.id,
+            event_id: matchedEvent.id,
+            external_id: orderHash,
+            status: 'active',
+          })
+
+        if (purchaseError) {
+          console.error('Error creating event purchase:', purchaseError)
+          throw purchaseError
+        }
+
+        console.log('Created event purchase for user:', user.id, 'Event:', matchedEvent.id)
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // --- Not an event purchase, proceed with subscription logic ---
+
       // Check for existing subscription with same order hash to prevent duplicates
       if (orderHash) {
         const { data: existing } = await supabase
