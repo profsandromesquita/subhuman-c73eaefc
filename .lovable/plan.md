@@ -1,100 +1,79 @@
 
-# Adicionar link de checkout do Workshop e processar compra de evento no webhook
 
-## Contexto
+# Proteger botao do workshop com autenticacao obrigatoria
 
-O evento "Crie seu site em 6h usando IA" (id: `ee7c1663-4496-4be6-a02e-47acc93323d1`) existe no banco de dados com preco R$ 19,90, mas sem `checkout_url` nem `ticto_offer_id`. Alem disso, o webhook da Ticto atualmente so processa **assinaturas** -- nao tem logica para registrar **compras de eventos** na tabela `event_purchases`.
+## Problema identificado
+
+Na **Landing Page** (`LandingEvents.tsx`), o botao "Garantir minha vaga" do workshop e um link direto (`<a href>`) para o checkout da Ticto, **sem verificar se o usuario esta logado** e **sem anexar email/user_id** na URL. Isso significa que:
+
+1. Usuarios nao logados conseguem ir para o checkout sem identificacao
+2. A compra nao sera associada ao usuario na plataforma (o webhook nao consegue encontrar o usuario)
+3. Voce perde o rastreamento para disparos de mensagens e avisos
+
+Na pagina de **Planos** (`Plans.tsx`), a logica ja esta correta com `handleEventPurchase` que verifica login e injeta dados.
 
 ## Alteracoes necessarias
 
-### 1. Atualizar o evento no banco de dados (migracao SQL)
+### Arquivo: `src/components/landing/LandingEvents.tsx`
 
-Definir o `checkout_url` e `ticto_offer_id` no evento existente:
+1. Importar `useAuth` e `useNavigate`
+2. Substituir o `<a href>` direto por um `<button>` com handler que:
+   - Verifica se o usuario esta logado
+   - Se **nao logado**: redireciona para `/login` (com state para retornar)
+   - Se **logado**: monta a URL com `email`, `src` (user_id) e `redirect_url`, e redireciona
 
-```sql
-UPDATE public.events
-SET checkout_url = 'https://checkout.ticto.app/O94A9B515',
-    ticto_offer_id = 'O94A9B515',
-    updated_at = now()
-WHERE id = 'ee7c1663-4496-4be6-a02e-47acc93323d1';
+**Codigo atual (linha 125-132):**
+```tsx
+<Button asChild variant="glow" size="lg" className="w-full">
+  {nextEvent.checkout_url ? (
+    <a href={nextEvent.checkout_url} target="_blank" rel="noopener noreferrer">
+      Garantir minha vaga
+    </a>
+  ) : (
+    <Link to="/plans">Garantir minha vaga</Link>
+  )}
+</Button>
 ```
 
-### 2. Atualizar o webhook (`supabase/functions/ticto-webhook/index.ts`)
+**Codigo novo:**
+```tsx
+<Button 
+  variant="glow" 
+  size="lg" 
+  className="w-full"
+  onClick={() => handleEventClick(nextEvent.checkout_url)}
+>
+  Garantir minha vaga
+</Button>
+```
 
-Adicionar logica para diferenciar **compra de evento** vs **assinatura**:
-
-- Antes de processar como assinatura, verificar se o `offer_id` da Ticto corresponde a um evento cadastrado na tabela `events` (via campo `ticto_offer_id`)
-- Se corresponder: criar registro em `event_purchases` (nao em `subscriptions`)
-- Se nao corresponder: processar como assinatura normalmente (fluxo atual)
-
-Logica adicionada no bloco `isApproved`:
-
-```typescript
-// Check if this is an event purchase
-const tictoOfferId = payload.item?.offer_id ? String(payload.item.offer_id) : null
-const offerIdStr = tictoOfferId || ''
-
-// Look for matching event by ticto_offer_id
-const { data: matchedEvent } = await supabase
-  .from('events')
-  .select('id')
-  .eq('ticto_offer_id', offerIdStr)
-  .maybeSingle()
-
-if (matchedEvent) {
-  // This is an event purchase, NOT a subscription
-  // Check for duplicate
-  const { data: existingPurchase } = await supabase
-    .from('event_purchases')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('event_id', matchedEvent.id)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  if (existingPurchase) {
-    console.log('Event already purchased:', matchedEvent.id)
-    return Response(...)
+Onde `handleEventClick` sera:
+```tsx
+const handleEventClick = (checkoutUrl?: string | null) => {
+  if (!checkoutUrl) {
+    navigate('/plans');
+    return;
   }
-
-  // Insert event purchase
-  await supabase.from('event_purchases').insert({
-    user_id: user.id,
-    event_id: matchedEvent.id,
-    external_id: orderHash,
-    status: 'active',
-  })
-
-  // DO NOT create/update subscription
-  return Response({ success: true })
-}
-
-// Otherwise, continue with subscription logic (existing code)
+  if (!user) {
+    navigate('/login', { state: { from: '/' } });
+    return;
+  }
+  const url = new URL(checkoutUrl);
+  if (user.email) url.searchParams.set('email', user.email);
+  if (user.id) url.searchParams.set('src', user.id);
+  url.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+  window.location.href = url.toString();
+};
 ```
 
-### 3. Consistencia de dados do usuario
+### Arquivo: `src/pages/Plans.tsx`
 
-- O `handleEventPurchase` em `Plans.tsx` ja injeta `email` e `src` (user_id) na URL de checkout -- nenhuma alteracao necessaria
-- O redirect para `/payment-success` ja esta configurado
-- O usuario que compra o workshop **sem ter assinatura** permanece no plano freemium, pois nenhum registro e criado na tabela `subscriptions`
-- O acesso ao evento e validado exclusivamente pela tabela `event_purchases`
+Nenhuma alteracao necessaria -- `handleEventPurchase` ja faz a verificacao de login e injeta os dados corretamente.
 
-## Resumo de impacto
+## Resumo
 
 | Arquivo | Alteracao |
 |---|---|
-| Migracao SQL | Atualizar `checkout_url` e `ticto_offer_id` do evento |
-| `ticto-webhook/index.ts` | Adicionar deteccao de compra de evento antes da logica de assinatura |
-| `Plans.tsx` | Nenhuma alteracao (ja funciona corretamente) |
-| `Events.tsx` | Nenhuma alteracao (ja exibe botao com `checkout_url`) |
-
-## Fluxo completo
-
-1. Usuario logado acessa `/plans` ou `/events`
-2. Clica em "Garantir minha vaga" no workshop
-3. Redirecionado para `https://checkout.ticto.app/O94A9B515?email=...&src=userId`
-4. Paga na Ticto
-5. Webhook recebe payload com `offer_id` correspondente ao evento
-6. Webhook cria registro em `event_purchases` (nao em `subscriptions`)
-7. Usuario permanece no tier freemium (se nao tinha assinatura)
-8. Usuario ganha acesso ao conteudo do evento via `event_purchases`
+| `LandingEvents.tsx` | Substituir link direto por handler com verificacao de login + injeccao de dados |
+| `Plans.tsx` | Nenhuma (ja correto) |
+| Webhook | Nenhuma (ja correto) |
