@@ -19,6 +19,7 @@ export function LandingEvents() {
       return;
     }
     if (!user) {
+      sessionStorage.setItem('workshop_intent', 'true');
       navigate('/login', { state: { from: '/' } });
       return;
     }
