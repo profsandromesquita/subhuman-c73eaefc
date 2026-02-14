@@ -20,10 +20,16 @@ export default function VerifyEmail() {
       setEmail(storedEmail);
     }
 
-    // If user is already confirmed, redirect to home
+    // If user is already confirmed, redirect to appropriate page
     if (user?.email_confirmed_at) {
       sessionStorage.removeItem("pending_verification_email");
-      navigate("/plans", { replace: true });
+      const workshopIntent = sessionStorage.getItem('workshop_intent');
+      if (workshopIntent) {
+        sessionStorage.removeItem('workshop_intent');
+        navigate("/plans?tab=workshops", { replace: true });
+      } else {
+        navigate("/plans", { replace: true });
+      }
     }
   }, [user, navigate]);
 

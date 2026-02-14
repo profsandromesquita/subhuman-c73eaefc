@@ -154,7 +154,23 @@ export default function Login() {
       await new Promise(resolve => setTimeout(resolve, 500));
       const result = await refetch();
 
-      navigate("/home", { replace: true });
+      const workshopIntent = sessionStorage.getItem('workshop_intent');
+      if (workshopIntent) {
+        sessionStorage.removeItem('workshop_intent');
+        navigate("/home", { replace: true });
+        setTimeout(() => {
+          toast("🎓 Você estava comprando o Workshop!", {
+            description: "Clique para continuar sua compra",
+            action: {
+              label: "Ir para o Workshop",
+              onClick: () => { window.location.href = "/plans?tab=workshops"; },
+            },
+            duration: 15000,
+          });
+        }, 500);
+      } else {
+        navigate("/home", { replace: true });
+      }
     } catch (err) {
       toast.error("Erro inesperado ao fazer login");
     } finally {

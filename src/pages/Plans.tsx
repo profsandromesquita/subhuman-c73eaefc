@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, ArrowLeft, Gift, Ticket, GraduationCap, CalendarDots, Monitor, MapPin } from "@phosphor-icons/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,7 +62,11 @@ const subscriptionPlans = [
 
 export default function Plans() {
   const [selectedPlan, setSelectedPlan] = useState("yearly");
-  const [activeTab, setActiveTab] = useState<"subscriptions" | "workshops">("subscriptions");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"subscriptions" | "workshops">(() => {
+    const tabParam = searchParams.get('tab');
+    return tabParam === 'workshops' ? 'workshops' : 'subscriptions';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isTrialLoading, setIsTrialLoading] = useState(false);
   const [showTrialModal, setShowTrialModal] = useState(false);
@@ -229,13 +233,16 @@ export default function Plans() {
                 </button>
                 <button
                   onClick={() => setActiveTab("workshops")}
-                  className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 relative ${
                     activeTab === "workshops"
                       ? "bg-foreground text-background font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Workshops
+                  {searchParams.get('tab') === 'workshops' && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  )}
                 </button>
               </div>
             </motion.div>
