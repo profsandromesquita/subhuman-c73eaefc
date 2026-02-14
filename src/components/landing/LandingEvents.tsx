@@ -33,6 +33,8 @@ export function LandingEvents() {
   // Get next upcoming event (first future published event)
   const nextEvent = events?.[0];
 
+  if (!nextEvent) return null;
+
   const typeLabel =
     nextEvent.event_type === "workshop"
       ? "Workshop"
