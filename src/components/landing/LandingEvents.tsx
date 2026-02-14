@@ -1,19 +1,36 @@
 import { CalendarDays, Monitor, Clock, Sparkles, MapPin } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollReveal } from "./ScrollReveal";
 import { useEvents } from "@/hooks/useEvents";
+import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export function LandingEvents() {
   const { data: events } = useEvents({ period: "future" });
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleEventClick = (checkoutUrl?: string | null) => {
+    if (!checkoutUrl) {
+      navigate('/plans');
+      return;
+    }
+    if (!user) {
+      navigate('/login', { state: { from: '/' } });
+      return;
+    }
+    const url = new URL(checkoutUrl);
+    if (user.email) url.searchParams.set('email', user.email);
+    if (user.id) url.searchParams.set('src', user.id);
+    url.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    window.location.href = url.toString();
+  };
 
   // Get next upcoming event (first future published event)
   const nextEvent = events?.[0];
-
-  if (!nextEvent) return null;
 
   const typeLabel =
     nextEvent.event_type === "workshop"
@@ -122,14 +139,13 @@ export function LandingEvents() {
                       <p className="text-xs text-muted-foreground">pagamento único</p>
                     )}
                   </div>
-                  <Button asChild variant="glow" size="lg" className="w-full">
-                    {nextEvent.checkout_url ? (
-                      <a href={nextEvent.checkout_url} target="_blank" rel="noopener noreferrer">
-                        Garantir minha vaga
-                      </a>
-                    ) : (
-                      <Link to="/plans">Garantir minha vaga</Link>
-                    )}
+                  <Button 
+                    variant="glow" 
+                    size="lg" 
+                    className="w-full"
+                    onClick={() => handleEventClick(nextEvent.checkout_url)}
+                  >
+                    Garantir minha vaga
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
                     {nextEvent.modality === "online" ? "Sala exclusiva online" : nextEvent.location || "Vagas limitadas"}
