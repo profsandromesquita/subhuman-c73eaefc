@@ -29,7 +29,7 @@ export function LandingHero() {
           transition={{ duration: 0.6, delay: 0.15 }}
           className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">
 
-          CHEGA DE TENTAR ACOMPANHAR TUDO.{" "}
+          RECEBA EM PRIMEIRA MÃO AS PRINCIPAIS ATUALIZAÇÕES{" "}
           <span className="text-muted-foreground">RELEVANTES PARA VOCÊ DO MUNDO DA INTELIGÊNCIA ARTIFICIAL
 
           </span>
