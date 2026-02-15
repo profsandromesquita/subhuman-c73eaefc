@@ -18,8 +18,8 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-12 flex justify-center"
-        >
+          className="mb-12 flex justify-center">
+
           <Logo size="xl" />
         </motion.div>
 
@@ -27,11 +27,11 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6"
-        >
+          className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">
+
           CHEGA DE TENTAR ACOMPANHAR TUDO.{" "}
-          <span className="text-muted-foreground">
-            ASSUMA O COMANDO DA IA SEM PERDER SEU TEMPO.
+          <span className="text-muted-foreground">RELEVANTES PARA VOCÊ DO MUNDO DA INTELIGÊNCIA ARTIFICIAL
+
           </span>
         </motion.h1>
 
@@ -39,8 +39,8 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-10"
-        >
+          className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-10">
+
           Enquanto o mercado te bombardeia com novidades inúteis e cursos superficiais, sua carreira exige foco estratégico. Pare de se sentir atrasado. Tenha acesso à informação validada por quem constrói a IA na prática e receba apenas o que move o seu lucro e sua produtividade. O Subhumano tritura o ruído para você governar a tecnologia.
         </motion.p>
 
@@ -48,8 +48,8 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.45 }}
-          className="flex flex-col sm:flex-row gap-3 justify-center"
-        >
+          className="flex flex-col sm:flex-row gap-3 justify-center">
+
           <Button asChild variant="glow" size="xl">
             <Link to="/register">Começar Agora — 7 Dias Grátis</Link>
           </Button>
@@ -63,8 +63,8 @@ export function LandingHero() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.6 }}
-          className="mt-16"
-        >
+          className="mt-16">
+
           <PhoneMockupCarousel />
         </motion.div>
       </div>
@@ -74,10 +74,10 @@ export function LandingHero() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 0.5 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2"
-      >
+        className="absolute bottom-8 left-1/2 -translate-x-1/2">
+
         <ChevronDown className="w-6 h-6 text-muted-foreground animate-bounce" />
       </motion.div>
-    </section>
-  );
+    </section>);
+
 }
