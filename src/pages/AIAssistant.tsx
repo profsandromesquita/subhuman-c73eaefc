@@ -5,7 +5,7 @@ import { Logo } from "@/components/Logo";
 import ReactMarkdown from "react-markdown";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ export default function AIAssistant() {
   const [input, setInput] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth"
@@ -57,7 +57,16 @@ export default function AIAssistant() {
     if (!input.trim() || isLoading) return;
     const message = input;
     setInput("");
+    if (inputRef.current) {
+      inputRef.current.style.height = '44px';
+    }
     await sendMessage(message);
+  };
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 168) + 'px';
   };
   const handleSuggestionClick = async (suggestion: string) => {
     if (isLoading) return;
@@ -221,7 +230,7 @@ export default function AIAssistant() {
         <div className="px-4 py-3 pb-28 border-t border-border bg-background shrink-0">
           {canUseAI ? (
             <form onSubmit={handleSubmit} className="flex gap-2">
-              <Input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} placeholder="Digite sua pergunta..." disabled={isLoading} className="flex-1" />
+              <Textarea ref={inputRef} value={input} onChange={handleInputChange} placeholder="Digite sua pergunta..." disabled={isLoading} rows={1} className="flex-1 min-h-[44px] max-h-[168px] resize-none overflow-y-auto py-2.5" />
               <Button type="submit" disabled={!input.trim() || isLoading} size="icon" className="shrink-0">
                 <PaperPlaneRight className="w-5 h-5" weight="fill" />
               </Button>
