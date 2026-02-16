@@ -30,7 +30,7 @@ export function LandingHero() {
           className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight mb-6">
 
           RECEBA EM PRIMEIRA MÃO AS PRINCIPAIS ATUALIZAÇÕES RELEVANTES PARA VOCÊ DO{" "}
-          <span className="text-secondary-foreground">MUNDO DA INTELIGÊNCIA ARTIFICIAL
+          <span className="text-muted-foreground">MUNDO DA INTELIGÊNCIA ARTIFICIAL
 
           </span>
         </motion.h1>
