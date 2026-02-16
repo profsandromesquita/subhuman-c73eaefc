@@ -33,7 +33,9 @@
     <!-- Google Fonts (preconnect + stylesheet, non-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" /></noscript>
+    <link rel="preconnect" href="https://akkbfzfjappludgsrwsw.supabase.co" />
     
     <style>
       .safe-area-pb {
@@ -46,7 +48,13 @@
   </head>
 
   <body class="dark">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height:100vh;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+        <svg width="48" height="48" viewBox="0 0 100 100" style="margin-bottom:24px;opacity:0.7"><circle cx="50" cy="50" r="45" fill="none" stroke="#333" stroke-width="4"/><text x="50" y="58" text-anchor="middle" fill="#fff" font-size="32" font-family="system-ui">S</text></svg>
+        <div style="width:200px;height:16px;background:#141414;border-radius:8px;margin-bottom:12px"></div>
+        <div style="width:140px;height:12px;background:#141414;border-radius:6px"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

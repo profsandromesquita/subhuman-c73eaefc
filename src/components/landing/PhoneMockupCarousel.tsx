@@ -1,14 +1,15 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import screen1 from "@/assets/landing/screen-1.png";
-import screen2 from "@/assets/landing/screen-2.png";
-import screen3 from "@/assets/landing/screen-3.png";
-import screen4 from "@/assets/landing/screen-4.png";
-import screen5 from "@/assets/landing/screen-5.png";
-import screen6 from "@/assets/landing/screen-6.png";
-import { useState } from "react";
 
-const screens = [screen1, screen2, screen3, screen4, screen5, screen6];
+// Use dynamic paths instead of static imports to reduce bundle size
+const screens = [
+  "/assets/landing/screen-1.png",
+  "/assets/landing/screen-2.png",
+  "/assets/landing/screen-3.png",
+  "/assets/landing/screen-4.png",
+  "/assets/landing/screen-5.png",
+  "/assets/landing/screen-6.png",
+];
 const labels = ["Início", "Espaços", "Podcast", "IA", "Canais", "Perfil"];
 
 export function PhoneMockupCarousel() {
@@ -32,12 +33,9 @@ export function PhoneMockupCarousel() {
 
   return (
     <div className="flex flex-col items-center">
-      {/* Phone frame with perspective on desktop */}
       <div
         className="relative max-w-[252px] sm:max-w-[270px] mx-auto"
-        style={{
-          perspective: "1000px",
-        }}
+        style={{ perspective: "1000px" }}
       >
         <div
           className="rounded-[2.5rem] border-4 border-border overflow-hidden shadow-[0_0_60px_hsl(0_0%_100%_/_0.08)] bg-card"
@@ -58,7 +56,6 @@ export function PhoneMockupCarousel() {
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Dots */}
