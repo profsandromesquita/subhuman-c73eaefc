@@ -9,8 +9,8 @@ import { LoadingFallback } from "@/components/LoadingFallback";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { AdminGuard } from "./components/admin/AdminGuard";
 
-// Lazy load pages for code splitting
-const Landing = lazy(() => import("./pages/Landing"));
+// Landing is loaded synchronously (entry point for Meta campaigns - must render instantly)
+import Landing from "./pages/Landing";
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));

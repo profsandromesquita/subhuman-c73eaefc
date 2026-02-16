@@ -32,13 +32,8 @@ export default function Landing() {
     }
   }, [user, authLoading, status, subLoading, navigate]);
 
-  if (authLoading || (user && subLoading)) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Carregando...</div>
-      </div>
-    );
-  }
+  // Don't block rendering for auth - render landing immediately
+  // Redirect will happen in background when auth resolves
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
