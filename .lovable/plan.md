@@ -1,69 +1,100 @@
 
+# Blocos de codigo/prompt com botao "Copiar" nos artigos
 
-# Transformar input do Assistente IA em textarea multi-linha
+## Contexto
 
-## O que muda
+Os artigos dos Espacos sao escritos com o editor Tiptap (RichTextEditor) e exibidos no componente PostContent via `dangerouslySetInnerHTML`. O Tiptap StarterKit ja inclui suporte a blocos de codigo (`<pre><code>...</code></pre>`), porem:
 
-Trocar o `<Input>` (linha unica) por um `<Textarea>` com crescimento automatico ate 7 linhas. A tecla **Enter** fara quebra de linha no texto, e o envio sera feito exclusivamente pelo botao de enviar (icone de aviao).
+1. No **editor**, so existe o botao de `code` inline -- nao ha botao para inserir bloco de codigo (code block)
+2. Na **exibicao**, blocos `<pre>` aparecem com estilo basico mas sem nenhum botao de copiar
+3. Nao ha identificacao visual clara de que um bloco e um "prompt" copiavel
 
-## Alteracoes tecnicas
+## Plano de implementacao
 
-### Arquivo: `src/pages/AIAssistant.tsx`
+### 1. Adicionar botao "Bloco de Codigo" na toolbar do editor
 
-1. **Trocar import**: Substituir `Input` por `Textarea` nos imports
-2. **Trocar ref**: De `useRef<HTMLInputElement>` para `useRef<HTMLTextAreaElement>`
-3. **Remover submit por Enter**: O `handleSubmit` continua no `<form onSubmit>`, mas o textarea NAO dispara submit com Enter (comportamento nativo do textarea -- Enter = quebra de linha)
-4. **Substituir o componente no JSX** (linha 224):
+**Arquivo**: `src/components/editor/EditorToolbar.tsx`
 
-```typescript
-// ANTES
-<Input ref={inputRef} value={input} onChange={...} placeholder="..." />
+- Adicionar um segundo botao ao lado do `Code` inline existente, usando o icone `CodeBlock` do Phosphor Icons
+- Ao clicar, executa `editor.chain().focus().toggleCodeBlock().run()`
+- Isso permite que o autor do artigo insira blocos de codigo/prompt formatados
 
-// DEPOIS
-<Textarea
-  ref={inputRef}
-  value={input}
-  onChange={e => setInput(e.target.value)}
-  placeholder="Digite sua pergunta..."
-  disabled={isLoading}
-  className="flex-1 min-h-[44px] max-h-[168px] resize-none overflow-y-auto"
-  rows={1}
-/>
+### 2. Criar componente CodeBlockCopyButton
+
+**Arquivo novo**: `src/components/post/CodeBlockCopyButton.tsx`
+
+Componente React que renderiza um botao "Copiar" flutuante no canto superior direito de blocos `<pre>`. Ao clicar:
+- Copia o texto do bloco para a area de transferencia (`navigator.clipboard.writeText`)
+- Mostra feedback visual: icone muda de "Copiar" para "Copiado" por 2 segundos
+- Estilo: fundo `bg-elevated` (`#1f1f1f`), icone branco, `rounded-lg`, posicionado `absolute top-2 right-2`
+
+### 3. Processar blocos de codigo no PostContent apos renderizacao
+
+**Arquivo**: `src/components/post/PostContent.tsx`
+
+Adicionar um `useEffect` que, apos o conteudo HTML ser inserido via `dangerouslySetInnerHTML`, percorre todos os `<pre>` dentro do `contentRef` e injeta o botao de copiar usando `createRoot` do React DOM:
+
+```
+useEffect -> querySelectorAll('pre') -> para cada <pre>:
+  1. Adicionar position: relative ao <pre>
+  2. Criar um container div
+  3. Renderizar <CodeBlockCopyButton /> dentro dele
+  4. Append ao <pre>
 ```
 
-- `min-h-[44px]`: altura minima de 1 linha (igual ao input atual)
-- `max-h-[168px]`: altura maxima de ~7 linhas (7 x 24px)
-- `resize-none`: impede redimensionamento manual
-- `overflow-y-auto`: scrollbar aparece somente apos 7 linhas
-- `rows={1}`: comeca com 1 linha
+### 4. Estilizar blocos de codigo para exibicao nos artigos
 
-5. **Auto-resize dinamico**: Adicionar logica para o textarea crescer automaticamente conforme o usuario digita, ate o maximo de 7 linhas:
+**Arquivo**: `src/components/editor/editor.css`
 
-```typescript
-const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-  setInput(e.target.value);
-  // Auto-resize
-  const el = e.target;
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 168) + 'px';
-};
+Adicionar/atualizar estilos para a exibicao no artigo (prose context):
+
+```css
+/* Bloco de codigo nos artigos - visual de "prompt" */
+.prose pre {
+  position: relative;
+  background: #141414;         /* bg-card */
+  border: 1px solid #262626;   /* border-subtle */
+  border-radius: 12px;
+  padding: 16px 48px 16px 16px; /* espaco para o botao copiar */
+  overflow-x: auto;
+  margin: 24px 0;
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e5e7eb;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace, ui-monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Codigo inline */
+.prose code:not(pre code) {
+  background: #1f1f1f;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #e5e7eb;
+}
 ```
 
-6. **Reset altura ao enviar**: Apos enviar a mensagem, resetar a altura do textarea para 1 linha.
+## Resumo de arquivos
+
+| Arquivo | Acao | Descricao |
+|---|---|---|
+| `src/components/post/CodeBlockCopyButton.tsx` | Criar | Botao "Copiar" com feedback visual |
+| `src/components/post/PostContent.tsx` | Editar | useEffect para injetar botoes nos `<pre>` |
+| `src/components/editor/EditorToolbar.tsx` | Editar | Botao "Bloco de Codigo" na toolbar |
+| `src/components/editor/editor.css` | Editar | Estilos visuais para blocos de codigo |
 
 ## Comportamento final
 
-| Acao | Resultado |
+| Elemento | Descricao |
 |---|---|
-| Digitar texto | Textarea cresce automaticamente ate 7 linhas |
-| Pressionar Enter | Quebra de linha no texto |
-| Texto passa de 7 linhas | Scrollbar vertical aparece |
-| Clicar no botao enviar | Envia a mensagem |
-| Apos envio | Textarea volta para 1 linha |
-
-## Arquivo alterado
-
-| Arquivo | Alteracao |
-|---|---|
-| `src/pages/AIAssistant.tsx` | Trocar Input por Textarea com auto-resize e Enter como quebra de linha |
-
+| Bloco de codigo no artigo | Fundo escuro `#141414`, borda sutil, border-radius 12px, fonte mono |
+| Botao copiar | Icone no canto superior direito, hover sutil, muda para "Copiado" apos clique |
+| Codigo inline | Badge com fundo `#1f1f1f`, arredondado, fonte mono |
+| Editor (admin) | Novo botao na toolbar para inserir blocos de codigo/prompt |
