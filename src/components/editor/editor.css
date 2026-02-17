@@ -51,11 +51,12 @@
 }
 
 .tiptap-editor pre {
-  @apply bg-secondary p-4 rounded-lg my-4 overflow-x-auto;
+  @apply bg-card p-4 rounded-xl my-4 overflow-x-auto border border-border;
 }
 
 .tiptap-editor pre code {
-  @apply bg-transparent p-0;
+  @apply bg-transparent p-0 text-[13px] leading-relaxed;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
 .tiptap-editor a {
@@ -169,4 +170,39 @@
 
 .post-content iframe {
   @apply w-full aspect-video rounded-lg;
+}
+
+/* Code blocks in articles - prompt style */
+.post-content pre,
+.prose pre {
+  position: relative;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 16px 48px 16px 16px;
+  overflow-x: auto;
+  margin: 24px 0;
+}
+
+.post-content pre code,
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e5e7eb;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Inline code in articles */
+.post-content code:not(pre code),
+.prose code:not(pre code) {
+  background: hsl(var(--elevated));
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #e5e7eb;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }

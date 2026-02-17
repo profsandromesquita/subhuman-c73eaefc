@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createRoot } from "react-dom/client";
 import { motion } from "framer-motion";
 import { PlayCircle, Clock, User } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import DOMPurify from "dompurify";
 import { MediaGallery } from "@/components/post/MediaGallery";
 import { AuthorModal } from "@/components/post/AuthorModal";
 import { ContentPaywall } from "@/components/ContentPaywall";
+import { CodeBlockCopyButton } from "@/components/post/CodeBlockCopyButton";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { useUserBadge } from "@/hooks/useUserBadge";
 import { PremiumBadge } from "@/components/PremiumBadge";
@@ -118,6 +120,34 @@ export function PostContent({
     el.addEventListener('click', handleMentionClick);
     return () => el.removeEventListener('click', handleMentionClick);
   }, [handleMentionClick, content]);
+
+  // Inject copy buttons into code blocks
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    const roots: ReturnType<typeof createRoot>[] = [];
+    const preBlocks = el.querySelectorAll('pre');
+
+    preBlocks.forEach((pre) => {
+      // Skip if already has a copy button
+      if (pre.querySelector('.code-copy-btn')) return;
+
+      pre.style.position = 'relative';
+      const container = document.createElement('div');
+      container.className = 'code-copy-btn';
+      pre.appendChild(container);
+
+      const codeText = pre.querySelector('code')?.textContent || pre.textContent || '';
+      const root = createRoot(container);
+      root.render(<CodeBlockCopyButton code={codeText} />);
+      roots.push(root);
+    });
+
+    return () => {
+      roots.forEach((root) => root.unmount());
+    };
+  }, [content, canReadFullArticles]);
 
   return (
     <motion.article
