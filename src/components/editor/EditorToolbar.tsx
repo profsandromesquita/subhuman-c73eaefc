@@ -8,6 +8,7 @@ import {
   ListNumbers,
   Quotes,
   Code,
+  CodeBlock,
   Palette,
   HighlighterCircle,
   Image as ImageIcon
@@ -343,6 +344,17 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         onClick={() => editor.chain().focus().toggleCode().run()}
       >
         <Code className="w-4 h-4" />
+      </Button>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={`h-8 w-8 ${editor.isActive("codeBlock") ? "bg-secondary" : ""}`}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        title="Bloco de código"
+      >
+        <CodeBlock className="w-4 h-4" weight={editor.isActive("codeBlock") ? "bold" : "regular"} />
       </Button>
     </div>
   );
