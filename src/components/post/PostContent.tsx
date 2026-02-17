@@ -121,17 +121,6 @@ export function PostContent({
     return () => el.removeEventListener('click', handleMentionClick);
   }, [handleMentionClick, content]);
 
-  // Force all links to open in new tab
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    el.querySelectorAll('a').forEach((a) => {
-      if (a.classList.contains('mention')) return;
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-    });
-  }, [content, canReadFullArticles]);
-
   // Inject copy buttons into code blocks
   useEffect(() => {
     const el = contentRef.current;
