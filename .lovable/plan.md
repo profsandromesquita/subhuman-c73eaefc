@@ -1,100 +1,122 @@
 
-# Blocos de codigo/prompt com botao "Copiar" nos artigos
+# Correção Definitiva: Blocos de Prompt com Botão Copiar nos Artigos
 
-## Contexto
+## Diagnóstico das Falhas
 
-Os artigos dos Espacos sao escritos com o editor Tiptap (RichTextEditor) e exibidos no componente PostContent via `dangerouslySetInnerHTML`. O Tiptap StarterKit ja inclui suporte a blocos de codigo (`<pre><code>...</code></pre>`), porem:
+A auditoria identificou 4 causas raízes que, combinadas, tornam o recurso invisível mesmo com o código presente:
 
-1. No **editor**, so existe o botao de `code` inline -- nao ha botao para inserir bloco de codigo (code block)
-2. Na **exibicao**, blocos `<pre>` aparecem com estilo basico mas sem nenhum botao de copiar
-3. Nao ha identificacao visual clara de que um bloco e um "prompt" copiavel
+### Falha 1 — Variável CSS inexistente (CRÍTICO)
+O `CodeBlockCopyButton` usa `hsl(var(--elevated))` tanto no botão quanto no CSS do código inline. Essa variável **não existe** no sistema de design. O nome correto é `--surface-elevated`. O resultado é que o botão copiar fica com fundo transparente, tornando-o praticamente invisível sobre o bloco de código.
 
-## Plano de implementacao
+Arquivo afetado: `src/components/post/CodeBlockCopyButton.tsx` (linha 24)
+Arquivo afetado: `src/components/editor/editor.css` (linha 202)
 
-### 1. Adicionar botao "Bloco de Codigo" na toolbar do editor
+### Falha 2 — Especificidade CSS (ALTO)
+O padding do bloco `<pre>` definido em `.prose pre` (`padding: 16px 48px 16px 16px`) é disputado pelas classes utilitárias do Tailwind `prose`. Como o elemento usa `className="prose prose-sm dark:prose-invert ..."`, as regras do `@tailwindcss/typography` podem sobrescrever o padding definido no `editor.css`, eliminando o espaço reservado para o botão copiar.
 
-**Arquivo**: `src/components/editor/EditorToolbar.tsx`
+Arquivo afetado: `src/components/editor/editor.css` (linhas 176-185)
 
-- Adicionar um segundo botao ao lado do `Code` inline existente, usando o icone `CodeBlock` do Phosphor Icons
-- Ao clicar, executa `editor.chain().focus().toggleCodeBlock().run()`
-- Isso permite que o autor do artigo insira blocos de codigo/prompt formatados
+### Falha 3 — Timing da injeção do botão (MÉDIO)
+O `useEffect` que injeta os botões nos `<pre>` tem `[content, canReadFullArticles]` como dependências. Se `canReadFullArticles` mudar de `false` para `true` após o conteúdo já ter sido renderizado (o que é o caso normal — o hook de acesso carrega de forma assíncrona), o effect roda novamente. Porém, existe a verificação `if (pre.querySelector('.code-copy-btn')) return` que bloqueia a re-injeção. O problema é que no primeiro render (quando `canReadFullArticles = false`), o conteúdo está dentro do `<ContentPaywall>` e o `ref` aponta para ele. Quando `canReadFullArticles` muda para `true`, o `<div>` do ref é um elemento diferente no DOM, mas o React pode não re-atribuir o ref se o componente não remontou. O efeito precisa ser mais robusto.
 
-### 2. Criar componente CodeBlockCopyButton
+Arquivo afetado: `src/components/post/PostContent.tsx` (linhas 124-150)
 
-**Arquivo novo**: `src/components/post/CodeBlockCopyButton.tsx`
+### Falha 4 — `!important` ausente no CSS do bloco (BAIXO)
+Sem `!important` ou especificidade maior, os estilos visuais do bloco (background, border-radius, padding) podem ser sobrescritos pelas regras padrão do `prose` do Tailwind, tornando o bloco visualmente idêntico a um `<pre>` genérico sem nenhuma identidade visual de "prompt copiável".
 
-Componente React que renderiza um botao "Copiar" flutuante no canto superior direito de blocos `<pre>`. Ao clicar:
-- Copia o texto do bloco para a area de transferencia (`navigator.clipboard.writeText`)
-- Mostra feedback visual: icone muda de "Copiar" para "Copiado" por 2 segundos
-- Estilo: fundo `bg-elevated` (`#1f1f1f`), icone branco, `rounded-lg`, posicionado `absolute top-2 right-2`
+---
 
-### 3. Processar blocos de codigo no PostContent apos renderizacao
+## Plano de Correção por Arquivo
 
-**Arquivo**: `src/components/post/PostContent.tsx`
+### 1. Corrigir `CodeBlockCopyButton.tsx` — variável CSS quebrada
 
-Adicionar um `useEffect` que, apos o conteudo HTML ser inserido via `dangerouslySetInnerHTML`, percorre todos os `<pre>` dentro do `contentRef` e injeta o botao de copiar usando `createRoot` do React DOM:
+Trocar `hsl(var(--elevated))` por `hsl(var(--surface-elevated))` no estilo do botão. Também aumentar a visibilidade do botão adicionando uma borda sutil para que ele seja distinguível sobre o fundo escuro do bloco.
 
-```
-useEffect -> querySelectorAll('pre') -> para cada <pre>:
-  1. Adicionar position: relative ao <pre>
-  2. Criar um container div
-  3. Renderizar <CodeBlockCopyButton /> dentro dele
-  4. Append ao <pre>
+```tsx
+// ANTES (linha 24):
+className="absolute top-2 right-2 p-1.5 rounded-lg bg-[hsl(var(--elevated))] ..."
+
+// DEPOIS:
+className="absolute top-2 right-2 p-1.5 rounded-lg bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] ..."
 ```
 
-### 4. Estilizar blocos de codigo para exibicao nos artigos
+### 2. Corrigir `editor.css` — variável CSS quebrada + especificidade
 
-**Arquivo**: `src/components/editor/editor.css`
+Duas correções neste arquivo:
 
-Adicionar/atualizar estilos para a exibicao no artigo (prose context):
-
+**a)** Corrigir a variável `--elevated` para `--surface-elevated` no código inline:
 ```css
-/* Bloco de codigo nos artigos - visual de "prompt" */
-.prose pre {
-  position: relative;
-  background: #141414;         /* bg-card */
-  border: 1px solid #262626;   /* border-subtle */
-  border-radius: 12px;
-  padding: 16px 48px 16px 16px; /* espaco para o botao copiar */
-  overflow-x: auto;
-  margin: 24px 0;
-}
+/* ANTES (linha 202): */
+background: hsl(var(--elevated));
 
-.prose pre code {
-  background: transparent;
-  padding: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e5e7eb;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace, ui-monospace;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
+/* DEPOIS: */
+background: hsl(var(--surface-elevated));
+```
 
-/* Codigo inline */
-.prose code:not(pre code) {
-  background: #1f1f1f;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #e5e7eb;
+**b)** Aumentar a especificidade dos estilos do bloco `<pre>` usando `!important` ou seletor mais específico para vencer o Tailwind prose:
+```css
+/* Adicionar !important para garantir que os estilos do prose sejam sobrescritos */
+.prose pre,
+.post-content pre {
+  background: #141414 !important;
+  border: 1px solid #262626 !important;
+  border-radius: 12px !important;
+  padding: 16px 48px 16px 16px !important;
+  margin: 24px 0 !important;
+  position: relative !important;
+  overflow-x: auto !important;
 }
 ```
 
-## Resumo de arquivos
+### 3. Corrigir `PostContent.tsx` — timing do useEffect
 
-| Arquivo | Acao | Descricao |
+Adicionar um `useCallback` que force a injeção dos botões com uma pequena espera via `setTimeout` para garantir que o DOM esteja montado antes de buscar os `<pre>`. Também remover a verificação de skip que previne re-injeção quando o ref muda:
+
+```tsx
+useEffect(() => {
+  const el = contentRef.current;
+  if (!el) return;
+
+  // Aguarda o DOM estabilizar após o dangerouslySetInnerHTML
+  const timer = setTimeout(() => {
+    const roots: ReturnType<typeof createRoot>[] = [];
+    // Remover botões antigos antes de re-injetar (evita duplicatas sem bloquear re-runs)
+    el.querySelectorAll('.code-copy-btn').forEach(el => el.remove());
+    
+    const preBlocks = el.querySelectorAll('pre');
+    preBlocks.forEach((pre) => {
+      pre.style.position = 'relative';
+      const container = document.createElement('div');
+      container.className = 'code-copy-btn';
+      pre.appendChild(container);
+      const codeText = pre.querySelector('code')?.textContent || pre.textContent || '';
+      const root = createRoot(container);
+      root.render(<CodeBlockCopyButton code={codeText} />);
+      roots.push(root);
+    });
+    
+    return () => roots.forEach(root => root.unmount());
+  }, 50);
+
+  return () => clearTimeout(timer);
+}, [content, canReadFullArticles]);
+```
+
+---
+
+## Resumo de arquivos alterados
+
+| Arquivo | Correção | Impacto |
 |---|---|---|
-| `src/components/post/CodeBlockCopyButton.tsx` | Criar | Botao "Copiar" com feedback visual |
-| `src/components/post/PostContent.tsx` | Editar | useEffect para injetar botoes nos `<pre>` |
-| `src/components/editor/EditorToolbar.tsx` | Editar | Botao "Bloco de Codigo" na toolbar |
-| `src/components/editor/editor.css` | Editar | Estilos visuais para blocos de codigo |
+| `src/components/post/CodeBlockCopyButton.tsx` | Variável CSS `--elevated` → `--surface-elevated` + borda no botão | Botão visível |
+| `src/components/editor/editor.css` | Variável CSS corrigida + `!important` nos estilos do bloco | Estilo do bloco aplicado |
+| `src/components/post/PostContent.tsx` | `setTimeout` + limpeza de botões antigos antes de re-injetar | Injeção confiável |
 
-## Comportamento final
+## Resultado esperado após correção
 
-| Elemento | Descricao |
-|---|---|
-| Bloco de codigo no artigo | Fundo escuro `#141414`, borda sutil, border-radius 12px, fonte mono |
-| Botao copiar | Icone no canto superior direito, hover sutil, muda para "Copiado" apos clique |
-| Codigo inline | Badge com fundo `#1f1f1f`, arredondado, fonte mono |
-| Editor (admin) | Novo botao na toolbar para inserir blocos de codigo/prompt |
+| Elemento | Antes (quebrado) | Depois (correto) |
+|---|---|---|
+| Botão copiar | Invisível (fundo transparente) | Visível — fundo escuro com borda sutil |
+| Bloco de código/prompt | Visual genérico, sem identidade | Fundo `#141414`, borda, `border-radius: 12px` |
+| Código inline | Fundo transparente | Badge com fundo `#1f1f1f` |
+| Injeção do botão | Pode falhar se acesso carrega após render | Sempre injeta após 50ms de estabilização do DOM |
