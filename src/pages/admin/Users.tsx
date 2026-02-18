@@ -4,7 +4,9 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { DataTable } from '@/components/admin/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MagnifyingGlass, DotsThree, User } from '@phosphor-icons/react';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { MagnifyingGlass, DotsThree, User, Bell } from '@phosphor-icons/react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
@@ -58,8 +60,13 @@ export default function Users() {
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'moderator' | 'user'>('user');
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifySendEmail, setNotifySendEmail] = useState(false);
+  const [notifySending, setNotifySending] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -67,7 +74,6 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
-      // Fetch profiles
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -75,14 +81,12 @@ export default function Users() {
 
       if (profileError) throw profileError;
 
-      // Fetch roles for all users
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
       if (rolesError) throw rolesError;
 
-      // Fetch subscriptions with expires_at for real status
       const { data: subscriptions, error: subError } = await supabase
         .from('subscriptions')
         .select('user_id, status, expires_at')
@@ -90,10 +94,8 @@ export default function Users() {
 
       if (subError) throw subError;
 
-      // Fetch emails for admin
       const { data: emails } = await supabase.rpc('get_user_emails_admin');
 
-      // Merge data
       const usersWithRoles = (profiles || []).map(profile => {
         const sub = (subscriptions || []).find(s => s.user_id === profile.id);
         let realStatus = 'none';
@@ -142,11 +144,18 @@ export default function Users() {
     setShowDeactivateDialog(true);
   };
 
+  const handleNotifyUser = (user: UserProfile) => {
+    setSelectedUser(user);
+    setNotifyTitle('');
+    setNotifyMessage('');
+    setNotifySendEmail(false);
+    setShowNotifyDialog(true);
+  };
+
   const confirmEditUser = async () => {
     if (!selectedUser) return;
 
     try {
-      // Update profile name
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ full_name: editName })
@@ -154,10 +163,8 @@ export default function Users() {
 
       if (profileError) throw profileError;
 
-      // Update role if changed
       const currentRole = selectedUser.roles[0];
       if (currentRole !== editRole) {
-        // Delete old role
         if (currentRole) {
           await supabase
             .from('user_roles')
@@ -165,8 +172,6 @@ export default function Users() {
             .eq('user_id', selectedUser.id)
             .eq('role', currentRole as 'admin' | 'moderator' | 'user');
         }
-        
-        // Insert new role
         const { error: roleError } = await supabase
           .from('user_roles')
           .insert({ user_id: selectedUser.id, role: editRole });
@@ -187,7 +192,6 @@ export default function Users() {
     if (!selectedUser) return;
 
     try {
-      // Cancel any active subscription
       const { error } = await supabase
         .from('subscriptions')
         .update({ status: 'cancelled' })
@@ -202,6 +206,29 @@ export default function Users() {
     } catch (error) {
       console.error('Error deactivating user:', error);
       toast.error('Erro ao desativar usuário');
+    }
+  };
+
+  const confirmNotifyUser = async () => {
+    if (!selectedUser || !notifyTitle.trim()) return;
+    setNotifySending(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-user-notification', {
+        body: {
+          user_id: selectedUser.id,
+          title: notifyTitle.trim(),
+          message: notifyMessage.trim() || null,
+          send_email: notifySendEmail,
+        },
+      });
+      if (error) throw error;
+      toast.success(`Notificação enviada para ${selectedUser.full_name || 'usuário'}!`);
+      setShowNotifyDialog(false);
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      toast.error('Erro ao enviar notificação');
+    } finally {
+      setNotifySending(false);
     }
   };
 
@@ -305,7 +332,11 @@ export default function Users() {
             <DropdownMenuItem onClick={() => handleEditUser(item)}>
               Editar
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem onClick={() => handleNotifyUser(item)}>
+              <Bell className="w-4 h-4 mr-2" />
+              Notificar usuário
+            </DropdownMenuItem>
+            <DropdownMenuItem
               className="text-destructive"
               onClick={() => handleDeactivateUser(item)}
             >
@@ -411,8 +442,8 @@ export default function Users() {
                   <div>
                     <Label className="text-muted-foreground">Assinatura</Label>
                     <p className={`mt-1 ${
-                      selectedUser.subscription_status === 'active' 
-                        ? 'text-emerald-500' 
+                      selectedUser.subscription_status === 'active'
+                        ? 'text-emerald-500'
                         : 'text-muted-foreground'
                     }`}>
                       {selectedUser.subscription_status === 'active' ? 'Ativa' : 'Freemium'}
@@ -471,6 +502,60 @@ export default function Users() {
           </DialogContent>
         </Dialog>
 
+        {/* Notify Dialog */}
+        <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Notificar Usuário</DialogTitle>
+              <DialogDescription>
+                Envie uma notificação para {selectedUser?.full_name || 'este usuário'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Título *</Label>
+                <Input
+                  value={notifyTitle}
+                  onChange={(e) => setNotifyTitle(e.target.value)}
+                  placeholder="Ex: Novidade importante"
+                  className="mt-2"
+                />
+              </div>
+              <div>
+                <Label>Mensagem</Label>
+                <Textarea
+                  value={notifyMessage}
+                  onChange={(e) => setNotifyMessage(e.target.value)}
+                  placeholder="Detalhe da notificação (opcional)"
+                  className="mt-2 resize-none"
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <p className="text-sm font-medium">Enviar também por email</p>
+                  <p className="text-xs text-muted-foreground">O usuário receberá um email com esta mensagem</p>
+                </div>
+                <Switch
+                  checked={notifySendEmail}
+                  onCheckedChange={setNotifySendEmail}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowNotifyDialog(false)} disabled={notifySending}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={confirmNotifyUser}
+                  disabled={!notifyTitle.trim() || notifySending}
+                >
+                  {notifySending ? 'Enviando...' : 'Enviar notificação'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Deactivate Dialog */}
         <AlertDialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
           <AlertDialogContent>
@@ -483,7 +568,7 @@ export default function Users() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Voltar</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={confirmDeactivateUser}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >

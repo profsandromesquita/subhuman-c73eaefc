@@ -740,6 +740,8 @@ export type Database = {
           id: string
           is_read: boolean
           message: string | null
+          notification_url: string | null
+          sender_id: string | null
           space_id: string | null
           title: string
           type: string
@@ -750,6 +752,8 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          notification_url?: string | null
+          sender_id?: string | null
           space_id?: string | null
           title: string
           type?: string
@@ -760,6 +764,8 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string | null
+          notification_url?: string | null
+          sender_id?: string | null
           space_id?: string | null
           title?: string
           type?: string
