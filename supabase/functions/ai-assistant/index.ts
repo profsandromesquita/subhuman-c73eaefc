@@ -96,12 +96,44 @@ async function fetchRecentChannelPosts(db: any): Promise<ChannelPost[]> {
   });
 }
 
-// ============ KEYWORD EXTRACTION (Bug Fix 2 — query longa com AND) ============
-// Para mensagens longas, extrai 3-5 termos técnicos antes do FTS
-// Evita que plainto_tsquery/websearch_to_tsquery gerem 28 tokens em AND
+// ============ SYNONYM NORMALIZATION (Correção 2) ============
+// Resolve aliases comuns ANTES do FTS para corrigir "ChatGPT" → "GPT"
+const AI_SYNONYMS: Record<string, string> = {
+  "chatgpt": "gpt",
+  "chat gpt": "gpt",
+  "chat-gpt": "gpt",
+  "openai gpt": "gpt openai",
+  "gpt 5": "gpt",
+  "chatgpt4": "gpt-4 gpt4",
+  "chatgpt3": "gpt-3 gpt3",
+  "grok": "grok xai",
+  "claude": "claude anthropic",
+  "gemini": "gemini google",
+  "bard": "gemini google bard",
+  "copilot": "copilot microsoft",
+  "llama": "llama meta",
+  "mistral": "mistral ai",
+  "deepseek": "deepseek ai",
+};
+
+function normalizeSynonyms(query: string): string {
+  let normalized = query.toLowerCase();
+  for (const [alias, replacement] of Object.entries(AI_SYNONYMS)) {
+    // Usa word boundary para não substituir "gpt4" em "gpt4o" por ex
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    normalized = normalized.replace(new RegExp(`\\b${escaped}\\b`, "g"), replacement);
+  }
+  return normalized;
+}
+
+// ============ KEYWORD EXTRACTION (Correção 1 — limiar 80→30, Correção 4 — prompt melhorado) ============
+// Para mensagens > 30 chars, extrai termos técnicos antes do FTS
+// Evita que websearch_to_tsquery gere 28 tokens em AND
 async function extractSearchQuery(userMessage: string, apiKey: string): Promise<string> {
   const trimmed = userMessage.trim();
-  if (trimmed.length <= 80) return trimmed; // Mensagens curtas: passa direto
+  // CORREÇÃO 1: limiar reduzido de 80 → 30 chars
+  // "Quais as características do chatgpt 5.2?" (47 chars) agora passa pela extração
+  if (trimmed.length <= 30) return trimmed;
 
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -112,16 +144,20 @@ async function extractSearchQuery(userMessage: string, apiKey: string): Promise<
         messages: [
           {
             role: "system",
+            // CORREÇÃO 4: prompt explica conversão ChatGPT → GPT-X.X
             content: `Você é um extrator de palavras-chave para busca em base de conhecimento sobre IA.
 Dado uma mensagem do usuário, extraia APENAS os 3-5 termos técnicos mais importantes.
 REGRAS:
 - Preserve versões exatas: "GPT-5.2", "Claude-3.5", "Gemini-2.0" (mantenha o hífen!)
+- IMPORTANTE: "ChatGPT" e "ChatGPT-X.X" devem ser convertidos para "GPT-X.X openai". Exemplo: "ChatGPT 5.2" → "GPT-5.2 openai"
 - Inclua nomes de modelos, empresas, tecnologias, versões
 - Retorne APENAS os termos separados por espaço, sem explicação
 - Máximo 10 palavras total
 EXEMPLOS:
 "Quero criar um GPT personalizado especialista em requisitos usando modelo 5.2 Thinking" → "GPT-5.2 thinking model openai requisitos"
-"Como o Claude da Anthropic se compara ao ChatGPT para programação?" → "Claude Anthropic ChatGPT programação comparação"`
+"Como o Claude da Anthropic se compara ao ChatGPT para programação?" → "Claude Anthropic GPT programação comparação"
+"Quais as características do chatgpt 5.2?" → "GPT-5.2 openai características"
+"O que é o ChatGPT 5.3?" → "GPT-5.3 openai system card"`
           },
           { role: "user", content: trimmed.substring(0, 500) }
         ],
@@ -160,6 +196,41 @@ async function searchRAGChunks(query: string, db: any, cfg: { rag_top_k?: number
   });
   if (error) { console.error("RAG search error:", error); return []; }
   return (data || []) as RAGChunk[];
+}
+
+// ============ TAG FALLBACK SEARCH (Correção 3) ============
+// Quando FTS retorna 0, busca por sobreposição de tags nos documentos
+// Documentos GPT-5.2 têm tags ["llm", "openai", "gpt-5.2"] — encontrável mesmo sem match lexical
+// deno-lint-ignore no-explicit-any
+async function searchByTags(query: string, db: any): Promise<RAGChunk[]> {
+  // Extrai tokens com pelo menos 2 chars, incluindo tokens com hífen
+  const rawTokens = query.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+  // Também adiciona variantes com hífen: "5.2" → "gpt-5.2" etc
+  const tokens = [...new Set(rawTokens)];
+  if (!tokens.length) return [];
+
+  try {
+    const { data, error } = await db
+      .from("rag_chunks")
+      .select("id, content, document_id, priority, rag_documents!inner(title, layer, status, tags)")
+      .eq("rag_documents.status", "indexed")
+      .overlaps("rag_documents.tags", tokens)
+      .limit(10);
+
+    if (error) { console.error("Tag fallback error:", error); return []; }
+
+    return (data || []).map((row: { id: string; content: string; priority: number; rag_documents: { title: string; layer: string; tags: string[] } }) => ({
+      id: row.id,
+      content: row.content,
+      document_title: row.rag_documents?.title || "",
+      layer: row.rag_documents?.layer || "",
+      priority: row.priority,
+      rank: 0.1, // low rank — tag match only
+    })) as RAGChunk[];
+  } catch (e) {
+    console.error("Tag fallback exception:", e);
+    return [];
+  }
 }
 
 // Semantic reranking via LLM tool calling
@@ -383,9 +454,14 @@ serve(async (req) => {
     // Tarefa 3: Check if constitution is relevant
     const needsConstitution = isConstitutionRelevant(userQuery);
 
-    // Bug Fix 2: Extract focused keywords from long messages before FTS
-    // Prevents 28-token AND queries that return zero results
-    const searchQuery = await extractSearchQuery(userQuery, API_KEY);
+    // CORREÇÃO 2: Normaliza sinônimos ANTES de extrair keywords e ANTES do FTS
+    // "chatgpt 5.2" → "gpt 5.2" para que o FTS encontre documentos que usam "GPT-5.2"
+    const normalizedUserQuery = normalizeSynonyms(userQuery);
+
+    // CORREÇÃO 1+4: Extract focused keywords (agora com limiar 30 e prompt melhorado)
+    // "Quais as características do chatgpt 5.2?" (47 chars, já normalizado para "gpt 5.2") 
+    // → extractSearchQuery() → "GPT-5.2 openai características"
+    const searchQuery = await extractSearchQuery(normalizedUserQuery, API_KEY);
 
     // Parallel fetches with cache (Tarefa 6)
     const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks] = await Promise.all([
@@ -398,13 +474,25 @@ serve(async (req) => {
       needsConstitution ? fetchConstitutionChunks(db) : Promise.resolve([]),
     ]);
 
+    // CORREÇÃO 3: Fallback por tags quando FTS retornou 0 resultados
+    // Documentos GPT-5.2 têm tags ["llm", "openai", "gpt-5.2"] → encontrável via overlaps
+    let finalRawChunks = rawRagChunks;
+    if (rawRagChunks.length === 0 && ragCfg.rag_enabled !== false) {
+      console.log(`FTS returned 0 results for "${searchQuery}" — trying tag fallback...`);
+      const tagResults = await searchByTags(searchQuery, db);
+      if (tagResults.length > 0) {
+        console.log(`Tag fallback found ${tagResults.length} chunks`);
+        finalRawChunks = tagResults;
+      }
+    }
+
     // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
-    let ragChunks = rawRagChunks;
-    const shouldRerank = ragCfg.rag_rerank_enabled !== false && rawRagChunks.length > 3;
+    let ragChunks = finalRawChunks;
+    const shouldRerank = ragCfg.rag_rerank_enabled !== false && finalRawChunks.length > 3;
     if (shouldRerank) {
-      ragChunks = await rerankChunks(userQuery, rawRagChunks, API_KEY);
+      ragChunks = await rerankChunks(userQuery, finalRawChunks, API_KEY);
     } else {
-      ragChunks = rawRagChunks.slice(0, 5);
+      ragChunks = finalRawChunks.slice(0, 5);
     }
 
     // Tarefa 7: Check if RAG returned relevant results
@@ -412,7 +500,7 @@ serve(async (req) => {
     const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
       nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
 
-    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, searchQuery: "${searchQuery}"`);
+    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, normalized: "${normalizedUserQuery.substring(0, 60)}", searchQuery: "${searchQuery}"`);
 
     // Tarefa 5: Log RAG query
     try {
