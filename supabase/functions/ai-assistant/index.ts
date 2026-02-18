@@ -96,6 +96,59 @@ async function fetchRecentChannelPosts(db: any): Promise<ChannelPost[]> {
   });
 }
 
+// ============ KEYWORD EXTRACTION (Bug Fix 2 — query longa com AND) ============
+// Para mensagens longas, extrai 3-5 termos técnicos antes do FTS
+// Evita que plainto_tsquery/websearch_to_tsquery gerem 28 tokens em AND
+async function extractSearchQuery(userMessage: string, apiKey: string): Promise<string> {
+  const trimmed = userMessage.trim();
+  if (trimmed.length <= 80) return trimmed; // Mensagens curtas: passa direto
+
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um extrator de palavras-chave para busca em base de conhecimento sobre IA.
+Dado uma mensagem do usuário, extraia APENAS os 3-5 termos técnicos mais importantes.
+REGRAS:
+- Preserve versões exatas: "GPT-5.2", "Claude-3.5", "Gemini-2.0" (mantenha o hífen!)
+- Inclua nomes de modelos, empresas, tecnologias, versões
+- Retorne APENAS os termos separados por espaço, sem explicação
+- Máximo 10 palavras total
+EXEMPLOS:
+"Quero criar um GPT personalizado especialista em requisitos usando modelo 5.2 Thinking" → "GPT-5.2 thinking model openai requisitos"
+"Como o Claude da Anthropic se compara ao ChatGPT para programação?" → "Claude Anthropic ChatGPT programação comparação"`
+          },
+          { role: "user", content: trimmed.substring(0, 500) }
+        ],
+        max_tokens: 50,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn("extractSearchQuery failed:", res.status, "— using truncated original");
+      return trimmed.substring(0, 100);
+    }
+
+    const data = await res.json();
+    const extracted = data.choices?.[0]?.message?.content?.trim();
+    if (extracted && extracted.length > 0 && extracted.length <= 200) {
+      console.log(`Query extracted: "${trimmed.substring(0, 50)}..." → "${extracted}"`);
+      return extracted;
+    }
+  } catch (e) {
+    console.warn("extractSearchQuery error:", e);
+  }
+
+  // Fallback: usa os primeiros 100 chars da mensagem original
+  return trimmed.substring(0, 100);
+}
+
 // ============ RAG SEARCH (Tarefa 2 - Reranking Semântico) ============
 // deno-lint-ignore no-explicit-any
 async function searchRAGChunks(query: string, db: any, cfg: { rag_top_k?: number; rag_enabled?: boolean }): Promise<RAGChunk[]> {
@@ -277,14 +330,16 @@ const ANTI_HALLUCINATION = `\n=== REGRAS ===
 3. Se não souber: "Não encontrei na base de conhecimento"
 4. NÃO invente nomes, datas ou especificações`;
 
-// Tarefa 7: Fallback da RAG
-const RAG_FALLBACK = `\n=== AVISO DE CONTEXTO LIMITADO ===
-A busca na base de conhecimento NÃO retornou resultados relevantes para esta pergunta.
-REGRAS:
-1. NÃO invente informações específicas sobre modelos, preços ou capacidades
-2. Diga que essa informação não está na base de conhecimento atual
-3. Sugira explorar os Espaços (/spaces) ou perguntar nos Canais (/channels)
-4. Pode dar informações GERAIS sobre IA desde que deixe claro que são conhecimento geral`;
+// Bug Fix 3: RAG_FALLBACK harmonizado — não instrui a negar existência de docs
+const RAG_FALLBACK = `\n=== AVISO DE BUSCA ===
+A busca automática na base de conhecimento não retornou resultados específicos para esta consulta.
+IMPORTANTE: Isso pode ser uma limitação técnica da busca, NÃO necessariamente ausência do dado.
+INSTRUÇÕES:
+1. Responda com seu conhecimento geral sobre o tema, deixando CLARO que é conhecimento geral
+2. NÃO afirme que um modelo, versão ou informação "não está na base" — isso pode ser impreciso
+3. Se não tiver certeza sobre algo específico, diga "Não tenho essa informação confirmada"
+4. Mencione que a base de conhecimento do Subhumano pode ter mais detalhes nos Espaços (/spaces)
+5. NUNCA invente especificações técnicas, datas de lançamento ou capacidades de modelos`;
 
 // ============ MAIN HANDLER ============
 serve(async (req) => {
@@ -328,9 +383,13 @@ serve(async (req) => {
     // Tarefa 3: Check if constitution is relevant
     const needsConstitution = isConstitutionRelevant(userQuery);
 
+    // Bug Fix 2: Extract focused keywords from long messages before FTS
+    // Prevents 28-token AND queries that return zero results
+    const searchQuery = await extractSearchQuery(userQuery, API_KEY);
+
     // Parallel fetches with cache (Tarefa 6)
     const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks] = await Promise.all([
-      searchRAGChunks(userQuery, db, ragCfg),
+      searchRAGChunks(searchQuery, db, ragCfg),
       fetchRecentPosts(db),
       fetchRecentChannelPosts(db),
       fetchChannelsCatalog(db),
@@ -339,7 +398,7 @@ serve(async (req) => {
       needsConstitution ? fetchConstitutionChunks(db) : Promise.resolve([]),
     ]);
 
-    // Tarefa 2: Semantic reranking
+    // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
     let ragChunks = rawRagChunks;
     const shouldRerank = ragCfg.rag_rerank_enabled !== false && rawRagChunks.length > 3;
     if (shouldRerank) {
@@ -353,7 +412,7 @@ serve(async (req) => {
     const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
       nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
 
-    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms`);
+    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, searchQuery: "${searchQuery}"`);
 
     // Tarefa 5: Log RAG query
     try {
