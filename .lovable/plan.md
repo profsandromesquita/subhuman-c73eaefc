@@ -1,128 +1,148 @@
 
-# Correção do Fluxo RAG — 3 Bugs Confirmados com Dados Reais
+# Correção Definitiva da Cegueira do Assistente — Causa Raiz Encontrada nos Logs
 
-## Diagnóstico Final (Evidências do Banco)
+## Diagnóstico Final com Evidência dos Logs
 
-### Bug 1 — Tokenizer de Hífens (CONFIRMADO)
-Query direta ao banco prova o problema:
+Os logs da Edge Function de 18/02 provam dois bugs que coexistem:
 
-```text
-to_tsvector('GPT-5.2 - System Card') → tokens: '-5.2', 'card', 'gpt', 'system'
-plainto_tsquery('GPT 5.2')           → query:  'gpt' & '5.2'
-
-match_without_hyphen = FALSE  ← Bug confirmado
-match_with_hyphen    = TRUE   ← Só funciona escrevendo 'GPT-5.2' exato
-match_normalized     = TRUE   ← Solução: normalizar hífens antes de indexar
+```
+searchQuery: "Quais as características do chatgpt 5.2?"  → 0 RAG
+searchQuery: "E sobre o gpt-5.2?"                        → 4 RAG ✓
 ```
 
-### Bug 2 — Query Longa com AND (CONFIRMADO)
-A mensagem real do usuário gerou 28 termos em AND:
-```text
-'quer' & 'cri' & 'gpt' & 'personaliz' & 'é' & 'especial' & 'engenh' & 
-'requisit' & 'professor' & 'autor' & 'livr' & 'pesquis' & 'requisit' & 
-'sistem' & 'ire' & 'configur' & 'model' & '5.2' & 'thinking' & 'respond' &
-'pergunt' & 'dev' & 'ser' & 'system' & 'instructions' & 'dev' & 'adicion' & 'gpt'
+### Bug A — `extractSearchQuery` está falhando silenciosamente
+
+Quando o usuário escreve "Quais as características do chatgpt 5.2?" (47 chars), a função `extractSearchQuery` retorna a string COMPLETA porque a mensagem tem menos de 80 caracteres. O limiar de 80 chars é alto demais — essa frase de 47 chars passa direto sem extração.
+
+**Resultado:** a query enviada ao FTS é `"Quais as características do chatgpt 5.2?"` com 4 tokens AND (`qua & característ & chatgpt & 5.2`) — que não encontra nada porque o token `chatgpt` não existe nos documentos GPT-5.2.
+
+### Bug B — Sinônimo "ChatGPT" vs "GPT" não é resolvido
+
+Os documentos indexados usam o texto `GPT-5.2`, nunca `ChatGPT`. O FTS não sabe que `chatgpt = gpt`. Portanto qualquer busca com `chatgpt` falha contra os documentos reais.
+
+Confirmado via query no banco:
 ```
-Nenhum chunk do mundo satisfaz 28 termos em AND simultaneamente → zero resultados.
-
-### Bug 3 — System Prompt Conflitante (CONFIRMADO)
-Quando RAG retorna zero → `RAG_FALLBACK` instrui: *"Diga que essa informação não está na base"*. Resultado: o modelo inventa que o GPT-5.2 não existe na base, quando na verdade existem 4 documentos indexados sobre ele.
-
-## O que Será Alterado
-
-### Correção 1 — Banco de Dados: Normalizar Hífens na Função `search_rag_chunks_lexical`
-
-A função SQL atual usa `plainto_tsquery('portuguese', query_text)` diretamente. A correção substitui por `websearch_to_tsquery` com normalização de hífens na query, gerando tokens compatíveis com o tsvector dos documentos:
-
-```sql
--- Antes:
-search_query := plainto_tsquery('portuguese', query_text);
-
--- Depois (2 melhorias):
--- 1. Normaliza hífens: 'GPT-5.2' → 'GPT 5.2' antes de tokenizar  
--- 2. websearch_to_tsquery suporta OR e frases (mais flexível que AND rígido)
-normalized_text := regexp_replace(query_text, '([A-Za-z0-9])-([A-Za-z0-9])', '\1 \2', 'g');
-search_query := websearch_to_tsquery('portuguese', normalized_text);
+has_chatgpt: false  ← em TODOS os chunks de GPT-5.2
+has_52: true        ← esses existem
 ```
 
-Também adicionar fallback: se `websearch_to_tsquery` falhar por query muito longa, usar `OR` entre os primeiros 5 tokens.
+### Por que "E sobre o gpt-5.2?" funcionou?
 
-### Correção 2 — Edge Function: Extração de Keywords antes do FTS
+Porque tem apenas 23 chars (< 80), passa pela extração sem mudança, e o FTS encontra `gpt & 5.2` que SIM existem nos documentos.
 
-Adicionar função `extractSearchQuery()` que, para mensagens longas (>80 chars), usa o modelo `google/gemini-2.5-flash-lite` para extrair 3-5 termos técnicos principais antes de chamar o banco:
+---
+
+## O que a Instrução Adicional que Você Adicionou Resolve?
+
+A instrução que você adicionou em "Instruções Adicionais" vai para o `system_instruction` do modelo — que é adicionado ao system prompt DEPOIS da busca FTS. Isso orienta o modelo a pensar melhor, mas **não muda o que é buscado no banco de dados**. A busca FTS acontece antes do modelo sequer ver sua instrução.
+
+Então: **não, isso não resolve o problema de recuperação**. A busca no banco precisa ser corrigida na Edge Function.
+
+---
+
+## Plano de Correção
+
+### Correção 1 — Reduzir limiar de extração: 80 → 30 chars
+
+A mensagem "Quais as características do chatgpt 5.2?" tem 47 chars e **não deveria** passar direto. O limiar correto é 30 chars — somente perguntas ultra-curtas como "gpt 5.2?" passam sem extração.
 
 ```typescript
-// NOVO fluxo:
-// 1. Usuário envia: "Quero criar um GPT personalizado especialista em ER, com modelo 5.2 Thinking..."
-// 2. extractSearchQuery() → "GPT-5.2 thinking model openai"  (query curta e focada)
-// 3. searchRAGChunks("GPT-5.2 thinking model openai") → encontra os 4 documentos GPT-5.2
-// 4. rerankChunks() → seleciona os 3 mais relevantes
-// 5. Modelo responde com conteúdo real dos System Cards
+// ANTES (falha):
+if (trimmed.length <= 80) return trimmed;
 
-async function extractSearchQuery(userMessage: string, apiKey: string): Promise<string> {
-  if (userMessage.trim().length <= 80) return userMessage; // Mensagens curtas: passa direto
-  
-  // Chama LLM rápido para extração de entidades
-  // Prompt: "Extraia 3-5 termos técnicos para busca em base de conhecimento sobre IA.
-  //          Preserve versões exatas como 'GPT-5.2', 'Claude-3.5'. Retorne apenas os termos."
-  // Resultado esperado: "GPT-5.2 thinking model system instructions"
+// DEPOIS (corrigido):
+if (trimmed.length <= 30) return trimmed;
+```
+
+### Correção 2 — Resolver Sinônimos Antes do FTS (mapa de aliases)
+
+Adicionar uma função `normalizeSynonyms()` que resolve termos equivalentes comuns no domínio de IA antes de enviar para o FTS:
+
+```typescript
+const AI_SYNONYMS: Record<string, string> = {
+  "chatgpt":     "gpt",
+  "chat gpt":    "gpt",
+  "chat-gpt":    "gpt",
+  "openai gpt":  "gpt openai",
+  "gpt 5":       "gpt",
+  "chatgpt4":    "gpt-4 gpt4",
+  "chatgpt3":    "gpt-3 gpt3",
+  "grok":        "grok xai",
+  "claude":      "claude anthropic",
+  "gemini":      "gemini google",
+};
+
+function normalizeSynonyms(query: string): string {
+  let normalized = query.toLowerCase();
+  for (const [alias, replacement] of Object.entries(AI_SYNONYMS)) {
+    normalized = normalized.replace(new RegExp(`\\b${alias}\\b`, 'g'), replacement);
+  }
+  return normalized;
 }
 ```
 
-Esta função é chamada **antes** do `searchRAGChunks`, substituindo o `userQuery` completo pela query focada.
+Esta função é chamada **antes** do `extractSearchQuery` e **antes** de enviar ao FTS.
 
-### Correção 3 — System Prompt: Harmonizar RAG_FALLBACK e Instrução de Fallback
+### Correção 3 — Busca Dupla: FTS + Fallback por Tags
 
-Substituir o `RAG_FALLBACK` atual (que instrui o modelo a negar a existência) por uma instrução que:
-- Admite que a busca automática falhou (pode ser problema técnico, não ausência do dado)
-- Pede que o modelo use seu conhecimento geral com transparência
-- Remove a instrução "Diga que essa informação não está na base" — que causa alucinação inversa
+Quando o FTS retorna 0 resultados, fazer uma segunda busca diretamente nas tags dos documentos. Os documentos GPT-5.2 têm tags `["llm", "openai", "gpt-5.2", ...]`. Uma busca por tag encontraria imediatamente.
 
 ```typescript
-// ANTES (problemático):
-const RAG_FALLBACK = `
-  A busca NÃO retornou resultados. REGRAS:
-  1. NÃO invente informações específicas
-  2. Diga que essa informação não está na base de conhecimento atual  ← CAUSA ALUCINAÇÃO INVERSA
-  3. Sugira explorar os Espaços ou Canais`;
-
-// DEPOIS (corrigido):
-const RAG_FALLBACK = `
-  A busca automática não retornou resultados específicos para esta consulta.
-  INSTRUÇÕES:
-  1. Responda com seu conhecimento geral sobre o tema, sendo claro que é conhecimento geral
-  2. NÃO afirme que um modelo ou informação "não está na base" — isso pode ser impreciso
-  3. Se não tiver certeza sobre algo específico, diga "Não tenho essa informação confirmada"
-  4. Mencione que a base de conhecimento do Subhumano pode ter mais detalhes nos Espaços`;
+// Se FTS retornou 0 → busca por tags como fallback
+async function searchByTags(query: string, db: any): Promise<RAGChunk[]> {
+  // Extrai tokens da query e busca em tags[]
+  // "chatgpt 5.2" → busca tags que contenham "5.2" OU "gpt-5.2" OU "openai"
+  const tokens = query.split(/\s+/).filter(t => t.length > 2);
+  const { data } = await db.from("rag_chunks")
+    .select("id, content, document_id, rag_documents!inner(title, layer, status, tags)")
+    .eq("rag_documents.status", "indexed")
+    .overlaps("rag_documents.tags", tokens)
+    .limit(10);
+  return data || [];
+}
 ```
+
+### Correção 4 — Melhorar Prompt de Extração de Keywords
+
+O prompt atual do `extractSearchQuery` não instrui o modelo a converter "ChatGPT" em "GPT". Adicionar essa regra explicitamente:
+
+```typescript
+// Adicionar ao system prompt da extração:
+"IMPORTANTE: 'ChatGPT' e 'ChatGPT-X.X' devem ser convertidos para 'GPT-X.X openai'. Exemplo: 'ChatGPT 5.2' → 'GPT-5.2 openai'"
+```
+
+---
 
 ## Arquivos Alterados
 
-| # | Arquivo | Mudança |
-|---|---|---|
-| 1 | `supabase/migrations/TIMESTAMP_fix_rag_lexical_search.sql` | Reescreve `search_rag_chunks_lexical` com `websearch_to_tsquery` + normalização de hífens |
-| 2 | `supabase/functions/ai-assistant/index.ts` | Adiciona `extractSearchQuery()` + atualiza `RAG_FALLBACK` + chama extração antes do FTS |
+| Arquivo | Mudança |
+|---|---|
+| `supabase/functions/ai-assistant/index.ts` | 4 correções: limiar 80→30, `normalizeSynonyms()`, busca fallback por tags, prompt de extração melhorado |
 
-## Fluxo Após as Correções
+## Fluxo Corrigido
 
-```text
-Usuário: "...modelo 5.2 Thinking...system instructions..." (286 chars)
+```
+Usuário: "Quais as características do chatgpt 5.2?" (47 chars)
          ↓
-[NOVO] extractSearchQuery() → "GPT-5.2 thinking openai model" (query focada)
+[1] normalizeSynonyms("chatgpt 5.2") → "gpt 5.2"
          ↓
-[NOVO] search_rag_chunks_lexical com normalização de hífens:
-       "GPT-5.2" → "GPT 5.2" → tokens: 'gpt' & '5.2' → MATCH! ✓
+[2] 47 chars > 30 → extractSearchQuery() é chamado
+    Prompt: "chatgpt → GPT-X.X" instrui o modelo
+    Retorna: "GPT-5.2 openai características"
          ↓
-Resultados: GPT-5.2 System Card ✓, GPT-5.2-Codex ✓, GitHub Copilot GPT-5.2 ✓
+[3] FTS com "GPT-5.2 openai" → websearch_to_tsquery → 'gpt' OR '5.2' OR 'opena'
+    Encontra: GPT-5.2 System Card ✓, GPT-5.2-Codex ✓, GitHub Copilot GPT-5.2 ✓
          ↓
-rerankChunks() seleciona os 3 mais relevantes
+[4] Se FTS = 0 → fallback por tags (busca "5.2", "gpt-5.2", "openai" em tags[])
          ↓
 Modelo responde com conteúdo real dos System Cards ✓
 ```
 
 ## Resultado Esperado
 
-Após as 3 correções, quando o usuário perguntar sobre "GPT 5.2", "modelo 5.2 Thinking", "ChatGPT 5.3" ou qualquer termo técnico com hífen em uma pergunta longa, o assistente:
-1. Encontrará os documentos indexados correspondentes
-2. Responderá com o conteúdo real da base (System Cards, especificações)
-3. Não negará mais falsamente a existência de documentos que existem
+| Pergunta do usuário | Antes | Depois |
+|---|---|---|
+| "Quais as características do chatgpt 5.2?" | 0 RAG | 3-5 chunks GPT-5.2 |
+| "O que é o ChatGPT 5.3?" | 0 RAG | 3+ chunks System Card GPT-5.3 |
+| "Me fale sobre o GPT-5.2 Thinking" | 0 RAG | 4+ chunks |
+| "E sobre o gpt-5.2?" | 4 RAG ✓ | 4+ RAG ✓ (já funciona) |
