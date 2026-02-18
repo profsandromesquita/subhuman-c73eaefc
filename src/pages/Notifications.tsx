@@ -8,6 +8,7 @@ import {
   TrendUp, 
   ChatCircle, 
   Megaphone,
+  EnvelopeSimple,
   Check,
   IconProps
 } from "@phosphor-icons/react";
@@ -27,6 +28,7 @@ const iconMap: Record<string, PhosphorIcon> = {
   announcement: Megaphone,
   trending: TrendUp,
   info: Bell,
+  direct_message: EnvelopeSimple,
 };
 
 export default function Notifications() {
