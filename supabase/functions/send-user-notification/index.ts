@@ -81,15 +81,17 @@ Deno.serve(async (req) => {
     }
 
     let emailSent = false;
+    let emailErrorMsg: string | null = null;
 
     // Send email if requested and Resend is configured
     if (send_email && resendApiKey) {
       try {
         // Get user email via admin API
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(user_id);
+        const { data: userData, error: userFetchError } = await supabase.auth.admin.getUserById(user_id);
 
-        if (userError || !userData?.user?.email) {
-          console.error('Could not fetch user email:', userError);
+        if (userFetchError || !userData?.user?.email) {
+          console.error('Could not fetch user email:', userFetchError);
+          emailErrorMsg = 'Não foi possível obter o email do usuário';
         } else {
           // Get profile for name
           const { data: profile } = await supabase
@@ -112,6 +114,7 @@ Deno.serve(async (req) => {
 
           if (emailError) {
             console.error('Email send error:', emailError);
+            emailErrorMsg = (emailError as any).message || 'Falha no envio do email';
           } else {
             emailSent = true;
             console.log(`Email sent to ${userData.user.email}`);
@@ -119,11 +122,12 @@ Deno.serve(async (req) => {
         }
       } catch (emailErr: any) {
         console.error('Error in email sending:', emailErr);
+        emailErrorMsg = emailErr?.message || 'Erro inesperado no envio do email';
       }
     }
 
     return new Response(
-      JSON.stringify({ success: true, emailSent }),
+      JSON.stringify({ success: true, emailSent, emailError: emailErrorMsg }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {

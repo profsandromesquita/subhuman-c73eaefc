@@ -213,7 +213,7 @@ export default function Users() {
     if (!selectedUser || !notifyTitle.trim()) return;
     setNotifySending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-user-notification', {
+      const { data, error } = await supabase.functions.invoke('send-user-notification', {
         body: {
           user_id: selectedUser.id,
           title: notifyTitle.trim(),
@@ -222,8 +222,20 @@ export default function Users() {
         },
       });
       if (error) throw error;
-      toast.success(`Notificação enviada para ${selectedUser.full_name || 'usuário'}!`);
+
+      if (notifySendEmail && data && !data.emailSent) {
+        const emailErrMsg = data.emailError || 'Email não pôde ser enviado.';
+        toast.warning(`Notificação in-app enviada! Email falhou: ${emailErrMsg}`);
+      } else {
+        const successMsg = notifySendEmail && data?.emailSent
+          ? `Notificação e email enviados para ${selectedUser.full_name || 'usuário'}!`
+          : `Notificação enviada para ${selectedUser.full_name || 'usuário'}!`;
+        toast.success(successMsg);
+      }
       setShowNotifyDialog(false);
+      setNotifyTitle('');
+      setNotifyMessage('');
+      setNotifySendEmail(false);
     } catch (error) {
       console.error('Error sending notification:', error);
       toast.error('Erro ao enviar notificação');
