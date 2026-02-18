@@ -127,24 +127,28 @@ export function PostContent({
     if (!el) return;
 
     const roots: ReturnType<typeof createRoot>[] = [];
-    const preBlocks = el.querySelectorAll('pre');
 
-    preBlocks.forEach((pre) => {
-      // Skip if already has a copy button
-      if (pre.querySelector('.code-copy-btn')) return;
+    // Aguarda o DOM estabilizar após o dangerouslySetInnerHTML
+    const timer = setTimeout(() => {
+      // Remover botões antigos antes de re-injetar (evita duplicatas)
+      el.querySelectorAll('.code-copy-btn').forEach((btn) => btn.remove());
 
-      pre.style.position = 'relative';
-      const container = document.createElement('div');
-      container.className = 'code-copy-btn';
-      pre.appendChild(container);
+      const preBlocks = el.querySelectorAll('pre');
+      preBlocks.forEach((pre) => {
+        pre.style.position = 'relative';
+        const container = document.createElement('div');
+        container.className = 'code-copy-btn';
+        pre.appendChild(container);
 
-      const codeText = pre.querySelector('code')?.textContent || pre.textContent || '';
-      const root = createRoot(container);
-      root.render(<CodeBlockCopyButton code={codeText} />);
-      roots.push(root);
-    });
+        const codeText = pre.querySelector('code')?.textContent || pre.textContent || '';
+        const root = createRoot(container);
+        root.render(<CodeBlockCopyButton code={codeText} />);
+        roots.push(root);
+      });
+    }, 50);
 
     return () => {
+      clearTimeout(timer);
       roots.forEach((root) => root.unmount());
     };
   }, [content, canReadFullArticles]);

@@ -21,7 +21,7 @@ export function CodeBlockCopyButton({ code }: CodeBlockCopyButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      className="absolute top-2 right-2 p-1.5 rounded-lg bg-[hsl(var(--elevated))] hover:bg-[hsl(var(--border))] transition-colors text-muted-foreground hover:text-foreground"
+      className="absolute top-2 right-2 p-1.5 rounded-lg bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition-colors text-muted-foreground hover:text-foreground"
       title={copied ? "Copiado!" : "Copiar"}
       type="button"
     >
