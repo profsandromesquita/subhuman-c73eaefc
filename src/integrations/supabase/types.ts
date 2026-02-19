@@ -482,6 +482,39 @@ export type Database = {
           },
         ]
       }
+      content_insights: {
+        Row: {
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          raw_analysis: string | null
+          sources_summary: Json
+          status: string
+          suggestions: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          raw_analysis?: string | null
+          sources_summary?: Json
+          status?: string
+          suggestions?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          raw_analysis?: string | null
+          sources_summary?: Json
+          status?: string
+          suggestions?: Json
+        }
+        Relationships: []
+      }
       coupon_redemptions: {
         Row: {
           coupon_id: string
