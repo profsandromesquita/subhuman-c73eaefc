@@ -1,54 +1,16 @@
 
 
-# Inteligencia de Conteudo -- Agente Semanal de Sugestoes
+# Inteligencia de Conteudo -- Implementacao Completa
 
-## Resumo
+## Status Atual
 
-Criar um sistema que analisa automaticamente (1) as perguntas dos usuarios no Assistente de IA (tabela `rag_query_logs`) e (2) os posts e comentarios dos 6 canais da comunidade, e gera semanalmente um relatorio com ideias de conteudos para Espacos, Canais, Podcasts e Cursos. O relatorio fica acessivel em uma nova pagina do painel administrativo.
-
----
-
-## Fontes de Dados
-
-Os dados ja existem no banco:
-
-| Fonte | Tabela | Volume atual |
-|---|---|---|
-| Perguntas ao Assistente IA | `rag_query_logs` (query, intent, chunks_count) | 30 registros desde 05/02 |
-| Posts dos Canais | `channel_posts` (content, title, channel_id) | ~31 posts nos ultimos 30 dias |
-| Comentarios dos Canais | `channel_post_comments` (content, post_id) | Existente |
-| Canais ativos | `channels` (6 canais: Geral, Duvidas, Networking, Projetos Premium, Ferramentas, Oportunidades) | 6 canais |
+Nenhum dos 7 itens do plano aprovado foi implementado. Este plano retoma a implementacao completa.
 
 ---
 
-## Arquitetura
+## Passo 1 -- Criar tabela `content_insights`
 
-```text
-+------------------+     +------------------------+     +-------------------+
-| CRON Semanal     |---->| Edge Function           |---->| Tabela             |
-| (pg_cron)        |     | content-intelligence   |     | content_insights   |
-+------------------+     +------------------------+     +-------------------+
-                              |                               |
-                              | 1. Le rag_query_logs (7d)     |
-                              | 2. Le channel_posts (7d)      |
-                              | 3. Le channel_post_comments   |
-                              | 4. Envia para LLM Gemini      |
-                              | 5. Salva relatorio JSON        |
-                              v                               v
-                         +---------------------------+
-                         | Admin: /admin/intelligence |
-                         | Lista de relatorios        |
-                         | Detalhes com sugestoes     |
-                         +---------------------------+
-```
-
----
-
-## Plano de Implementacao
-
-### Passo 1 -- Criar tabela `content_insights`
-
-Nova tabela para armazenar os relatorios gerados semanalmente.
+Migration SQL para criar a tabela com RLS restrito a admins/moderators.
 
 ```sql
 CREATE TABLE public.content_insights (
@@ -69,141 +31,50 @@ CREATE POLICY "Admins can manage content_insights"
   USING (is_admin_or_moderator(auth.uid()));
 ```
 
-Estrutura do campo `suggestions` (array JSON):
+## Passo 2 -- Edge Function `content-intelligence`
 
-```json
-[
-  {
-    "title": "Tutorial: Como usar GPT-5.2 para programacao",
-    "type": "espaco",
-    "priority": "alta",
-    "reasoning": "5 usuarios perguntaram sobre GPT-5.2 no assistente e 0 chunks foram encontrados",
-    "suggested_space": "programacao-e-automacao",
-    "source_queries": ["Quais as caracteristicas do chatgpt 5.2?", "E sobre o gpt-5.2?"],
-    "source_channels": []
-  }
-]
-```
+Criar `supabase/functions/content-intelligence/index.ts` que:
 
-Estrutura do campo `sources_summary`:
+1. Coleta dos ultimos 7 dias: `rag_query_logs`, `channel_posts`, `channel_post_comments` (com nome do canal via join)
+2. Monta prompt para Gemini 3 Flash (via Lovable AI Gateway) pedindo analise de lacunas e sugestoes
+3. Usa tool calling para extrair JSON estruturado com as sugestoes
+4. Salva na tabela `content_insights`
+5. Aceita chamada sem JWT (para CRON) -- `verify_jwt = false` no config.toml
 
-```json
-{
-  "total_queries": 15,
-  "total_channel_posts": 22,
-  "total_channel_comments": 45,
-  "top_topics_queries": ["GPT-5.2", "ChatGPT", "automacao"],
-  "top_channels_activity": [
-    { "name": "Ferramentas", "posts": 11, "comments": 8 }
-  ],
-  "queries_without_answer": 8
-}
-```
+## Passo 3 -- Hook React
 
-### Passo 2 -- Criar Edge Function `content-intelligence`
+Criar `src/hooks/useContentInsights.ts`:
+- `useQuery` para listar relatorios ordenados por data
+- `useMutation` para disparar geracao manual via `supabase.functions.invoke('content-intelligence')`
+- Invalidacao de cache apos sucesso
 
-Nova Edge Function em `supabase/functions/content-intelligence/index.ts` que:
+## Passo 4 -- Pagina Admin
 
-1. **Coleta dados dos ultimos 7 dias:**
-   - `rag_query_logs`: todas as queries, com destaque para as que retornaram `chunks_count = 0` (indicam lacunas no conteudo)
-   - `channel_posts`: posts dos 6 canais com conteudo
-   - `channel_post_comments`: comentarios nos posts dos canais
+Criar `src/pages/admin/ContentIntelligence.tsx`:
+- Header com titulo e botao "Gerar Relatorio Agora"
+- Lista de relatorios em cards (periodo, data, resumo)
+- Ao clicar, expande detalhes: metricas das fontes, sugestoes com badges de tipo e prioridade, queries de origem colapsaveis
 
-2. **Monta um prompt para o LLM** (Gemini 2.5 Flash via Lovable AI Gateway) com instrucoes para:
-   - Identificar temas recorrentes nas perguntas dos usuarios
-   - Identificar lacunas de conteudo (perguntas sem resposta = chunks_count 0)
-   - Identificar tendencias nas discussoes dos canais
-   - Sugerir entre 5 e 15 ideias de conteudo, cada uma com:
-     - Titulo sugerido
-     - Tipo: espaco (artigo), canal (post de discussao), podcast (episodio), ou curso
-     - Prioridade: alta, media, baixa
-     - Justificativa baseada nos dados
-     - Espaco ou canal sugerido
-     - Queries ou posts de origem
+## Passo 5 -- Rota e Navegacao
 
-3. **Salva o resultado** na tabela `content_insights`
+- Adicionar rota `/admin/intelligence` no `App.tsx` dentro do grupo admin com `AdminGuard`
+- Adicionar item "Inteligencia" no `AdminSidebar.tsx` na secao "Conteudo" com icone `Lightbulb`
 
-4. **Tambem permite execucao manual** via botao no admin (nao depende apenas do cron)
+## Passo 6 -- CRON Semanal
 
-### Passo 3 -- Configurar CRON semanal
-
-Agendar via `pg_cron` para executar toda segunda-feira as 06:00 UTC:
-
-```sql
-SELECT cron.schedule(
-  'weekly-content-intelligence',
-  '0 6 * * 1',
-  $$
-  SELECT net.http_post(
-    url:='https://akkbfzfjappludgsrwsw.supabase.co/functions/v1/content-intelligence',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
-    body:='{}'::jsonb
-  ) as request_id;
-  $$
-);
-```
-
-### Passo 4 -- Criar pagina Admin `/admin/intelligence`
-
-Nova pagina `src/pages/admin/ContentIntelligence.tsx` com:
-
-- **Header**: "Inteligencia de Conteudo" com descricao e botao "Gerar Relatorio Agora"
-- **Lista de relatorios**: Cards com periodo, data de geracao e resumo
-- **Detalhe do relatorio** (ao clicar):
-  - Resumo das fontes (quantas queries, posts, comentarios analisados)
-  - Perguntas mais frequentes sem resposta (lacunas)
-  - Lista de sugestoes em cards com:
-    - Badge do tipo (Espaco, Canal, Podcast, Curso)
-    - Badge de prioridade (Alta em vermelho, Media em amarelo, Baixa em cinza)
-    - Titulo sugerido
-    - Justificativa
-    - Queries/posts de origem colapsaveis
-
-### Passo 5 -- Adicionar rota e navegacao
-
-- Adicionar rota `/admin/intelligence` no `App.tsx` com `AdminGuard`
-- Adicionar item "Inteligencia" no `AdminSidebar.tsx` na secao "Conteudo" com icone `Lightbulb` do Phosphor Icons
+Configurar via SQL (insert tool) o agendamento `pg_cron` para toda segunda-feira as 06:00 UTC.
 
 ---
 
-## Detalhes Tecnicos
-
-### Edge Function -- Prompt do LLM
-
-O prompt instruira o modelo a agir como um "Content Strategist" que analisa dados reais de engajamento e retorna JSON estruturado. O prompt inclui:
-
-- As queries dos usuarios agrupadas por tema
-- Destaque para queries com `chunks_count = 0` (sem resposta)
-- Posts e comentarios dos canais resumidos por canal
-- Os 5 espacos existentes como opcoes de destino
-- Os 6 canais como opcoes de destino
-- Instrucao para retornar um array JSON com o schema definido
-
-### Seguranca
-
-- A Edge Function valida o JWT (admin/moderator) para execucao manual
-- Para execucao via CRON, aceita chamada com anon key (sem JWT)
-- A tabela `content_insights` tem RLS restrito a admin/moderator
-
-### Hook React
-
-Criar `src/hooks/useContentInsights.ts` com:
-- `useQuery` para listar relatorios
-- `useMutation` para gerar relatorio manual
-- Invalidacao de cache apos geracao
-
----
-
-## Arquivos Criados/Alterados
+## Arquivos a Criar/Alterar
 
 | # | Arquivo | Acao |
 |---|---|---|
-| 1 | Migration SQL | Criar tabela `content_insights` + RLS |
+| 1 | Migration SQL | Criar tabela + RLS |
 | 2 | `supabase/functions/content-intelligence/index.ts` | Nova Edge Function |
-| 3 | `supabase/config.toml` | Registrar `content-intelligence` com `verify_jwt = false` |
-| 4 | SQL (insert tool) | Configurar pg_cron semanal |
-| 5 | `src/hooks/useContentInsights.ts` | Novo hook |
-| 6 | `src/pages/admin/ContentIntelligence.tsx` | Nova pagina admin |
-| 7 | `src/App.tsx` | Adicionar rota `/admin/intelligence` |
-| 8 | `src/components/admin/AdminSidebar.tsx` | Adicionar item "Inteligencia" |
+| 3 | `src/hooks/useContentInsights.ts` | Novo hook |
+| 4 | `src/pages/admin/ContentIntelligence.tsx` | Nova pagina |
+| 5 | `src/App.tsx` | Adicionar rota |
+| 6 | `src/components/admin/AdminSidebar.tsx` | Adicionar item nav |
+| 7 | SQL (insert tool) | CRON semanal |
 
