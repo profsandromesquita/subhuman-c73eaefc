@@ -105,19 +105,24 @@ Deno.serve(async (req) => {
 
           const htmlContent = generateNotificationEmail(userName, title, message);
 
-          const { error: emailError } = await resend.emails.send({
+          console.log('Tentando enviar email para:', userData.user.email);
+          console.log('API Key (primeiros 12 chars):', resendApiKey.slice(0, 12));
+
+          const sendResult = await resend.emails.send({
             from: 'Subhumano <noreply@subhumano.ia.br>',
             to: [userData.user.email],
             subject: `📣 ${title}`,
             html: htmlContent,
           });
 
-          if (emailError) {
-            console.error('Email send error:', emailError);
-            emailErrorMsg = (emailError as any).message || 'Falha no envio do email';
+          console.log('Resultado Resend completo:', JSON.stringify(sendResult));
+
+          if (sendResult.error) {
+            console.error('Resend error:', JSON.stringify(sendResult.error));
+            emailErrorMsg = (sendResult.error as any).message || JSON.stringify(sendResult.error);
           } else {
             emailSent = true;
-            console.log(`Email sent to ${userData.user.email}`);
+            console.log(`Email enviado com sucesso para ${userData.user.email}, id: ${sendResult.data?.id}`);
           }
         }
       } catch (emailErr: any) {
