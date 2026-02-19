@@ -67,6 +67,7 @@ const RAGDocuments = lazy(() => import("./pages/admin/rag/Documents"));
 const RAGChunks = lazy(() => import("./pages/admin/rag/Chunks"));
 const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
 const AdminEvents = lazy(() => import("./pages/admin/Events"));
+const ContentIntelligence = lazy(() => import("./pages/admin/ContentIntelligence"));
 
 const App = () => (
   <ErrorBoundary>
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="/admin/channels" element={<AdminGuard><AdminChannels /></AdminGuard>} />
               <Route path="/admin/moderation" element={<AdminGuard><Moderation /></AdminGuard>} />
               <Route path="/admin/events" element={<AdminGuard><AdminEvents /></AdminGuard>} />
+              <Route path="/admin/intelligence" element={<AdminGuard><ContentIntelligence /></AdminGuard>} />
               <Route path="/admin/settings/general" element={<AdminGuard><GeneralSettings /></AdminGuard>} />
               <Route path="/admin/settings/users" element={<AdminGuard requireAdmin><SystemUsers /></AdminGuard>} />
               <Route path="/admin/settings/notifications" element={<AdminGuard><NotificationSettings /></AdminGuard>} />

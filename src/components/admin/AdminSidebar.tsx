@@ -20,6 +20,7 @@ import {
   FileText,
   Cube,
   MagnifyingGlass,
+  Lightbulb,
 } from '@phosphor-icons/react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -51,6 +52,7 @@ const contentNavItems = [
   { title: 'Canais', url: '/admin/channels', icon: ChatCircle },
   { title: 'Eventos', url: '/admin/events', icon: CalendarCheck },
   { title: 'Moderação', url: '/admin/moderation', icon: Shield },
+  { title: 'Inteligência', url: '/admin/intelligence', icon: Lightbulb },
 ];
 
 const ragNavItems = [
