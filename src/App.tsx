@@ -18,6 +18,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Plans = lazy(() => import("./pages/Plans"));
 const SetupAdmin = lazy(() => import("./pages/SetupAdmin"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 
 // Protected pages
 const Home = lazy(() => import("./pages/Home"));
@@ -86,6 +87,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/plans" element={<Plans />} />
               <Route path="/setup-admin" element={<SetupAdmin />} />
+              <Route path="/privacidade" element={<PrivacyPolicy />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
 
               {/* Protected Routes - Require active subscription */}
