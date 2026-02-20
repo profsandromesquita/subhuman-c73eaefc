@@ -1,4 +1,5 @@
 import { Logo } from "@/components/Logo";
+import { Link } from "react-router-dom";
 
 export function LandingFooter() {
   return (
@@ -8,7 +9,7 @@ export function LandingFooter() {
 
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
           <a href="#" className="hover:text-foreground transition-colors">Termos de Uso</a>
-          <a href="#" className="hover:text-foreground transition-colors">Política de Privacidade</a>
+          <Link to="/privacidade" className="hover:text-foreground transition-colors">Política de Privacidade</Link>
           <a href="#" className="hover:text-foreground transition-colors">Contato</a>
         </div>
 
