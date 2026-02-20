@@ -1,80 +1,73 @@
 
 
-# Inteligencia de Conteudo -- Implementacao Completa
+# Politica de Privacidade -- Pagina Publica
 
-## Status Atual
+## Resumo
 
-Nenhum dos 7 itens do plano aprovado foi implementado. Este plano retoma a implementacao completa.
-
----
-
-## Passo 1 -- Criar tabela `content_insights`
-
-Migration SQL para criar a tabela com RLS restrito a admins/moderators.
-
-```sql
-CREATE TABLE public.content_insights (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  period_start TIMESTAMPTZ NOT NULL,
-  period_end TIMESTAMPTZ NOT NULL,
-  sources_summary JSONB NOT NULL DEFAULT '{}',
-  suggestions JSONB NOT NULL DEFAULT '[]',
-  raw_analysis TEXT,
-  status TEXT NOT NULL DEFAULT 'completed',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.content_insights ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admins can manage content_insights"
-  ON public.content_insights FOR ALL
-  USING (is_admin_or_moderator(auth.uid()));
-```
-
-## Passo 2 -- Edge Function `content-intelligence`
-
-Criar `supabase/functions/content-intelligence/index.ts` que:
-
-1. Coleta dos ultimos 7 dias: `rag_query_logs`, `channel_posts`, `channel_post_comments` (com nome do canal via join)
-2. Monta prompt para Gemini 3 Flash (via Lovable AI Gateway) pedindo analise de lacunas e sugestoes
-3. Usa tool calling para extrair JSON estruturado com as sugestoes
-4. Salva na tabela `content_insights`
-5. Aceita chamada sem JWT (para CRON) -- `verify_jwt = false` no config.toml
-
-## Passo 3 -- Hook React
-
-Criar `src/hooks/useContentInsights.ts`:
-- `useQuery` para listar relatorios ordenados por data
-- `useMutation` para disparar geracao manual via `supabase.functions.invoke('content-intelligence')`
-- Invalidacao de cache apos sucesso
-
-## Passo 4 -- Pagina Admin
-
-Criar `src/pages/admin/ContentIntelligence.tsx`:
-- Header com titulo e botao "Gerar Relatorio Agora"
-- Lista de relatorios em cards (periodo, data, resumo)
-- Ao clicar, expande detalhes: metricas das fontes, sugestoes com badges de tipo e prioridade, queries de origem colapsaveis
-
-## Passo 5 -- Rota e Navegacao
-
-- Adicionar rota `/admin/intelligence` no `App.tsx` dentro do grupo admin com `AdminGuard`
-- Adicionar item "Inteligencia" no `AdminSidebar.tsx` na secao "Conteudo" com icone `Lightbulb`
-
-## Passo 6 -- CRON Semanal
-
-Configurar via SQL (insert tool) o agendamento `pg_cron` para toda segunda-feira as 06:00 UTC.
+Criar uma pagina publica `/privacidade` com a Politica de Privacidade completa do Subhumano, em conformidade com a LGPD, e atualizar os links existentes no footer da landing page. A pagina sera estatica (sem necessidade de banco de dados), com design consistente com o restante do site.
 
 ---
 
-## Arquivos a Criar/Alterar
+## Dados Coletados pela Plataforma (Baseado na Analise do Banco)
+
+Com base na tabela `profiles` e no fluxo de autenticacao, os dados coletados sao:
+
+- **Cadastro/Autenticacao**: Nome completo, e-mail, senha (hash), avatar, autenticacao via Google OAuth
+- **Perfil Pessoal**: Cidade, estado, ocupacao, empresa, cargo, industria, formacao, habilidades, hobbies, bio, nivel de experiencia com IA, objetivos
+- **Perfil Empresarial**: CNPJ, website, redes sociais (Instagram, LinkedIn)
+- **Preferencias de Notificacao**: Configuracoes de notificacao por tipo (espacos, comentarios, mencoes, anuncios, email diario)
+- **Assinatura/Pagamento**: Dados de pagamento processados via Ticto (gateway externo)
+- **Uso da Plataforma**: Queries ao assistente IA, posts e comentarios nos canais, conteudos salvos
+
+---
+
+## Plano de Implementacao
+
+### Passo 1 -- Criar pagina `src/pages/PrivacyPolicy.tsx`
+
+Pagina publica com conteudo completo da politica, organizado em secoes com acordeao (Accordion) para facilitar a leitura:
+
+1. **Identificacao da Empresa**: ITIA - Instituto de Tecnologia e Inteligencia Artificial, CNPJ 58.246.571/0001-90, contato Prof. Msc. Sandro Mesquita
+2. **Dados Coletados**: Lista detalhada baseada na analise acima
+3. **Finalidade do Uso**: Personalizacao, comunicacao, marketing (com consentimento), analise, obrigacoes legais
+4. **Compartilhamento**: ITIA como empresa responsavel, processadores de pagamento (Ticto), plataformas de publicidade (Meta) para fins de remarketing
+5. **Seguranca**: Criptografia, RLS, autenticacao JWT, acesso restrito
+6. **Direitos dos Usuarios (LGPD)**: Acesso, correcao, exclusao, portabilidade, revogacao de consentimento
+7. **Cookies e Tecnologias**: Cookies de sessao, analytics, publicidade, como gerencia-los
+8. **Retencao de Dados**: Enquanto a conta estiver ativa + 5 anos apos inatividade (obrigacoes legais)
+9. **Contato**: sandro.mesquita@itia.org.br, telefone 85 98818-2453
+
+**Design**: Fundo preto, texto branco/cinza, secoes com Accordion colapsavel, botao de voltar no topo. Sem bottom navigation (pagina publica).
+
+### Passo 2 -- Adicionar rota no `App.tsx`
+
+Adicionar rota publica `/privacidade` apontando para o componente `PrivacyPolicy` (lazy loaded).
+
+### Passo 3 -- Atualizar links no `LandingFooter.tsx`
+
+Alterar o link "Politica de Privacidade" de `href="#"` para `href="/privacidade"` (usando `Link` do react-router-dom para navegacao SPA).
+
+---
+
+## Arquivos Criados/Alterados
 
 | # | Arquivo | Acao |
 |---|---|---|
-| 1 | Migration SQL | Criar tabela + RLS |
-| 2 | `supabase/functions/content-intelligence/index.ts` | Nova Edge Function |
-| 3 | `src/hooks/useContentInsights.ts` | Novo hook |
-| 4 | `src/pages/admin/ContentIntelligence.tsx` | Nova pagina |
-| 5 | `src/App.tsx` | Adicionar rota |
-| 6 | `src/components/admin/AdminSidebar.tsx` | Adicionar item nav |
-| 7 | SQL (insert tool) | CRON semanal |
+| 1 | `src/pages/PrivacyPolicy.tsx` | Nova pagina com conteudo completo |
+| 2 | `src/App.tsx` | Adicionar rota publica `/privacidade` |
+| 3 | `src/components/landing/LandingFooter.tsx` | Atualizar link para `/privacidade` |
+
+## URL Final para Meta Ads
+
+A URL a ser informada no campo de Politica de Privacidade da Meta sera:
+
+```
+https://subhuman.lovable.app/privacidade
+```
+
+Ou, se o dominio customizado estiver configurado:
+
+```
+https://subhumano.ia.br/privacidade
+```
 
