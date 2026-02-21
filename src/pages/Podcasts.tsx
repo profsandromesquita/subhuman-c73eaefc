@@ -64,6 +64,7 @@ export default function Podcasts() {
                 isListened={listenedSet.has(podcast.id)}
                 likesCount={statsMap?.get(podcast.id)?.likesCount}
                 commentsCount={statsMap?.get(podcast.id)?.commentsCount}
+                isLikedByUser={statsMap?.get(podcast.id)?.isLikedByUser}
                 progressPercent={
                   progressMap.has(podcast.id) && podcast.duration_seconds
                     ? Math.round((progressMap.get(podcast.id)!.progress_seconds / podcast.duration_seconds) * 100)

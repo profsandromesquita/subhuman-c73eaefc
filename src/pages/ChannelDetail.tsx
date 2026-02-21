@@ -256,7 +256,7 @@ export default function ChannelDetail() {
 
                             {/* Stats */}
                             <div className="flex items-center gap-4 text-muted-foreground">
-                              <div className="flex items-center gap-1">
+                              <div className={`flex items-center gap-1 ${post.is_liked ? 'text-red-500' : ''}`}>
                                 <Heart className="w-4 h-4" weight={post.is_liked ? "fill" : "regular"} />
                                 <span className="text-xs">{post.likes_count}</span>
                               </div>
