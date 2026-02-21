@@ -4,6 +4,7 @@ import { Logo } from "@/components/Logo";
 import { PodcastCard } from "@/components/podcast/PodcastCard";
 import { PodcastFilters } from "@/components/podcast/PodcastFilters";
 import { usePodcasts, useListenedPodcasts } from "@/hooks/usePodcasts";
+import { usePodcastStats } from "@/hooks/usePodcastStats";
 import { Microphone } from "@phosphor-icons/react";
 
 export default function Podcasts() {
@@ -14,6 +15,9 @@ export default function Podcasts() {
   const progressMap = new Map<string, { completed: boolean; progress_seconds: number }>();
   listenedPodcasts?.forEach(l => progressMap.set(l.podcast_id, l));
   const listenedSet = new Set(listenedPodcasts?.filter(l => l.completed).map(l => l.podcast_id) || []);
+
+  const podcastIds = podcasts?.map(p => p.id) || [];
+  const { data: statsMap } = usePodcastStats(podcastIds);
 
   return (
     <AppLayout>
@@ -58,6 +62,8 @@ export default function Podcasts() {
                 key={podcast.id}
                 podcast={podcast}
                 isListened={listenedSet.has(podcast.id)}
+                likesCount={statsMap?.get(podcast.id)?.likesCount}
+                commentsCount={statsMap?.get(podcast.id)?.commentsCount}
                 progressPercent={
                   progressMap.has(podcast.id) && podcast.duration_seconds
                     ? Math.round((progressMap.get(podcast.id)!.progress_seconds / podcast.duration_seconds) * 100)

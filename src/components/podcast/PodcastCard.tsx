@@ -3,15 +3,17 @@ import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Podcast, formatDuration } from "@/hooks/usePodcasts";
-import { Play, CheckCircle } from "@phosphor-icons/react";
+import { Play, CheckCircle, Heart, ChatCircle } from "@phosphor-icons/react";
 
 interface PodcastCardProps {
   podcast: Podcast;
   isListened?: boolean;
   progressPercent?: number;
+  likesCount?: number;
+  commentsCount?: number;
 }
 
-export function PodcastCard({ podcast, isListened, progressPercent = 0 }: PodcastCardProps) {
+export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCount = 0, commentsCount = 0 }: PodcastCardProps) {
   const timeAgo = podcast.published_at
     ? formatDistanceToNow(new Date(podcast.published_at), {
         addSuffix: true,
@@ -75,8 +77,25 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0 }: Podcas
             </Badge>
           ))}
           
-          {/* Space and Time */}
-          <span className="text-xs text-muted-foreground">
+          {/* Stats and meta */}
+          <span className="text-xs text-muted-foreground flex items-center gap-2">
+            {(likesCount > 0 || commentsCount > 0) && (
+              <>
+                {likesCount > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    <Heart className="w-3.5 h-3.5" />
+                    {likesCount}
+                  </span>
+                )}
+                {commentsCount > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    <ChatCircle className="w-3.5 h-3.5" />
+                    {commentsCount}
+                  </span>
+                )}
+                <span>·</span>
+              </>
+            )}
             {podcast.spaces?.name}
             {timeAgo && ` · ${timeAgo}`}
           </span>
