@@ -64,6 +64,7 @@ export const EDUCATION_LEVELS = [
   { value: 'fundamental', label: 'Ensino Fundamental' },
   { value: 'medio', label: 'Ensino Médio' },
   { value: 'tecnico', label: 'Técnico' },
+  { value: 'universitario', label: 'Universitário' },
   { value: 'superior_incompleto', label: 'Superior Incompleto' },
   { value: 'superior', label: 'Superior Completo' },
   { value: 'pos_graduacao', label: 'Pós-graduação' },
