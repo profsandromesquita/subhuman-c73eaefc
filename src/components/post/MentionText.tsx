@@ -91,25 +91,42 @@ export function MentionText({ text }: { text: string }) {
     }
   };
 
-  // Regex: first word must start uppercase, subsequent words can start with any letter (supports "de", "da", etc.)
-  const parts = text.split(/(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+(?:(?:d[aeo]s?|e)\s+)?[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*)/g);
+  const mentionRegex = /(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+(?:(?:d[aeo]s?|e)\s+)?[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*)/;
+  const urlRegex = /(https?:\/\/[^\s]+)/;
+  const combinedRegex = new RegExp(`${urlRegex.source}|${mentionRegex.source}`, 'g');
+  const parts = text.split(combinedRegex).filter(Boolean);
 
   return (
     <>
       <p className="text-sm text-foreground/90 leading-relaxed">
-        {parts.map((part, i) =>
-          part.startsWith("@") ? (
-            <button
-              key={i}
-              onClick={() => handleMentionClick(part)}
-              className="text-primary font-medium hover:underline cursor-pointer"
-            >
-              {part}
-            </button>
-          ) : (
-            <span key={i}>{part}</span>
-          )
-        )}
+        {parts.map((part, i) => {
+          if (!part) return null;
+          if (/^https?:\/\//.test(part)) {
+            return (
+              <a
+                key={i}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline break-all"
+              >
+                {part}
+              </a>
+            );
+          }
+          if (part.startsWith("@")) {
+            return (
+              <button
+                key={i}
+                onClick={() => handleMentionClick(part)}
+                className="text-primary font-medium hover:underline cursor-pointer"
+              >
+                {part}
+              </button>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        })}
       </p>
       <AuthorModal
         author={mentionAuthor}
