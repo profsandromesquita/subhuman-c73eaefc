@@ -44,6 +44,7 @@ const MAX_MESSAGE_LENGTH = 500;
 export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
   const { user } = useAuth();
   const { data: profile } = useProfile();
+  const badgeType = useUserBadge(author?.id);
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
@@ -51,7 +52,6 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
   if (!author) return null;
 
   const hasSocialLinks = author.instagram_url || author.linkedin_url || author.website;
-  const badgeType = useUserBadge(author.id);
   const isOwnProfile = user?.id === author.id;
   const canSendMessage = !!user && !isOwnProfile;
 
