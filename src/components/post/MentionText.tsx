@@ -92,7 +92,7 @@ export function MentionText({ text }: { text: string }) {
   };
 
   // Regex: first word must start uppercase, subsequent words can start with any letter (supports "de", "da", etc.)
-  const parts = text.split(/(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ][a-zà-öø-ÿ]+)*)/g);
+  const parts = text.split(/(@[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\s+(?:(?:d[aeo]s?|e)\s+)?[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+)*)/g);
 
   return (
     <>
