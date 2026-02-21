@@ -62,14 +62,15 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
         receiverId: author.id,
         content: messageText.trim(),
       });
+      setMessageText("");
+      setShowMessageForm(false);
+      onClose();
       toast.success("Mensagem enviada!", {
         action: {
           label: "Ver conversa",
           onClick: () => navigate(`/messages/${author.id}`),
         },
       });
-      setMessageText("");
-      setShowMessageForm(false);
     } catch (err) {
       console.error(err);
       toast.error("Erro ao enviar mensagem");
