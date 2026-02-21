@@ -21,6 +21,7 @@ function getSpaceInfo(spaces: SpaceInfo | SpaceInfo[] | null): SpaceInfo | null 
 interface SpaceUpdate {
   id: string;
   title: string;
+  slug: string;
   space_id: string;
   published_at: string;
   spaces: SpaceInfo | SpaceInfo[] | null;
@@ -73,6 +74,7 @@ Deno.serve(async (req) => {
       .select(`
         id,
         title,
+        slug,
         space_id,
         published_at,
         spaces (
@@ -293,7 +295,7 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
           const spaceInfo = getSpaceInfo(update.spaces);
           return `
           <div style="background-color: #1a1a1a; border-radius: 8px; padding: 16px; margin-bottom: 8px;">
-            <a href="https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.id}" style="color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px;">
+            <a href="https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}" style="color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px;">
               ${update.title}
             </a>
           </div>
