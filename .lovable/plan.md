@@ -1,39 +1,68 @@
 
 
-# Correcao da Captura de Mencoes no MentionText
+# Tornar nomes de autores clicáveis nos Canais
 
 ## Problema
 
-O regex atual no `MentionText.tsx` (linha 95) aceita **qualquer palavra** apos o `@`, incluindo palavras comuns como "pelo", "artigo", etc. Isso faz com que a mencao capture texto alem do nome do usuario, causando os dois erros reportados:
+Nos canais (`/channels`), o nome do autor de posts e comentários não é clicável para abrir o modal de perfil (AuthorModal). Isso é inconsistente com o comportamento nos Espaços, onde clicar no nome abre o perfil do usuário.
 
-1. O link sublinhado se estende alem do nome ("@Lilian Vitoria pelo artigo.")
-2. A busca no banco falha porque procura "Lilian Vitoria pelo artigo" em vez de "Lilian Vitoria"
+**Comentários** já possuem o clique funcional (componente `ChannelCommentName`). Os dois pontos faltantes são:
 
-### Regex atual (problematico)
+1. **Nome do autor do post** na página de detalhe do post (`ChannelPostDetail.tsx`, linha 377) -- texto estático dentro de um `<p>`
+2. **Nome do autor do post** na listagem do canal (`ChannelDetail.tsx`, linha 224-226) -- texto estático dentro de um `<span>`
+
+---
+
+## Solução
+
+Transformar os textos estáticos em botões clicáveis que buscam o perfil no banco e abrem o `AuthorModal`, reutilizando o mesmo padrão já implementado no `ChannelCommentName`.
+
+---
+
+## Arquivos alterados
+
+### 1. `src/pages/ChannelPostDetail.tsx`
+
+**Linha 376-378** -- Substituir o `<p>` estático do nome do autor do post por um `<button>` clicável:
+
 ```
-/@[A-ZA-OO-Y][a-za-oo-y]+(?:\s+[A-Za-zA-OO-oo-y][a-za-oo-y]+)*/
+Antes:
+<p className="font-medium flex items-center gap-1">
+  {post.author_name}
+  <PremiumBadge ... />
+</p>
+
+Depois:
+<p className="font-medium flex items-center gap-1">
+  <button
+    onClick={async () => {
+      if (!post.author_id) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, bio, education, ...")
+        .eq("id", post.author_id)
+        .maybeSingle();
+      if (data) { setMentionAuthor(data); setShowMentionModal(true); }
+    }}
+    className="hover:underline text-left"
+  >
+    {post.author_name}
+  </button>
+  <PremiumBadge ... />
+</p>
 ```
-Este padrao aceita qualquer palavra subsequente, sem restricao.
 
-### Regex corrigido
-```
-/@[A-ZA-OO-Y][a-za-oo-y]+(?:\s+(?:(?:d[aeo]s?|e)\s+)?[A-ZA-OO-Y][a-za-oo-y]+)*/
-```
-Este padrao so aceita palavras subsequentes que:
-- Comecem com letra **maiuscula** (nomes proprios)
-- Opcionalmente precedidas por preposicoes comuns em nomes brasileiros (de, da, do, das, dos, e)
+### 2. `src/pages/ChannelDetail.tsx`
 
-### Exemplos de captura
+**Linhas 224-226** -- Substituir o `<span>` estático por um `<button>` clicável, e adicionar o `AuthorModal` (que ainda não existe nesse componente):
 
-| Texto | Antes | Depois |
-|---|---|---|
-| `@Lilian Vitoria pelo artigo` | `@Lilian Vitoria pelo artigo` | `@Lilian Vitoria` |
-| `@Ana de Sousa parabens` | `@Ana de Sousa parabens` | `@Ana de Sousa` |
-| `@Joao Carlos dos Santos` | `@Joao Carlos dos Santos` | `@Joao Carlos dos Santos` |
+- Importar `AuthorModal` e `supabase`
+- Adicionar estados `mentionAuthor` e `showMentionModal`
+- Substituir o `<span>` por `<button>` com lógica de busca de perfil
+- Adicionar o componente `<AuthorModal>` no final do JSX
 
-## Arquivo alterado
+---
 
-**`src/components/post/MentionText.tsx`** -- Linha 95: substituir o regex.
+## Resultado
 
-Apenas 1 linha muda. Nenhum outro arquivo precisa ser alterado. Com o regex corrigido, o nome capturado sera correto, e a busca no banco encontrara o usuario normalmente, resolvendo ambos os problemas.
-
+Ao clicar no nome de qualquer autor (post ou comentário) em qualquer página de canal, o modal de perfil será exibido com as informações do usuário, assim como já funciona nos Espaços.
