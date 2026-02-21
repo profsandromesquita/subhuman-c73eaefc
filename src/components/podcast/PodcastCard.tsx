@@ -11,9 +11,10 @@ interface PodcastCardProps {
   progressPercent?: number;
   likesCount?: number;
   commentsCount?: number;
+  isLikedByUser?: boolean;
 }
 
-export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCount = 0, commentsCount = 0 }: PodcastCardProps) {
+export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCount = 0, commentsCount = 0, isLikedByUser = false }: PodcastCardProps) {
   const timeAgo = podcast.published_at
     ? formatDistanceToNow(new Date(podcast.published_at), {
         addSuffix: true,
@@ -79,23 +80,15 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
           
           {/* Stats and meta */}
           <span className="text-xs text-muted-foreground flex items-center gap-2">
-            {(likesCount > 0 || commentsCount > 0) && (
-              <>
-                {likesCount > 0 && (
-                  <span className="flex items-center gap-0.5">
-                    <Heart className="w-3.5 h-3.5" />
-                    {likesCount}
-                  </span>
-                )}
-                {commentsCount > 0 && (
-                  <span className="flex items-center gap-0.5">
-                    <ChatCircle className="w-3.5 h-3.5" />
-                    {commentsCount}
-                  </span>
-                )}
-                <span>·</span>
-              </>
-            )}
+            <span className={`flex items-center gap-0.5 ${isLikedByUser ? 'text-red-500' : ''}`}>
+              <Heart className="w-3.5 h-3.5" weight={isLikedByUser ? "fill" : "regular"} />
+              {likesCount}
+            </span>
+            <span className="flex items-center gap-0.5">
+              <ChatCircle className="w-3.5 h-3.5" />
+              {commentsCount}
+            </span>
+            <span>·</span>
             {podcast.spaces?.name}
             {timeAgo && ` · ${timeAgo}`}
           </span>

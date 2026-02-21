@@ -233,6 +233,7 @@ export function useLikePodcast() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["podcasts"] });
       queryClient.invalidateQueries({ queryKey: ["podcast", variables.podcastId] });
+      queryClient.invalidateQueries({ queryKey: ["podcast-stats"] });
     },
     onError: (error) => {
       console.error("Error toggling podcast like:", error);
@@ -298,6 +299,7 @@ export function useAddPodcastComment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["podcast", variables.podcastId] });
       queryClient.invalidateQueries({ queryKey: ["podcast-comments", variables.podcastId] });
+      queryClient.invalidateQueries({ queryKey: ["podcast-stats"] });
     },
     onError: (error) => {
       console.error("Error adding podcast comment:", error);
