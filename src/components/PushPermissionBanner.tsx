@@ -63,15 +63,14 @@ export function PushPermissionBanner() {
   };
 
   const handleSubscribe = async () => {
-    const success = await subscribe();
-    if (success) {
+    const result = await subscribe();
+    if (result.success) {
       toast.success('Notificações ativadas com sucesso!', {
         description: 'Você receberá alertas sobre novos conteúdos.'
       });
       setIsVisible(false);
     } else {
-      // O erro já está no state, mostra o toast
-      toast.error(error || 'Não foi possível ativar as notificações', {
+      toast.error(result.error || 'Não foi possível ativar as notificações', {
         description: 'Por favor, tente novamente.'
       });
     }
