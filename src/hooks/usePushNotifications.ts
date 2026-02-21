@@ -150,10 +150,11 @@ export function usePushNotifications() {
   }, [user, isSupported]);
 
   // Registra o service worker e cria subscription
-  const subscribe = useCallback(async (): Promise<boolean> => {
+  const subscribe = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
     if (!isSupported || !user) {
-      setState(prev => ({ ...prev, error: 'Push notifications não suportadas' }));
-      return false;
+      const msg = 'Push notifications não suportadas';
+      setState(prev => ({ ...prev, error: msg }));
+      return { success: false, error: msg };
     }
 
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -161,30 +162,30 @@ export function usePushNotifications() {
     try {
       // 1. Buscar VAPID key se ainda não tiver
       if (!vapidKeyRef.current) {
+        console.log('[Push] Buscando VAPID key...');
         vapidKeyRef.current = await getVapidPublicKey();
       }
 
       if (!vapidKeyRef.current) {
         const errorMsg = 'Chave de notificação não configurada. Tente novamente mais tarde.';
-        console.error('VAPID_PUBLIC_KEY não disponível');
+        console.error('[Push] VAPID_PUBLIC_KEY não disponível');
         setState(prev => ({ ...prev, loading: false, error: errorMsg }));
-        return false;
+        return { success: false, error: errorMsg };
       }
 
       // 2. Solicitar permissão
+      console.log('[Push] Solicitando permissão...');
       const permission = await Notification.requestPermission();
       setState(prev => ({ ...prev, permission }));
 
       if (permission !== 'granted') {
-        setState(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: 'Você negou a permissão para notificações' 
-        }));
-        return false;
+        const errorMsg = 'Você negou a permissão para notificações';
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+        return { success: false, error: errorMsg };
       }
 
       // 3. Registrar Service Worker
+      console.log('[Push] Registrando Service Worker...');
       const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });
@@ -193,6 +194,7 @@ export function usePushNotifications() {
       await navigator.serviceWorker.ready;
 
       // 4. Criar push subscription
+      console.log('[Push] Criando push subscription...');
       const applicationServerKey = urlBase64ToUint8Array(vapidKeyRef.current);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const subscription = await (registration as any).pushManager.subscribe({
@@ -207,6 +209,7 @@ export function usePushNotifications() {
       }
 
       // 5. Salvar no banco de dados
+      console.log('[Push] Salvando subscription no banco...');
       const { error: dbError } = await supabase
         .from('push_subscriptions')
         .upsert({
@@ -237,15 +240,18 @@ export function usePushNotifications() {
         error: null
       }));
 
-      return true;
+      console.log('[Push] Subscription ativada com sucesso!');
+      return { success: true };
     } catch (error: any) {
-      console.error('Erro ao ativar push:', error);
+      console.error('[Push] Erro ao ativar push:', error);
       
       let errorMessage = 'Erro ao ativar notificações';
       if (error.message?.includes('denied')) {
         errorMessage = 'Permissão negada pelo navegador';
       } else if (error.message?.includes('network')) {
         errorMessage = 'Erro de conexão. Verifique sua internet.';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       setState(prev => ({
@@ -253,7 +259,7 @@ export function usePushNotifications() {
         loading: false,
         error: errorMessage
       }));
-      return false;
+      return { success: false, error: errorMessage };
     }
   }, [user, isSupported]);
 
