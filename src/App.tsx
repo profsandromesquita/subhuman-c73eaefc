@@ -47,6 +47,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const Events = lazy(() => import("./pages/Events"));
+const Messages = lazy(() => import("./pages/Messages"));
+const ConversationDetail = lazy(() => import("./pages/ConversationDetail"));
 
 // Admin pages
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -116,6 +118,8 @@ const App = () => (
               <Route path="/search" element={<SubscriptionGuard><Search /></SubscriptionGuard>} />
               <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
               <Route path="/events" element={<SubscriptionGuard><Events /></SubscriptionGuard>} />
+              <Route path="/messages" element={<SubscriptionGuard><Messages /></SubscriptionGuard>} />
+              <Route path="/messages/:recipientId" element={<SubscriptionGuard><ConversationDetail /></SubscriptionGuard>} />
 
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />

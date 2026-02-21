@@ -8,9 +8,9 @@ import { InstagramLogo, LinkedinLogo, Globe, PaperPlaneTilt, X } from "@phosphor
 import { useUserBadge } from "@/hooks/useUserBadge";
 import { PremiumBadge } from "@/components/PremiumBadge";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile } from "@/hooks/useProfile";
-import { supabase } from "@/integrations/supabase/client";
+import { useSendMessage } from "@/hooks/useMessages";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface Author {
   id: string;
@@ -43,11 +43,11 @@ const MAX_MESSAGE_LENGTH = 500;
 
 export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
   const { user } = useAuth();
-  const { data: profile } = useProfile();
+  const navigate = useNavigate();
   const badgeType = useUserBadge(author?.id);
+  const sendMessage = useSendMessage();
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [messageText, setMessageText] = useState("");
-  const [sending, setSending] = useState(false);
 
   if (!author) return null;
 
@@ -57,25 +57,22 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
 
   const handleSendMessage = async () => {
     if (!user || !messageText.trim()) return;
-    setSending(true);
     try {
-      const senderName = profile?.full_name || "Alguém";
-      const { error } = await supabase.from("notifications").insert({
-        user_id: author.id,
-        sender_id: user.id,
-        type: "direct_message",
-        title: `Mensagem de ${senderName}`,
-        message: messageText.trim(),
+      await sendMessage.mutateAsync({
+        receiverId: author.id,
+        content: messageText.trim(),
       });
-      if (error) throw error;
-      toast.success("Mensagem enviada!");
+      toast.success("Mensagem enviada!", {
+        action: {
+          label: "Ver conversa",
+          onClick: () => navigate(`/messages/${author.id}`),
+        },
+      });
       setMessageText("");
       setShowMessageForm(false);
     } catch (err) {
       console.error(err);
       toast.error("Erro ao enviar mensagem");
-    } finally {
-      setSending(false);
     }
   };
 
@@ -187,31 +184,31 @@ export function AuthorModal({ author, isOpen, onClose }: AuthorModalProps) {
                     rows={3}
                     autoFocus
                   />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {messageText.length}/{MAX_MESSAGE_LENGTH}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setShowMessageForm(false); setMessageText(""); }}
-                        disabled={sending}
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSendMessage}
-                        disabled={!messageText.trim() || sending}
-                        className="gap-2"
-                      >
-                        <PaperPlaneTilt className="w-4 h-4" />
-                        {sending ? "Enviando..." : "Enviar"}
-                      </Button>
-                    </div>
-                  </div>
+                    <div className="flex items-center justify-between">
+                     <span className="text-xs text-muted-foreground">
+                       {messageText.length}/{MAX_MESSAGE_LENGTH}
+                     </span>
+                     <div className="flex gap-2">
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => { setShowMessageForm(false); setMessageText(""); }}
+                         disabled={sendMessage.isPending}
+                       >
+                         <X className="w-4 h-4 mr-1" />
+                         Cancelar
+                       </Button>
+                       <Button
+                         size="sm"
+                         onClick={handleSendMessage}
+                         disabled={!messageText.trim() || sendMessage.isPending}
+                         className="gap-2"
+                       >
+                         <PaperPlaneTilt className="w-4 h-4" />
+                         {sendMessage.isPending ? "Enviando..." : "Enviar"}
+                       </Button>
+                     </div>
+                   </div>
                 </div>
               )}
             </>

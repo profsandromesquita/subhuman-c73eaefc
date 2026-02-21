@@ -17,7 +17,8 @@ import {
   SignOut,
   BookmarkSimple,
   Buildings,
-  MagnifyingGlass
+  MagnifyingGlass,
+  EnvelopeSimple
 } from "@phosphor-icons/react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/hooks/useProfile";
 import { useState, useEffect, useRef } from "react";
+import { useUnreadMessagesCount } from "@/hooks/useMessages";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ export default function Profile() {
   const { data: profile, isLoading: profileLoading } = useProfile();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const isLoggingOut = useRef(false);
+  const { data: unreadCount } = useUnreadMessagesCount();
 
   const isCompanyAccount = profile?.account_type === "company";
 
@@ -63,6 +66,13 @@ export default function Profile() {
 
   // Menu items - "Dados pessoais" label changes based on account type
   const menuItems = [
+    {
+      icon: EnvelopeSimple,
+      label: "Mensagens",
+      description: "Conversas diretas",
+      path: "/messages",
+      badge: unreadCount || 0,
+    },
     {
       icon: BookmarkSimple,
       label: "Conteúdos salvos",
@@ -222,7 +232,14 @@ export default function Profile() {
                         <item.icon className="w-5 h-5" weight="bold" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-medium text-sm">{item.label}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-sm">{item.label}</h3>
+                          {"badge" in item && (item as any).badge > 0 && (
+                            <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold">
+                              {(item as any).badge}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">{item.description}</p>
                       </div>
                       <CaretRight className="w-4 h-4 text-muted-foreground" weight="bold" />
