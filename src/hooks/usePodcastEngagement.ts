@@ -8,6 +8,7 @@ export interface PodcastComment {
   id: string;
   content: string;
   authorName: string;
+  avatarUrl?: string | null;
   createdAt: string;
   likesCount: number;
   isLiked: boolean;
@@ -60,14 +61,14 @@ export function usePodcastEngagement(podcastId: string | undefined) {
         const uniqueUserIds = [...new Set(commentsData.map((c) => c.user_id))];
 
         const [profilesResult, commentLikesResult, userCommentLikesResult] = await Promise.all([
-          supabase.from("profiles").select("id, full_name").in("id", uniqueUserIds),
+          supabase.from("profiles").select("id, full_name, avatar_url").in("id", uniqueUserIds),
           supabase.from("podcast_comment_likes").select("comment_id").in("comment_id", commentIds),
           user
             ? supabase.from("podcast_comment_likes").select("comment_id").in("comment_id", commentIds).eq("user_id", user.id)
             : Promise.resolve({ data: [] }),
         ]);
 
-        const profilesMap = new Map(profilesResult.data?.map((p) => [p.id, p.full_name]) || []);
+        const profilesMap = new Map(profilesResult.data?.map((p) => [p.id, { name: p.full_name, avatar: p.avatar_url }]) || []);
 
         const likesCountMap: Record<string, number> = {};
         (commentLikesResult.data || []).forEach((like) => {
@@ -81,7 +82,8 @@ export function usePodcastEngagement(podcastId: string | undefined) {
         const commentsWithLikes = commentsData.map((comment) => ({
           id: comment.id,
           content: comment.content,
-          authorName: profilesMap.get(comment.user_id) || "Usuário",
+          authorName: profilesMap.get(comment.user_id)?.name || "Usuário",
+          avatarUrl: profilesMap.get(comment.user_id)?.avatar || null,
           createdAt: formatDistanceToNow(new Date(comment.created_at!), { addSuffix: false, locale: ptBR }),
           likesCount: likesCountMap[comment.id] || 0,
           isLiked: userLikedSet.has(comment.id),
