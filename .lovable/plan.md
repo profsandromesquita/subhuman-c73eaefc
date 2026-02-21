@@ -1,40 +1,40 @@
 
 
-# Corrigir avatar ausente nos comentários de podcast
+# Mostrar curtidas e comentários nos cards de podcast
 
 ## Problema
 
-No hook `usePodcastEngagement.ts`, a query de perfis dos comentaristas (linha 63) busca apenas `id` e `full_name`:
+Os cards de podcast na página `/podcasts` não exibem contagem de curtidas nem de comentários. O usuário precisa abrir cada episódio para ver essas informações.
 
-```
-supabase.from("profiles").select("id, full_name")
-```
+## Solução
 
-O campo `avatar_url` nao e buscado, e a interface `PodcastComment` tambem nao inclui esse campo. Por isso, o `CommentItem` nunca recebe a URL do avatar e mostra apenas o fallback com as iniciais.
+Buscar as contagens de curtidas e comentários de todos os podcasts listados em uma única query batch e exibi-las no componente `PodcastCard`.
 
-## Solucao
+## Alterações
 
-Tres alteracoes pontuais no arquivo `src/hooks/usePodcastEngagement.ts`:
+### 1. Novo hook: `src/hooks/usePodcastStats.ts`
 
-### 1. Adicionar `avatarUrl` na interface `PodcastComment` (linha 10)
+Criar um hook que recebe uma lista de IDs de podcasts e retorna um Map com `likesCount` e `commentsCount` para cada um. Faz duas queries em paralelo:
+- `podcast_likes` agrupado por `podcast_id` (count)
+- `podcast_comments` agrupado por `podcast_id` (count)
 
-Incluir o campo opcional `avatarUrl?: string | null` na interface.
+### 2. Arquivo: `src/pages/Podcasts.tsx`
 
-### 2. Incluir `avatar_url` na query de perfis (linha 63)
+- Importar o novo hook `usePodcastStats`
+- Passar a lista de IDs dos podcasts carregados para o hook
+- Repassar `likesCount` e `commentsCount` como props para cada `PodcastCard`
 
-Mudar de:
-```
-supabase.from("profiles").select("id, full_name")
-```
-Para:
-```
-supabase.from("profiles").select("id, full_name, avatar_url")
-```
+### 3. Arquivo: `src/components/podcast/PodcastCard.tsx`
 
-### 3. Incluir `avatar_url` no Map de perfis e no mapeamento dos comentarios
+- Adicionar props opcionais `likesCount` e `commentsCount`
+- Renderizar os contadores abaixo das tags, ao lado do nome do espaço e timestamp
+- Usar ícones `Heart` e `ChatCircle` do Phosphor Icons (outline, consistente com o design system)
+- Formato: `3` ao lado do ícone de coração, `5` ao lado do ícone de comentário
 
-- Alterar o `profilesMap` (linha 70) para armazenar um objeto `{ name, avatar }` em vez de apenas o nome
-- No mapeamento dos comentarios (linha ~82), incluir `avatarUrl` usando o valor do Map
+---
 
-Nenhum outro arquivo precisa ser alterado, pois o `CommentSection` e o `CommentItem` ja aceitam e renderizam `avatarUrl` opcionalmente.
+## Detalhes técnicos
 
+O hook faz as queries com `.in("podcast_id", podcastIds)` e conta no frontend agrupando por `podcast_id`. Isso evita N+1 queries e mantém o padrão de performance da plataforma.
+
+Visualmente, os contadores ficam discretos (text-xs text-muted-foreground) na mesma linha do espaço e timestamp.
