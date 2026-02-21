@@ -1,40 +1,54 @@
 
+# Ajustes nos cards de podcast e cor de curtida nos canais
 
-# Mostrar curtidas e comentários nos cards de podcast
+## Problemas identificados
 
-## Problema
+1. **Cache desatualizado**: Ao curtir/comentar um podcast e voltar para `/podcasts`, os contadores nos cards nao atualizam porque as mutations em `usePodcasts.ts` (`useLikePodcast`, `useAddPodcastComment`) nao invalidam a query `podcast-stats`.
 
-Os cards de podcast na página `/podcasts` não exibem contagem de curtidas nem de comentários. O usuário precisa abrir cada episódio para ver essas informações.
+2. **Coracao sem cor vermelha**: O `PodcastCard` nao recebe informacao de `isLiked` do usuario, e o icone Heart nao tem estilo condicional vermelho.
 
-## Solução
+3. **Icones so aparecem com interacao**: A logica atual no `PodcastCard` esconde os icones quando `likesCount` e `commentsCount` sao ambos 0. Devem sempre aparecer.
 
-Buscar as contagens de curtidas e comentários de todos os podcasts listados em uma única query batch e exibi-las no componente `PodcastCard`.
+4. **Cor da curtida nos canais**: Em `ChannelDetail.tsx` (linha 260), o coracao preenchido nao tem `text-red-500`, ficando cinza.
 
-## Alterações
+## Alteracoes
 
-### 1. Novo hook: `src/hooks/usePodcastStats.ts`
+### 1. `src/hooks/usePodcasts.ts` - Invalidar cache de stats
 
-Criar um hook que recebe uma lista de IDs de podcasts e retorna um Map com `likesCount` e `commentsCount` para cada um. Faz duas queries em paralelo:
-- `podcast_likes` agrupado por `podcast_id` (count)
-- `podcast_comments` agrupado por `podcast_id` (count)
+Nas mutations `useLikePodcast` e `useAddPodcastComment`, adicionar invalidacao da query `podcast-stats` no `onSuccess`:
 
-### 2. Arquivo: `src/pages/Podcasts.tsx`
+```typescript
+queryClient.invalidateQueries({ queryKey: ["podcast-stats"] });
+```
 
-- Importar o novo hook `usePodcastStats`
-- Passar a lista de IDs dos podcasts carregados para o hook
-- Repassar `likesCount` e `commentsCount` como props para cada `PodcastCard`
+### 2. `src/hooks/usePodcastStats.ts` - Incluir estado `isLiked` do usuario
 
-### 3. Arquivo: `src/components/podcast/PodcastCard.tsx`
+Adicionar busca de quais podcasts o usuario logado curtiu, retornando `isLiked` junto com os contadores no Map.
 
-- Adicionar props opcionais `likesCount` e `commentsCount`
-- Renderizar os contadores abaixo das tags, ao lado do nome do espaço e timestamp
-- Usar ícones `Heart` e `ChatCircle` do Phosphor Icons (outline, consistente com o design system)
-- Formato: `3` ao lado do ícone de coração, `5` ao lado do ícone de comentário
+### 3. `src/components/podcast/PodcastCard.tsx` - Tres ajustes
 
----
+- Adicionar prop `isLikedByUser` (opcional, boolean)
+- Remover a condicao que esconde os icones quando ambos sao 0 -- sempre renderizar Heart e ChatCircle com seus valores (mesmo que 0)
+- Aplicar `text-red-500` e `weight="fill"` no Heart quando `isLikedByUser` for true
 
-## Detalhes técnicos
+### 4. `src/pages/Podcasts.tsx` - Passar `isLikedByUser`
 
-O hook faz as queries com `.in("podcast_id", podcastIds)` e conta no frontend agrupando por `podcast_id`. Isso evita N+1 queries e mantém o padrão de performance da plataforma.
+Passar a nova prop do stats para cada PodcastCard.
 
-Visualmente, os contadores ficam discretos (text-xs text-muted-foreground) na mesma linha do espaço e timestamp.
+### 5. `src/pages/ChannelDetail.tsx` - Cor vermelha no coracao
+
+Na linha 260, adicionar classe condicional `text-red-500` quando `post.is_liked` for true:
+
+```tsx
+<Heart className={`w-4 h-4 ${post.is_liked ? 'text-red-500' : ''}`} weight={post.is_liked ? "fill" : "regular"} />
+```
+
+## Resumo dos arquivos alterados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/hooks/usePodcasts.ts` | Invalidar `podcast-stats` nas mutations de like e comment |
+| `src/hooks/usePodcastStats.ts` | Adicionar `isLiked` por usuario no retorno |
+| `src/components/podcast/PodcastCard.tsx` | Sempre mostrar icones, cor vermelha no like |
+| `src/pages/Podcasts.tsx` | Passar `isLikedByUser` ao PodcastCard |
+| `src/pages/ChannelDetail.tsx` | Coracao vermelho quando curtido |
