@@ -47,14 +47,17 @@ export function useChannelPostDetail(postId: string | undefined) {
       // Fetch post with channel name
       const { data: postData, error: postError } = await supabase
         .from("channel_posts")
-        .select("*, channels(name)")
+        .select("*")
         .eq("id", postId)
         .single();
 
-      if (postError || !postData) return null;
+      if (postError || !postData) {
+        console.error("Erro ao buscar post do canal:", postError);
+        return null;
+      }
 
       // Parallel fetch: author, likes count, media, comments, user like
-      const [authorResult, likesCountResult, mediaResult, commentsResult, userLikeResult] =
+      const [authorResult, likesCountResult, mediaResult, commentsResult, userLikeResult, channelResult] =
         await Promise.all([
           postData.author_id
             ? supabase
@@ -86,6 +89,11 @@ export function useChannelPostDetail(postId: string | undefined) {
                 .eq("user_id", user.id)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
+          supabase
+            .from("channels")
+            .select("name")
+            .eq("id", postData.channel_id)
+            .maybeSingle(),
         ]);
 
       // Process comments
@@ -157,7 +165,7 @@ export function useChannelPostDetail(postId: string | undefined) {
           author_id: postData.author_id,
           author_name: authorResult.data?.full_name || "Usuário",
           author_avatar: authorResult.data?.avatar_url || null,
-          channel_name: (postData as any).channels?.name || "Canal",
+          channel_name: channelResult.data?.name || "Canal",
         },
         media: mediaResult.data || [],
         comments,
