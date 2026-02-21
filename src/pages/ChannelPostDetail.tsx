@@ -374,7 +374,27 @@ export default function ChannelPostDetail() {
               </Avatar>
               <div>
                 <p className="font-medium flex items-center gap-1">
-                  {post.author_name}
+                  <button
+                    onClick={async () => {
+                      if (!post.author_id) return;
+                      try {
+                        const { data } = await supabase
+                          .from("profiles")
+                          .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
+                          .eq("id", post.author_id)
+                          .maybeSingle();
+                        if (data) {
+                          setMentionAuthor(data);
+                          setShowMentionModal(true);
+                        }
+                      } catch (err) {
+                        console.error("Error fetching post author profile:", err);
+                      }
+                    }}
+                    className="hover:underline text-left"
+                  >
+                    {post.author_name}
+                  </button>
                   <PremiumBadge type={postAuthorBadge} size={16} />
                 </p>
                 <p className="text-sm text-muted-foreground">{formatTime(post.created_at)}</p>

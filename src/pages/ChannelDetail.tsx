@@ -21,13 +21,17 @@ import { useChannel } from "@/hooks/useChannels";
 import { useChannelPosts, useLikeChannelPost } from "@/hooks/usePosts";
 import { formatTime } from "@/lib/formatTime";
 import { toast } from "sonner";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { AuthorModal } from "@/components/post/AuthorModal";
 import { getIconComponent } from "@/components/admin/IconPicker";
 
 export default function ChannelDetail() {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [mentionAuthor, setMentionAuthor] = useState<any>(null);
+  const [showMentionModal, setShowMentionModal] = useState(false);
   const { canPostInChannels } = useUserAccess();
   const { hasAccess, loading: accessLoading, accessType } = useChannelAccess(channelId);
   
@@ -221,9 +225,29 @@ export default function ChannelDetail() {
                                   {post.author_name?.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="text-xs text-muted-foreground">
+                              <button
+                                className="text-xs text-muted-foreground hover:underline"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!post.author_id) return;
+                                  try {
+                                    const { data } = await supabase
+                                      .from("profiles")
+                                      .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
+                                      .eq("id", post.author_id)
+                                      .maybeSingle();
+                                    if (data) {
+                                      setMentionAuthor(data);
+                                      setShowMentionModal(true);
+                                    }
+                                  } catch (err) {
+                                    console.error("Error fetching author profile:", err);
+                                  }
+                                }}
+                              >
                                 {post.author_name}
-                              </span>
+                              </button>
                               <span className="text-xs text-muted-foreground">•</span>
                               <span className="text-xs text-muted-foreground">
                                 {formatTime(post.created_at)}
@@ -265,6 +289,11 @@ export default function ChannelDetail() {
           )}
         </AnimatePresence>
       </div>
+      <AuthorModal
+        author={mentionAuthor}
+        isOpen={showMentionModal}
+        onClose={() => setShowMentionModal(false)}
+      />
     </AppLayout>
   );
 }
