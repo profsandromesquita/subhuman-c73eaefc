@@ -1,43 +1,40 @@
 
 
-# Correção do link do artigo no email de resumo diário
+# Corrigir avatar ausente nos comentários de podcast
 
-## Problema identificado
+## Problema
 
-Na edge function `send-daily-digest`, o link do artigo no email usa o **UUID** do post (`update.id`) em vez do **slug**:
-
-```
-Linha 296: href=".../${spaceInfo?.slug || 'home'}/post/${update.id}"
-```
-
-Porém a rota do app espera o slug do post: `/spaces/:spaceSlug/post/:postSlug`
-
-Além disso, a query na linha 73 nem busca o campo `slug` da tabela `space_updates`.
-
-## Solução
-
-Duas alterações no arquivo `supabase/functions/send-daily-digest/index.ts`:
-
-### 1. Adicionar `slug` na query (linha 73-75)
-
-Incluir o campo `slug` no select:
+No hook `usePodcastEngagement.ts`, a query de perfis dos comentaristas (linha 63) busca apenas `id` e `full_name`:
 
 ```
-id, title, slug, space_id, published_at, spaces(name, slug)
+supabase.from("profiles").select("id, full_name")
 ```
 
-### 2. Corrigir o link no template HTML (linha 296)
+O campo `avatar_url` nao e buscado, e a interface `PodcastComment` tambem nao inclui esse campo. Por isso, o `CommentItem` nunca recebe a URL do avatar e mostra apenas o fallback com as iniciais.
 
-Trocar `update.id` por `update.slug`:
+## Solucao
 
+Tres alteracoes pontuais no arquivo `src/hooks/usePodcastEngagement.ts`:
+
+### 1. Adicionar `avatarUrl` na interface `PodcastComment` (linha 10)
+
+Incluir o campo opcional `avatarUrl?: string | null` na interface.
+
+### 2. Incluir `avatar_url` na query de perfis (linha 63)
+
+Mudar de:
 ```
-href="https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}"
+supabase.from("profiles").select("id, full_name")
+```
+Para:
+```
+supabase.from("profiles").select("id, full_name, avatar_url")
 ```
 
-### 3. Atualizar a interface SpaceUpdate (linha 21-27)
+### 3. Incluir `avatar_url` no Map de perfis e no mapeamento dos comentarios
 
-Adicionar `slug: string` na interface.
+- Alterar o `profilesMap` (linha 70) para armazenar um objeto `{ name, avatar }` em vez de apenas o nome
+- No mapeamento dos comentarios (linha ~82), incluir `avatarUrl` usando o valor do Map
 
----
+Nenhum outro arquivo precisa ser alterado, pois o `CommentSection` e o `CommentItem` ja aceitam e renderizam `avatarUrl` opcionalmente.
 
-Essas 3 alterações pontuais corrigem o redirecionamento sem nenhum impacto colateral.
