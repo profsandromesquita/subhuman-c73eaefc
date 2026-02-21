@@ -1,33 +1,27 @@
 
-# Correção do botão "Ver conversa" no toast
+# Tornar nome do contato clicável na tela de conversa
 
 ## Problema
 
-Após enviar uma mensagem pelo AuthorModal, o toast com o botão "Ver conversa" aparece, mas clicar nele não navega para `/messages/:id`. Isso acontece porque o Dialog (modal) permanece aberto após o envio, e a navegação é bloqueada ou o modal captura o foco.
+Na página de detalhe da conversa (`/messages/:recipientId`), o nome do contato no header é um texto estático (`<p>`), sem possibilidade de clicar para ver o perfil.
 
 ## Solução
 
-No `handleSendMessage` em `src/components/post/AuthorModal.tsx`, fechar o modal (chamar `handleClose()`) **antes** de exibir o toast. Assim, quando o usuário clicar em "Ver conversa", o Dialog já estará fechado e a navegação ocorrerá normalmente.
+Adicionar o `AuthorModal` à página `ConversationDetail.tsx` e tornar o nome (e avatar) clicáveis, buscando os dados completos do perfil para alimentar o modal.
 
 ## Arquivo alterado
 
-**`src/components/post/AuthorModal.tsx`** -- Linhas 65-72
+**`src/pages/ConversationDetail.tsx`**
 
-Reordenar para:
-1. Limpar o formulário e fechar o modal primeiro
-2. Depois exibir o toast com o botão de navegação
+1. Importar `AuthorModal` de `@/components/post/AuthorModal`
+2. Expandir a query do contato para incluir os campos necessários pelo modal (`bio`, `education`, `instagram_url`, `linkedin_url`, `website`)
+3. Adicionar estados `showAuthorModal` (boolean)
+4. Tornar o avatar e o nome no header clicáveis (envolvê-los em um `button`)
+5. Renderizar `<AuthorModal>` no final do JSX
 
-```
-// Antes:
-toast.success("Mensagem enviada!", { ... });
-setMessageText("");
-setShowMessageForm(false);
+### Alteracoes especificas
 
-// Depois:
-setMessageText("");
-setShowMessageForm(false);
-onClose();
-toast.success("Mensagem enviada!", { ... });
-```
-
-Uma única alteração de 3 linhas reordenadas no mesmo arquivo.
+- **Linha 46** (query select): expandir de `"id, full_name, avatar_url"` para incluir `bio, education, instagram_url, linkedin_url, website`
+- **Linha 31**: adicionar estado `const [showAuthorModal, setShowAuthorModal] = useState(false)`
+- **Linhas 90-98** (avatar + nome no header): envolver em `<button onClick={() => setShowAuthorModal(true)}>`
+- Após o input (final do JSX): adicionar `<AuthorModal author={contact} isOpen={showAuthorModal} onClose={() => setShowAuthorModal(false)} />`
