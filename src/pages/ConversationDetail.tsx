@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, PaperPlaneTilt } from "@phosphor-icons/react";
 import { useAuth } from "@/hooks/useAuth";
+import { AuthorModal } from "@/components/post/AuthorModal";
 import { useProfile } from "@/hooks/useProfile";
 import {
   useConversationMessages,
@@ -29,6 +30,7 @@ export default function ConversationDetail() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [text, setText] = useState("");
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: messages, isLoading } = useConversationMessages(recipientId);
@@ -43,7 +45,7 @@ export default function ConversationDetail() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url")
+        .select("id, full_name, avatar_url, bio, education, instagram_url, linkedin_url, website")
         .eq("id", recipientId!)
         .maybeSingle();
       return data;
@@ -87,15 +89,17 @@ export default function ConversationDetail() {
         <button onClick={() => navigate("/messages")} className="p-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <Avatar className="h-9 w-9">
-          <AvatarImage src={contact?.avatar_url || undefined} />
-          <AvatarFallback className="bg-secondary text-xs">
-            {getInitials(contact?.full_name || null)}
-          </AvatarFallback>
-        </Avatar>
-        <p className="font-semibold text-sm truncate">
-          {contact?.full_name || "Carregando..."}
-        </p>
+        <button onClick={() => setShowAuthorModal(true)} className="flex items-center gap-3 min-w-0">
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={contact?.avatar_url || undefined} />
+            <AvatarFallback className="bg-secondary text-xs">
+              {getInitials(contact?.full_name || null)}
+            </AvatarFallback>
+          </Avatar>
+          <p className="font-semibold text-sm truncate">
+            {contact?.full_name || "Carregando..."}
+          </p>
+        </button>
       </div>
 
       {/* Messages */}
@@ -166,6 +170,11 @@ export default function ConversationDetail() {
           </Button>
         </div>
       </div>
+      <AuthorModal
+        author={contact || null}
+        isOpen={showAuthorModal}
+        onClose={() => setShowAuthorModal(false)}
+      />
     </div>
   );
 }
