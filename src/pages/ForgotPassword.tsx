@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,14 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const { resetPassword } = useAuth();
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +39,8 @@ export default function ForgotPassword() {
     }
 
     setSent(true);
-    toast.success("Email enviado com sucesso!");
+    setCooldown(60);
+    toast.success("Solicitação enviada!");
     setIsLoading(false);
   };
 
@@ -104,14 +112,28 @@ export default function ForgotPassword() {
                 <span className="text-3xl">✓</span>
               </div>
               <h1 className="text-3xl font-bold tracking-tight mb-2">
-                Email enviado!
+                Verifique seu email
               </h1>
-              <p className="text-muted-foreground mb-8">
-                Verifique sua caixa de entrada e siga as instruções para recuperar sua senha.
+              <p className="text-muted-foreground mb-4">
+                Se este email estiver cadastrado, você receberá um link de recuperação em breve.
               </p>
-              <Button asChild variant="outline" size="xl" className="w-full">
-                <Link to="/login">Voltar ao login</Link>
-              </Button>
+              <p className="text-sm text-muted-foreground mb-8">
+                Verifique também a pasta de spam. Caso não receba, aguarde alguns minutos e tente novamente.
+              </p>
+              <div className="space-y-3">
+                <Button
+                  variant="glow"
+                  size="xl"
+                  className="w-full"
+                  disabled={cooldown > 0 || isLoading}
+                  onClick={handleSubmit as any}
+                >
+                  {cooldown > 0 ? `Reenviar em ${cooldown}s` : "Reenviar link"}
+                </Button>
+                <Button asChild variant="outline" size="xl" className="w-full">
+                  <Link to="/login">Voltar ao login</Link>
+                </Button>
+              </div>
             </div>
           )}
 
