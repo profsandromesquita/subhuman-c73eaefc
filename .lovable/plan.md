@@ -1,62 +1,43 @@
 
 
-# Plano de Correção: E-mails de Recuperação de Senha
+# Próximos Passos: Criar Templates e Deploy
 
-## Diagnóstico
+## Status Atual
 
-Os e-mails de recuperação de senha não estão chegando aos usuários porque o projeto usa o serviço SMTP padrão do backend de autenticação, que tem baixa taxa de entrega e limites severos. O domínio `subhumano.ia.br` existe como domínio customizado do projeto, mas **não está configurado como domínio de envio de e-mail**.
+O domínio `subhumano.ia.br` está em "Setting up" (verificação DNS em andamento). Isso é normal e pode levar de minutos a 48 horas. Enquanto isso, podemos avançar com os passos 2, 3 e 4 do plano original.
 
-O código frontend está correto -- a API aceita a requisição sem erro, mas o e-mail não é entregue na ponta.
+## O que será feito agora
 
-## Solução
+### Passo 1: Criar os 6 templates de e-mail de autenticação
 
-Configurar o domínio `subhumano.ia.br` como remetente de e-mails de autenticação e criar templates customizados. Isso resolve:
-
-- Entrega confiável (infraestrutura de e-mail profissional)
-- Reputação do remetente (DKIM/SPF do próprio domínio)
-- E-mails saem de um endereço como `noreply@subhumano.ia.br` em vez de um domínio genérico
-
-## Passos
-
-### Passo 1: Configurar domínio de e-mail
-
-Abrir o painel de configuração de e-mail para registrar `subhumano.ia.br` como domínio de envio. Isso requer adicionar registros DNS (DKIM, SPF) que o painel irá fornecer.
-
-### Passo 2: Criar templates de e-mail de autenticação
-
-Usar a ferramenta `scaffold_auth_email_templates` para gerar os 6 templates padrão de e-mail:
-- Confirmação de cadastro (signup)
-- Link mágico (magic-link)
-- **Recuperação de senha (recovery)** -- o template que resolve o problema reportado
+Usar a ferramenta `scaffold_auth_email_templates` para gerar automaticamente:
+- Confirmacao de cadastro (signup)
+- Link magico (magic-link)
+- **Recuperacao de senha (recovery)** -- o template principal
 - Convite (invite)
-- Alteração de e-mail (email-change)
-- Reautenticação (reauthentication)
+- Alteracao de e-mail (email-change)
+- Reautenticacao (reauthentication)
 
-### Passo 3: Aplicar identidade visual do Subhumano
+### Passo 2: Aplicar identidade visual do Subhumano
 
-Após a criação dos templates, personalizar com:
-- Cores do projeto (fundo branco no body do e-mail, botões escuros)
-- Logo do Subhumano (upload para bucket de assets)
-- Textos em português brasileiro, tom informal/profissional
-- Linguagem consistente com a plataforma
+Personalizar cada template com:
+- Fundo do body do e-mail branco (#ffffff) -- obrigatorio para compatibilidade com clientes de e-mail
+- Botoes escuros (bg preto, texto branco) seguindo a identidade do projeto
+- Logo do Subhumano (upload do arquivo `src/assets/logo-subhumano.svg` para bucket de storage)
+- Todos os textos em portugues brasileiro, tom informal/profissional
+- Terminologia consistente com a plataforma ("Subhumano", "Redefinir senha", etc.)
 
-### Passo 4: Deploy da edge function
+### Passo 3: Deploy da edge function `auth-email-hook`
 
-Publicar a edge function `auth-email-hook` que processará os e-mails.
+Publicar a edge function que processara todos os e-mails de autenticacao.
 
-### Passo 5: Aguardar verificação DNS
+### Passo 4: Confirmar ativacao
 
-Após configurar os registros DNS, a verificação pode levar de minutos a 48 horas. Até lá, os e-mails padrão continuam sendo enviados normalmente.
-
-## Resultado esperado
-
-- E-mails de recuperação de senha passam a ser entregues de forma confiável
-- Remetente: `noreply@subhumano.ia.br` (ou similar)
-- Todos os e-mails de autenticação (cadastro, verificação, recuperação) se beneficiam da mesma infraestrutura
-- Sem alteração no código frontend -- a mudança é toda na infraestrutura de envio
+Os e-mails customizados serao ativados automaticamente assim que a verificacao DNS for concluida. Ate la, os e-mails padrao continuam sendo enviados. Voce podera acompanhar o progresso em Cloud > Email.
 
 ## Importante
 
-- A primeira etapa (configuração do domínio) requer interação manual para copiar registros DNS no provedor do domínio
-- Não há alteração em nenhum arquivo `.tsx` ou hook -- o problema não é de código
+- Nenhuma alteracao em arquivos `.tsx` ou hooks do frontend
+- A verificacao DNS continuara em background -- nao precisa fazer nada
+- Assim que o DNS for verificado, os e-mails passarao a sair de `noreply@subhumano.ia.br` automaticamente
 
