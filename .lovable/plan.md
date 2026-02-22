@@ -1,40 +1,57 @@
 
 
-# Adicionar Meta Pixel em todas as paginas
+# Corrigir Meta Pixel -- Erro de Build
 
-## O que sera feito
+## Problema
 
-Inserir o codigo do Meta Pixel (Facebook Pixel) no arquivo `index.html`, dentro da tag `<head>`. Como o Subhumano e uma Single Page Application (SPA) em React, o `index.html` e o ponto de entrada unico -- qualquer codigo inserido nele ja estara presente em **todas as paginas** automaticamente.
+O `<noscript>` contendo `<img>` dentro do `<head>` e proibido pela especificacao HTML. O parser do Vite (parse5) rejeita isso com o erro `disallowed-content-in-noscript-in-head`, fazendo o build falhar. Por isso o Pixel nunca chegou a producao.
 
-## Alteracao
+## Solucao
 
 **Arquivo:** `index.html`
 
-Adicionar o bloco do Meta Pixel logo antes do fechamento da tag `</head>`, apos os estilos existentes:
+1. **Manter o `<script>` do Pixel no `<head>`** -- isso funciona normalmente
+2. **Mover o `<noscript>` para o `<body>`** -- logo apos a tag `<body>`, antes do `<div id="root">`
+
+### Resultado no index.html
 
 ```html
-<!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '1384240548663705');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1384240548663705&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code -->
+<head>
+  ...
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1384240548663705');
+  fbq('track', 'PageView');
+  </script>
+  <!-- End Meta Pixel Code -->
+</head>
+
+<body class="dark">
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1384240548663705&ev=PageView&noscript=1"
+  /></noscript>
+  <div id="root">
+    ...
+  </div>
+</body>
 ```
 
-## Detalhes tecnicos
+## Por que isso resolve
 
-- Nenhum outro arquivo precisa ser alterado
-- O `fbq('track', 'PageView')` sera disparado no carregamento inicial; para rastrear navegacoes internas da SPA, a Meta recomenda usar o evento padrao que ja funciona com o script base
-- Nenhuma dependencia adicional necessaria
+- O `<script>` no `<head>` e valido e carrega o Pixel normalmente (99,9% dos usuarios)
+- O `<noscript>` com `<img>` so e permitido dentro do `<body>` pela especificacao HTML
+- O build do Vite passara sem erros
+- Apos publicar, o Meta Pixel Helper detectara o Pixel corretamente
+
+## Apos implementar
+
+Sera necessario clicar em **Publicar** para que a alteracao va para producao em subhumano.ia.br.
 
