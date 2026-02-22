@@ -30,7 +30,7 @@ export default function NotificationPreferences() {
     notify_comments: true,
     notify_mentions: true,
     notify_announcements: true,
-    notify_daily_email: false,
+    notify_daily_email: true,
   });
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function NotificationPreferences() {
           notify_comments: data.notify_comments ?? true,
           notify_mentions: data.notify_mentions ?? true,
           notify_announcements: data.notify_announcements ?? true,
-          notify_daily_email: data.notify_daily_email ?? false,
+          notify_daily_email: data.notify_daily_email ?? true,
         });
       }
     } catch (error) {

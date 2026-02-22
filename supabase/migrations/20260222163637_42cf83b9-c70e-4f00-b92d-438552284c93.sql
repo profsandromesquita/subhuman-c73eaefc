@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ALTER COLUMN notify_daily_email SET DEFAULT true;
