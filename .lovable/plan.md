@@ -1,43 +1,46 @@
 
 
-# Próximos Passos: Criar Templates e Deploy
+# Ativar Resumo Diario por Padrao
 
-## Status Atual
+## Resumo
 
-O domínio `subhumano.ia.br` está em "Setting up" (verificação DNS em andamento). Isso é normal e pode levar de minutos a 48 horas. Enquanto isso, podemos avançar com os passos 2, 3 e 4 do plano original.
+Atualmente, o campo `notify_daily_email` e criado com valor padrao `false` no banco de dados, e os fallbacks no codigo tambem usam `false`. Vamos alterar tudo para `true`, garantindo que novos usuarios recebam o resumo diario automaticamente.
 
-## O que será feito agora
+## Diagnostico da Funcionalidade
 
-### Passo 1: Criar os 6 templates de e-mail de autenticação
+A funcionalidade do resumo diario esta **completamente implementada**:
+- Edge function `send-daily-digest` busca atualizacoes das ultimas 24h, agrupa por espaco e envia via Resend
+- Filtro por `notify_daily_email` esta correto (so envia para quem tem `true`)
+- Template do email segue a identidade visual do Subhumano
+- Remetente configurado como `noreply@subhumano.ia.br`
+- Cron job configurado para disparar diariamente as 18h BRT
 
-Usar a ferramenta `scaffold_auth_email_templates` para gerar automaticamente:
-- Confirmacao de cadastro (signup)
-- Link magico (magic-link)
-- **Recuperacao de senha (recovery)** -- o template principal
-- Convite (invite)
-- Alteracao de e-mail (email-change)
-- Reautenticacao (reauthentication)
+## Alteracoes Necessarias
 
-### Passo 2: Aplicar identidade visual do Subhumano
+### 1. Migracao no banco de dados
+Alterar o valor padrao da coluna `notify_daily_email` de `false` para `true`:
 
-Personalizar cada template com:
-- Fundo do body do e-mail branco (#ffffff) -- obrigatorio para compatibilidade com clientes de e-mail
-- Botoes escuros (bg preto, texto branco) seguindo a identidade do projeto
-- Logo do Subhumano (upload do arquivo `src/assets/logo-subhumano.svg` para bucket de storage)
-- Todos os textos em portugues brasileiro, tom informal/profissional
-- Terminologia consistente com a plataforma ("Subhumano", "Redefinir senha", etc.)
+```text
+ALTER TABLE public.profiles 
+ALTER COLUMN notify_daily_email SET DEFAULT true;
+```
 
-### Passo 3: Deploy da edge function `auth-email-hook`
+Isso garante que novos usuarios criados a partir de agora terao o resumo ativado. Usuarios existentes nao serao afetados (mantem o valor atual).
 
-Publicar a edge function que processara todos os e-mails de autenticacao.
+### 2. Frontend - NotificationPreferences.tsx
+Alterar os dois fallbacks de `false` para `true`:
+- Estado inicial (linha 33): `notify_daily_email: false` para `true`
+- Fallback ao carregar do banco (linha 64): `?? false` para `?? true`
 
-### Passo 4: Confirmar ativacao
+### 3. Edge Function - send-daily-digest/index.ts
+Alterar o fallback (linha 184): `?? false` para `?? true`
 
-Os e-mails customizados serao ativados automaticamente assim que a verificacao DNS for concluida. Ate la, os e-mails padrao continuam sendo enviados. Voce podera acompanhar o progresso em Cloud > Email.
+Isso garante que, caso o valor no banco seja `null` (usuarios antigos que nunca configuraram), o sistema assume como ativado.
 
-## Importante
+## Impacto
 
-- Nenhuma alteracao em arquivos `.tsx` ou hooks do frontend
-- A verificacao DNS continuara em background -- nao precisa fazer nada
-- Assim que o DNS for verificado, os e-mails passarao a sair de `noreply@subhumano.ia.br` automaticamente
+- **Novos usuarios**: Receberao o resumo diario por padrao (podem desativar nas preferencias)
+- **Usuarios existentes com valor `null`**: Passarao a ser tratados como ativado
+- **Usuarios existentes com valor `false` explicito**: Continuam sem receber (respeitando a escolha)
+- Nenhuma alteracao visual na tela de preferencias
 
