@@ -1,45 +1,62 @@
 
-# Correção: Falha intermitente ao acessar post de canal
 
-## Problema
+# Plano de Correção: E-mails de Recuperação de Senha
 
-A query em `useChannelPostDetail.ts` usa um join PostgREST (`channels(name)`) sem foreign key formal definida entre `channel_posts` e `channels`. Isso causa falhas intermitentes quando o schema cache do PostgREST esta em refresh, resultando em "Post nao encontrado".
+## Diagnóstico
 
-## Solucao
+Os e-mails de recuperação de senha não estão chegando aos usuários porque o projeto usa o serviço SMTP padrão do backend de autenticação, que tem baixa taxa de entrega e limites severos. O domínio `subhumano.ia.br` existe como domínio customizado do projeto, mas **não está configurado como domínio de envio de e-mail**.
 
-Remover o join implicito e buscar o nome do canal separadamente, seguindo o padrao ja documentado no projeto para tabelas sem FK formal.
+O código frontend está correto -- a API aceita a requisição sem erro, mas o e-mail não é entregue na ponta.
 
-## Alteracao
+## Solução
 
-### Arquivo: `src/hooks/useChannelPostDetail.ts`
+Configurar o domínio `subhumano.ia.br` como remetente de e-mails de autenticação e criar templates customizados. Isso resolve:
 
-1. **Remover o join** na query principal (linha 50):
-   - De: `.select("*, channels(name)")`
-   - Para: `.select("*")`
+- Entrega confiável (infraestrutura de e-mail profissional)
+- Reputação do remetente (DKIM/SPF do próprio domínio)
+- E-mails saem de um endereço como `noreply@subhumano.ia.br` em vez de um domínio genérico
 
-2. **Buscar o canal separadamente** dentro do `Promise.all` ja existente (linhas 57-89), adicionando uma query:
-   ```typescript
-   supabase
-     .from("channels")
-     .select("name")
-     .eq("id", postData.channel_id)
-     .maybeSingle()
-   ```
+## Passos
 
-3. **Usar o resultado** na montagem do objeto `post` (linha 160):
-   - De: `channel_name: (postData as any).channels?.name || "Canal"`
-   - Para: `channel_name: channelResult.data?.name || "Canal"`
+### Passo 1: Configurar domínio de e-mail
 
-4. **Melhorar tratamento de erro** (linha 54): adicionar log do erro para facilitar debug futuro:
-   ```typescript
-   if (postError || !postData) {
-     console.error("Erro ao buscar post do canal:", postError);
-     return null;
-   }
-   ```
+Abrir o painel de configuração de e-mail para registrar `subhumano.ia.br` como domínio de envio. Isso requer adicionar registros DNS (DKIM, SPF) que o painel irá fornecer.
 
-## Impacto
+### Passo 2: Criar templates de e-mail de autenticação
 
-- Elimina a dependencia do schema cache do PostgREST para inferir o relacionamento
-- Nenhuma mudanca visual -- o comportamento permanece identico quando funciona
-- A query adicional e leve (busca por PK) e ja roda em paralelo com as outras 5 queries existentes
+Usar a ferramenta `scaffold_auth_email_templates` para gerar os 6 templates padrão de e-mail:
+- Confirmação de cadastro (signup)
+- Link mágico (magic-link)
+- **Recuperação de senha (recovery)** -- o template que resolve o problema reportado
+- Convite (invite)
+- Alteração de e-mail (email-change)
+- Reautenticação (reauthentication)
+
+### Passo 3: Aplicar identidade visual do Subhumano
+
+Após a criação dos templates, personalizar com:
+- Cores do projeto (fundo branco no body do e-mail, botões escuros)
+- Logo do Subhumano (upload para bucket de assets)
+- Textos em português brasileiro, tom informal/profissional
+- Linguagem consistente com a plataforma
+
+### Passo 4: Deploy da edge function
+
+Publicar a edge function `auth-email-hook` que processará os e-mails.
+
+### Passo 5: Aguardar verificação DNS
+
+Após configurar os registros DNS, a verificação pode levar de minutos a 48 horas. Até lá, os e-mails padrão continuam sendo enviados normalmente.
+
+## Resultado esperado
+
+- E-mails de recuperação de senha passam a ser entregues de forma confiável
+- Remetente: `noreply@subhumano.ia.br` (ou similar)
+- Todos os e-mails de autenticação (cadastro, verificação, recuperação) se beneficiam da mesma infraestrutura
+- Sem alteração no código frontend -- a mudança é toda na infraestrutura de envio
+
+## Importante
+
+- A primeira etapa (configuração do domínio) requer interação manual para copiar registros DNS no provedor do domínio
+- Não há alteração em nenhum arquivo `.tsx` ou hook -- o problema não é de código
+
