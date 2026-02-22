@@ -6,7 +6,8 @@ import {
   Heart, 
   ChatCircle,
   Bell,
-  BookmarkSimple
+  BookmarkSimple,
+  Envelope
 } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { useSubscribedSpaces } from "@/hooks/useSpaces";
 import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { useUnreadNotificationsCount } from "@/hooks/useNotifications";
+import { useUnreadMessagesCount } from "@/hooks/useMessages";
 
 // Max animation delay (prevents long waits for lists)
 const MAX_STAGGER_ITEMS = 4;
@@ -34,6 +36,7 @@ export default function Home() {
   const { data: discussions = [], isLoading: loadingDiscussions } = useRecentDiscussions();
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   
   // Popup só aparece quando dados carregaram E o usuário não tem nenhum espaço selecionado
   const showOnboarding = !!(user && !authLoading && !loadingSpaces && subscribedSpaces.length === 0);
@@ -75,6 +78,18 @@ export default function Home() {
               aria-label="Conteúdos salvos"
             >
               <BookmarkSimple className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => navigate("/messages")}
+              className="relative p-2 rounded-lg hover:bg-accent transition-colors"
+              aria-label="Mensagens"
+            >
+              <Envelope className="w-5 h-5" weight={unreadMessages > 0 ? "fill" : "regular"} />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-foreground text-background rounded-full px-1">
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </span>
+              )}
             </button>
             <button 
               onClick={() => navigate("/notifications")}
