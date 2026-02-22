@@ -1,46 +1,31 @@
 
 
-# Ativar Resumo Diario por Padrao
+# Adicionar Atalho de Mensagens na Home
 
-## Resumo
+## O que sera feito
 
-Atualmente, o campo `notify_daily_email` e criado com valor padrao `false` no banco de dados, e os fallbacks no codigo tambem usam `false`. Vamos alterar tudo para `true`, garantindo que novos usuarios recebam o resumo diario automaticamente.
+Adicionar um icone de mensagens (ChatCircle ou Envelope) na barra superior da Home, posicionado entre o icone de Salvos (BookmarkSimple) e o de Notificacoes (Bell), seguindo o mesmo padrao visual. O icone mostrara um badge com a contagem de mensagens nao lidas e, ao clicar, direcionara para `/messages`.
 
-## Diagnostico da Funcionalidade
+## Alteracao
 
-A funcionalidade do resumo diario esta **completamente implementada**:
-- Edge function `send-daily-digest` busca atualizacoes das ultimas 24h, agrupa por espaco e envia via Resend
-- Filtro por `notify_daily_email` esta correto (so envia para quem tem `true`)
-- Template do email segue a identidade visual do Subhumano
-- Remetente configurado como `noreply@subhumano.ia.br`
-- Cron job configurado para disparar diariamente as 18h BRT
+### Arquivo: `src/pages/Home.tsx`
 
-## Alteracoes Necessarias
+1. Importar o hook `useUnreadMessagesCount` de `@/hooks/useMessages`
+2. Importar o icone `Envelope` de `@phosphor-icons/react` (semanticamente mais claro para mensagens diretas, diferenciando do `ChatCircle` ja usado para comentarios)
+3. Chamar `useUnreadMessagesCount()` no componente
+4. Adicionar o botao entre o BookmarkSimple e o Bell, com o mesmo estilo e badge identico ao das notificacoes
 
-### 1. Migracao no banco de dados
-Alterar o valor padrao da coluna `notify_daily_email` de `false` para `true`:
+Layout do header ficara assim:
 
 ```text
-ALTER TABLE public.profiles 
-ALTER COLUMN notify_daily_email SET DEFAULT true;
+[Salvos] [Mensagens] [Notificacoes]          [Logo]
 ```
 
-Isso garante que novos usuarios criados a partir de agora terao o resumo ativado. Usuarios existentes nao serao afetados (mantem o valor atual).
+O badge seguira exatamente o mesmo padrao visual do badge de notificacoes (posicao, tamanho, fonte, cores).
 
-### 2. Frontend - NotificationPreferences.tsx
-Alterar os dois fallbacks de `false` para `true`:
-- Estado inicial (linha 33): `notify_daily_email: false` para `true`
-- Fallback ao carregar do banco (linha 64): `?? false` para `?? true`
+## Detalhes tecnicos
 
-### 3. Edge Function - send-daily-digest/index.ts
-Alterar o fallback (linha 184): `?? false` para `?? true`
-
-Isso garante que, caso o valor no banco seja `null` (usuarios antigos que nunca configuraram), o sistema assume como ativado.
-
-## Impacto
-
-- **Novos usuarios**: Receberao o resumo diario por padrao (podem desativar nas preferencias)
-- **Usuarios existentes com valor `null`**: Passarao a ser tratados como ativado
-- **Usuarios existentes com valor `false` explicito**: Continuam sem receber (respeitando a escolha)
-- Nenhuma alteracao visual na tela de preferencias
-
+- Hook `useUnreadMessagesCount` ja existe em `src/hooks/useMessages.ts` e retorna a contagem de mensagens nao lidas
+- O icone usara `weight="fill"` quando houver mensagens nao lidas (mesmo padrao do Bell)
+- Nenhuma alteracao de banco de dados necessaria
+- Apenas o arquivo `Home.tsx` sera modificado
