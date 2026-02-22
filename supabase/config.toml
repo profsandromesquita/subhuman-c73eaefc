@@ -1,34 +1,27 @@
 project_id = "akkbfzfjappludgsrwsw"
 
-[functions.verify-password]
-verify_jwt = false
-
-[functions.send-push-notification]
-verify_jwt = false
-
-[functions.get-vapid-public-key]
-verify_jwt = false
-
-[functions.ticto-webhook]
-verify_jwt = false
-
-[functions.redeem-coupon]
-verify_jwt = false
-
-[functions.ai-assistant]
-verify_jwt = false
-
-[functions.ingest-document]
-verify_jwt = false
-
-[functions.search-chunks]
-verify_jwt = false
-
-[functions.generate-chunks]
-verify_jwt = false
-
-[functions.send-user-notification]
-verify_jwt = false
-
-[functions.content-intelligence]
-verify_jwt = false
+[functions]
+  [functions.ai-assistant]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.content-intelligence]
+    verify_jwt = false
+  [functions.generate-chunks]
+    verify_jwt = false
+  [functions.get-vapid-public-key]
+    verify_jwt = false
+  [functions.ingest-document]
+    verify_jwt = false
+  [functions.redeem-coupon]
+    verify_jwt = false
+  [functions.search-chunks]
+    verify_jwt = false
+  [functions.send-push-notification]
+    verify_jwt = false
+  [functions.send-user-notification]
+    verify_jwt = false
+  [functions.ticto-webhook]
+    verify_jwt = false
+  [functions.verify-password]
+    verify_jwt = false
