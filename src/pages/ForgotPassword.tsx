@@ -20,8 +20,10 @@ export default function ForgotPassword() {
     const { error } = await resetPassword(email);
 
     if (error) {
-      if (error.message.includes("rate limit") || error.message.includes("429")) {
-        toast.error("Muitas tentativas. Aguarde alguns minutos.");
+      const msg = (error.message || "").toLowerCase();
+      const status = (error as any)?.status;
+      if (msg.includes("rate limit") || msg.includes("rate_limit") || msg.includes("429") || msg.includes("over_email_send") || status === 429) {
+        toast.error("Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.");
       } else {
         toast.error("Erro ao enviar email de recuperação. Tente novamente.");
       }
