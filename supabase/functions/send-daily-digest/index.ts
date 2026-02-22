@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
           user_id: userId,
           email: authUser.email,
           full_name: profile?.full_name || null,
-          notify_daily_email: profile?.notify_daily_email ?? false,
+          notify_daily_email: profile?.notify_daily_email ?? true,
           subscribed_spaces: userSpaceList,
           updates: userUpdates
         });
