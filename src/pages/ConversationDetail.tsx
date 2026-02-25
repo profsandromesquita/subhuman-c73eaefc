@@ -83,7 +83,7 @@ export default function ConversationDetail() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-background">
+    <div className="flex flex-col h-[100dvh] bg-background pt-safe">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
         <button onClick={() => navigate("/messages")} className="p-1">
