@@ -10,7 +10,7 @@ export function LandingFooter() {
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
           <a href="#" className="hover:text-foreground transition-colors">Termos de Uso</a>
           <Link to="/privacidade" className="hover:text-foreground transition-colors">Política de Privacidade</Link>
-          <a href="#" className="hover:text-foreground transition-colors">Contato</a>
+          <Link to="/contato" className="hover:text-foreground transition-colors">Contato</Link>
         </div>
 
         <p className="text-xs text-muted-foreground">
