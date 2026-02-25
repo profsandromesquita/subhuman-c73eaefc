@@ -1087,6 +1087,7 @@ export type Database = {
         Row: {
           account_type: string
           ai_experience_level: string | null
+          allow_ai_personalization: boolean
           avatar_url: string | null
           bio: string | null
           city: string | null
@@ -1116,6 +1117,7 @@ export type Database = {
         Insert: {
           account_type?: string
           ai_experience_level?: string | null
+          allow_ai_personalization?: boolean
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
@@ -1145,6 +1147,7 @@ export type Database = {
         Update: {
           account_type?: string
           ai_experience_level?: string | null
+          allow_ai_personalization?: boolean
           avatar_url?: string | null
           bio?: string | null
           city?: string | null

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,12 +32,15 @@ import {
   CaretRight,
   Warning,
   Info,
-  Moon
+  Moon,
+  Robot
 } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Dados que serão exportados
 const EXPORTED_DATA_INFO = [
@@ -49,7 +53,37 @@ const EXPORTED_DATA_INFO = [
 export default function Settings() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
+  const { data: profile } = useProfile();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const [aiPersonalization, setAiPersonalization] = useState(true);
+  const [savingAi, setSavingAi] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setAiPersonalization(profile.allow_ai_personalization);
+    }
+  }, [profile]);
+
+  const handleToggleAiPersonalization = async (checked: boolean) => {
+    if (!user) return;
+    setAiPersonalization(checked);
+    setSavingAi(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ allow_ai_personalization: checked } as any)
+        .eq("id", user.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+      toast.success(checked ? "Personalização por IA ativada" : "Personalização por IA desativada");
+    } catch {
+      setAiPersonalization(!checked);
+      toast.error("Erro ao salvar preferência");
+    } finally {
+      setSavingAi(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -282,6 +316,38 @@ export default function Settings() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Privacidade e IA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card className="mb-4">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-secondary">
+                  <Robot className="h-5 w-5" weight="bold" />
+                </div>
+                <h2 className="font-semibold">Privacidade e IA</h2>
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="flex-1 pr-4">
+                  <span className="text-sm font-medium">Permitir personalização por IA</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Quando ativado, a IA usa seus dados de perfil e histórico de interação para entregar respostas e resultados personalizados.
+                  </p>
+                </div>
+                <Switch
+                  checked={aiPersonalization}
+                  onCheckedChange={handleToggleAiPersonalization}
+                  disabled={savingAi}
+                />
               </div>
             </CardContent>
           </Card>
