@@ -1,83 +1,44 @@
 
 
-# Correcao dos icones do Manifest para Google Play
+# Adicionar Preferencia de Personalizacao por IA nas Configuracoes
 
-## Problema
+## Resumo
 
-Os arquivos `icon-192.png` e `icon-512.png` na pasta `public/` tem resolucao real de 1200x1200px, mas o manifest declara tamanhos de 192x192 e 512x512. O PWABuilder e o Google Play validam que o tamanho declarado corresponda ao tamanho real da imagem.
+Adicionar um toggle na pagina `/profile/settings` que permite ao usuario desativar o uso dos seus dados de perfil e interacao pela IA para respostas personalizadas. Por padrao, o toggle vem **ativado** (permitindo personalizacao).
 
-## Solucao
+## Alteracoes
 
-Como nao e possivel redimensionar imagens diretamente no projeto, a abordagem sera **corrigir as declaracoes no manifest para refletir o tamanho real dos arquivos** (1200x1200px) e adicionar entradas adicionais para os tamanhos menores que o Google Play recomenda.
+### 1. Migracao no banco de dados
 
-### Alteracoes
+Adicionar a coluna `allow_ai_personalization` na tabela `profiles`:
 
-#### 1. `public/manifest.json` -- Corrigir declaracoes de tamanho dos icones
-
-Atualizar o campo `sizes` para refletir o tamanho real das imagens (1200x1200) e declarar que servem para multiplos tamanhos:
-
-```json
-"icons": [
-  {
-    "src": "/icon-192.png?v=6",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "any"
-  },
-  {
-    "src": "/icon-512.png?v=6",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "any"
-  },
-  {
-    "src": "/icon-192.png?v=6",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "maskable"
-  },
-  {
-    "src": "/icon-512.png?v=6",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "maskable"
-  }
-]
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN allow_ai_personalization boolean NOT NULL DEFAULT true;
 ```
 
-**Porem**, ter dois arquivos diferentes ambos com 1200x1200 e redundante. A melhor abordagem e:
+### 2. Atualizar `src/pages/profile/Settings.tsx`
 
-- Usar apenas **um arquivo** (ex: `icon-512.png`) como icone principal em 1200x1200
-- Declarar ele para os purposes `any` e `maskable`
+Adicionar uma nova secao **"Privacidade e IA"** entre "Aparencia" e "Armazenamento" contendo:
 
-```json
-"icons": [
-  {
-    "src": "/icon-512.png?v=7",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "any"
-  },
-  {
-    "src": "/icon-512.png?v=7",
-    "sizes": "1200x1200",
-    "type": "image/png",
-    "purpose": "maskable"
-  }
-]
-```
+- Icone `Robot` (Phosphor Icons)
+- Um componente `Switch` (ja existe em `src/components/ui/switch.tsx`)
+- Label: "Permitir personalizacao por IA"
+- Descricao explicativa: "Quando ativado, a IA usa seus dados de perfil e historico de interacao para entregar respostas e resultados personalizados."
+- Estado carregado do perfil do usuario via `useProfile`
+- Ao alterar, faz update na tabela `profiles` com feedback via toast
 
-O Google Play e o PWABuilder aceitam icones maiores e fazem o redimensionamento automaticamente. O importante e que o tamanho declarado corresponda ao tamanho real.
+### 3. Atualizar `src/hooks/useProfile.ts`
 
-Os shortcuts tambem serao atualizados para usar o mesmo icone com o tamanho correto.
+Adicionar `allow_ai_personalization: boolean` na interface `Profile`.
 
-## Arquivos alterados
+## Secao tecnica
 
 | Arquivo | Alteracao |
 |---|---|
-| `public/manifest.json` | Corrigir `sizes` dos icones para 1200x1200 e simplificar entradas redundantes |
+| Migracao SQL | Adicionar coluna `allow_ai_personalization` (boolean, default true) |
+| `src/hooks/useProfile.ts` | Adicionar campo na interface Profile |
+| `src/pages/profile/Settings.tsx` | Nova secao "Privacidade e IA" com Switch, carregar/salvar preferencia |
 
-## Nota
-
-Idealmente, no futuro, voce deveria fornecer icones redimensionados nos tamanhos exatos (192x192, 512x512) para otimizar o carregamento. Mas para passar na validacao do PWABuilder agora, declarar o tamanho real resolve os warnings.
+A logica de UI segue o padrao existente da pagina: Card com icone + titulo, conteudo interno com Switch e texto descritivo. O estado e gerenciado localmente e sincronizado com o banco ao alternar.
 
