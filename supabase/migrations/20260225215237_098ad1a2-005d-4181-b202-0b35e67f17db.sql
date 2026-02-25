@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN allow_ai_personalization boolean NOT NULL DEFAULT true;

@@ -23,6 +23,7 @@ export interface Profile {
   account_type: string;
   cnpj: string | null;
   website: string | null;
+  allow_ai_personalization: boolean;
 }
 
 export function useProfile() {
