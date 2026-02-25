@@ -1,57 +1,35 @@
 
 
-# Corrigir Meta Pixel -- Erro de Build
+# Correcao de UX/UI -- Safe Area nas paginas de Mensagens
 
 ## Problema
 
-O `<noscript>` contendo `<img>` dentro do `<head>` e proibido pela especificacao HTML. O parser do Vite (parse5) rejeita isso com o erro `disallowed-content-in-noscript-in-head`, fazendo o build falhar. Por isso o Pixel nunca chegou a producao.
+As paginas **Mensagens** (`/messages`) e **Conversa** (`/messages/:recipientId`) nao utilizam a classe `pt-safe` que reserva espaco para a barra de status do dispositivo (relogio, bateria, Dynamic Island). No iPhone, o header com o botao de voltar fica coberto pela interface do sistema, impossibilitando o clique.
 
 ## Solucao
 
-**Arquivo:** `index.html`
+Aplicar a mesma correcao ja utilizada em outras paginas do projeto (PostDetail, Login, Register, AIAssistant, etc.): adicionar a classe utilitaria `pt-safe` que aplica `padding-top: env(safe-area-inset-top)`.
 
-1. **Manter o `<script>` do Pixel no `<head>`** -- isso funciona normalmente
-2. **Mover o `<noscript>` para o `<body>`** -- logo apos a tag `<body>`, antes do `<div id="root">`
+## Alteracoes
 
-### Resultado no index.html
+### 1. `src/pages/ConversationDetail.tsx` (linha 86)
 
-```html
-<head>
-  ...
-  <!-- Meta Pixel Code -->
-  <script>
-  !function(f,b,e,v,n,t,s)
-  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-  n.queue=[];t=b.createElement(e);t.async=!0;
-  t.src=v;s=b.getElementsByTagName(e)[0];
-  s.parentNode.insertBefore(t,s)}(window, document,'script',
-  'https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init', '1384240548663705');
-  fbq('track', 'PageView');
-  </script>
-  <!-- End Meta Pixel Code -->
-</head>
+O container principal nao tem `pt-safe`. Adicionar a classe ao `div` raiz:
 
-<body class="dark">
-  <noscript><img height="1" width="1" style="display:none"
-  src="https://www.facebook.com/tr?id=1384240548663705&ev=PageView&noscript=1"
-  /></noscript>
-  <div id="root">
-    ...
-  </div>
-</body>
+```
+// De:
+<div className="flex flex-col h-[100dvh] bg-background">
+
+// Para:
+<div className="flex flex-col h-[100dvh] bg-background pt-safe">
 ```
 
-## Por que isso resolve
+### 2. `src/pages/Messages.tsx`
 
-- O `<script>` no `<head>` e valido e carrega o Pixel normalmente (99,9% dos usuarios)
-- O `<noscript>` com `<img>` so e permitido dentro do `<body>` pela especificacao HTML
-- O build do Vite passara sem erros
-- Apos publicar, o Meta Pixel Helper detectara o Pixel corretamente
+Esta pagina usa `AppLayout`, que ja aplica `pt-safe`. Portanto, **nao precisa de alteracao** -- o problema e exclusivo da tela de conversa individual.
 
-## Apos implementar
+## Resumo
 
-Sera necessario clicar em **Publicar** para que a alteracao va para producao em subhumano.ia.br.
-
+- **1 arquivo alterado**: `ConversationDetail.tsx`
+- **1 classe adicionada**: `pt-safe`
+- Mesma abordagem validada em PostDetail, AIAssistant, Login, Register e outras paginas do projeto
