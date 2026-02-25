@@ -1,36 +1,51 @@
 
-# Pagina de Contato do Subhumano
 
-## Resumo
+# Corrigir Pagina de Contato - Seguir Padrao do Subhumano
 
-Criar a pagina `/contato` com as informacoes de contato do Prof. Sandro Mesquita, seguindo o design system dark do Subhumano. Tambem atualizar o link "Contato" no footer da landing page para apontar para essa nova rota.
+## Problema
 
-## Alteracoes
+A pagina `/contato` foi criada sem seguir o padrao de layout das outras paginas publicas (como `/privacidade`). Falta:
+- Header sticky com botao de voltar (seta ArrowLeft)
+- Footer da landing page (LandingFooter)
+- O usuario fica "preso" na pagina sem navegacao clara
 
-### 1. Criar `src/pages/Contact.tsx`
+## Solucao
 
-Pagina publica com layout minimalista contendo:
+Refatorar `src/pages/Contact.tsx` para seguir exatamente o padrao da pagina `/privacidade`:
 
-- Titulo: "Contato"
-- Card com informacoes do responsavel:
-  - Nome: Prof. Sandro Mesquita
-  - Email: sandro.mesquita@itia.org.br (link mailto)
-  - WhatsApp: (85) 98818-2453 (link para wa.me)
-- Icones Lucide (User, Mail, Phone)
-- Estilo consistente: fundo preto, card bg-card (#141414), texto branco, rounded-xl
+### Alteracoes em `src/pages/Contact.tsx`
 
-### 2. Adicionar rota em `src/App.tsx`
+1. **Header sticky** com backdrop blur, botao de voltar (ArrowLeft linkando para `/`) e Logo, identico ao da PrivacyPolicy
+2. **Adicionar LandingFooter** no final da pagina para manter consistencia com a landing page
+3. **Ajustar estrutura do main** para usar `max-w-3xl` como a pagina de privacidade
 
-Nova rota publica: `<Route path="/contato" element={<Contact />} />`
+### Estrutura final
 
-### 3. Atualizar `src/components/landing/LandingFooter.tsx`
+```text
++----------------------------------+
+| [<-]  Logo                       |  <- Header sticky com blur
++----------------------------------+
+|                                  |
+|  Contato                         |  <- Titulo
+|                                  |
+|  +----------------------------+  |
+|  | Responsavel                |  |
+|  | Prof. Sandro Mesquita      |  |  <- Card com infos
+|  | Email / WhatsApp           |  |
+|  +----------------------------+  |
+|                                  |
++----------------------------------+
+|  Logo + Links + Copyright        |  <- LandingFooter
++----------------------------------+
+```
 
-Trocar o link "Contato" de `<a href="#">` para `<Link to="/contato">`.
+### Detalhes tecnicos
 
-## Detalhes tecnicos
+| Elemento | De | Para |
+|---|---|---|
+| Header | Logo centralizada simples | Header sticky com ArrowLeft + Logo (padrao PrivacyPolicy) |
+| Container | `max-w-md` | `max-w-3xl` para consistencia |
+| Footer | Ausente | `LandingFooter` importado |
+| Import | `User, Mail, Phone` | Adicionar `ArrowLeft`, `LandingFooter` |
 
-| Arquivo | Alteracao |
-|---|---|
-| `src/pages/Contact.tsx` | Novo arquivo - pagina de contato |
-| `src/App.tsx` | Adicionar rota publica `/contato` |
-| `src/components/landing/LandingFooter.tsx` | Link "Contato" apontar para `/contato` |
+Apenas o arquivo `src/pages/Contact.tsx` sera modificado.
