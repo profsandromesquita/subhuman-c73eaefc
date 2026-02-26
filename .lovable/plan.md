@@ -1,51 +1,83 @@
 
-
-# Pagina de Termos de Uso
+# Ajuste na Pagina de Contato - Informacoes Institucionais
 
 ## Resumo
 
-Criar a pagina `/termos` com os Termos de Uso do Subhumano, seguindo exatamente o padrao de layout das paginas publicas (header sticky com botao voltar + logo, conteudo em accordion, LandingFooter). Tambem atualizar o link "Termos de Uso" no footer da landing page.
+Expandir a pagina `/contato` para incluir as informacoes completas do ecossistema Subhumano: entidade mantenedora (ITIA), coordenador (Prof. Sandro Mesquita) e apoiadora (Roboticamente), com CNPJ, registros profissionais e links para websites.
 
 ## Alteracoes
 
-### 1. Criar `src/pages/TermsOfUse.tsx`
+Apenas o arquivo `src/pages/Contact.tsx` sera modificado.
 
-Pagina publica seguindo o padrao da PrivacyPolicy com:
+### Estrutura final da pagina
 
-- Header sticky com ArrowLeft + Logo (identico ao padrao)
-- Titulo: "Termos de Uso"
-- Subtitulo com data de atualizacao
-- Paragrafos introdutorios
-- Accordion com secoes:
-  1. Aceitacao dos Termos
-  2. Descricao do Servico
-  3. Cadastro e Conta do Usuario
-  4. Assinatura e Pagamentos
-  5. Propriedade Intelectual
-  6. Regras de Conduta na Comunidade (Canais)
-  7. Uso do Assistente de IA
-  8. Limitacao de Responsabilidade
-  9. Cancelamento e Encerramento
-  10. Alteracoes nos Termos
-  11. Foro e Legislacao Aplicavel
-  12. Contato
-- LandingFooter no rodape
+A pagina tera 3 cards separados, cada um representando uma entidade do ecossistema:
 
-### 2. Adicionar rota em `src/App.tsx`
+```text
++----------------------------------+
+| [<-]  Logo                       |
++----------------------------------+
+|                                  |
+|  Contato                         |
+|                                  |
+|  Mantido pelo ITIA               |  <- Subtitulo da secao
+|  +----------------------------+  |
+|  | ITIA - Instituto de Tecno- |  |
+|  | logia e Inteligencia Art.  |  |
+|  | CNPJ: 58.246.571/0001-90   |  |
+|  | itia.org.br | itia.ia.br   |  |
+|  +----------------------------+  |
+|                                  |
+|  Coordenado por                  |  <- Subtitulo da secao
+|  +----------------------------+  |
+|  | Sandro Costa Mesquita      |  |
+|  | CREA-CE: 44680             |  |
+|  | Email / WhatsApp           |  |
+|  | profsandromesquita.com.br  |  |
+|  +----------------------------+  |
+|                                  |
+|  Apoiado pela Roboticamente      |  <- Subtitulo da secao
+|  +----------------------------+  |
+|  | Roboticamente              |  |
+|  | CNPJ: 43.451.391/0001-73   |  |
+|  | roboticamente.eng.br       |  |
+|  +----------------------------+  |
+|                                  |
++----------------------------------+
+|  LandingFooter                   |
++----------------------------------+
+```
 
-Rota publica: `/termos` com lazy loading.
+### Detalhes de cada card
 
-### 3. Atualizar `src/components/landing/LandingFooter.tsx`
+**Card 1 - ITIA (Mantenedora)**
+- Icone: Building2 (lucide)
+- Nome: ITIA -- Instituto de Tecnologia e Inteligencia Artificial
+- CNPJ: 58.246.571/0001-90
+- Website oficial: itia.org.br (link externo)
+- Website secundario: itia.ia.br (link externo)
 
-Trocar o link "Termos de Uso" de `<a href="#">` para `<Link to="/termos">`.
+**Card 2 - Prof. Sandro Mesquita (Coordenador)**
+- Icone: User (lucide)
+- Nome: Sandro Costa Mesquita
+- CREA-CE: 44680
+- Email: sandro.mesquita@itia.org.br (mailto)
+- WhatsApp: (85) 98818-2453 (wa.me)
+- Website: profsandromesquita.com.br (link externo)
 
-## Detalhes tecnicos
+**Card 3 - Roboticamente (Apoiadora)**
+- Icone: Handshake (lucide)
+- Nome: Roboticamente
+- CNPJ: 43.451.391/0001-73
+- Website: roboticamente.eng.br (link externo)
 
-| Arquivo | Alteracao |
+### Detalhes tecnicos
+
+| Item | Detalhe |
 |---|---|
-| `src/pages/TermsOfUse.tsx` | Novo arquivo seguindo padrao PrivacyPolicy (header sticky, accordion, footer) |
-| `src/App.tsx` | Adicionar `const TermsOfUse = lazy(...)` e `<Route path="/termos">` |
-| `src/components/landing/LandingFooter.tsx` | Link "Termos de Uso" apontar para `/termos` |
-
-O conteudo dos termos referencia o ITIA como responsavel, menciona a Ticto como gateway de pagamento, e inclui regras especificas para os canais da comunidade e o assistente de IA, coerentes com as funcionalidades existentes da plataforma.
-
+| Arquivo | `src/pages/Contact.tsx` |
+| Novos icones Lucide | `Building2`, `Handshake`, `Globe`, `FileText`, `ExternalLink` |
+| Layout | Cada card usa `bg-card rounded-xl p-5 space-y-4` |
+| Links externos | `target="_blank" rel="noopener noreferrer"` |
+| Subtitulos | `text-lg font-semibold` acima de cada card |
+| Labels | `text-xs text-muted-foreground` para rotulos como "CNPJ", "CREA-CE" |
