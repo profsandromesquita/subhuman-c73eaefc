@@ -1,23 +1,12 @@
-import { User, Mail, Phone, ArrowLeft, Building2, Handshake, Globe, FileText, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Logo } from "@/components/Logo";
-import { LandingFooter } from "@/components/landing/LandingFooter";
+import { User, Mail, Phone, Building2, Handshake, Globe, FileText, ExternalLink } from "lucide-react";
+import { PublicPageLayout } from "@/components/PublicPageLayout";
 
 export default function Contact() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <Logo size="sm" />
-        </div>
-      </header>
+    <PublicPageLayout>
+      <h1 className="text-3xl font-bold tracking-tight mb-8">Contato</h1>
 
-      <main className="max-w-3xl mx-auto px-6 py-10 pb-20 space-y-8">
-        <h1 className="text-3xl font-bold tracking-tight">Contato</h1>
-
+      <div className="space-y-8">
         {/* ITIA */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Mantido pelo ITIA</h2>
@@ -144,9 +133,7 @@ export default function Contact() {
             </div>
           </div>
         </section>
-      </main>
-
-      <LandingFooter />
-    </div>
+      </div>
+    </PublicPageLayout>
   );
 }
