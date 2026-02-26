@@ -1,83 +1,52 @@
 
-# Ajuste na Pagina de Contato - Informacoes Institucionais
+Objetivo: corrigir definitivamente o problema de safe area no topo (notch/status bar) nas páginas públicas de documento, para que o botão de voltar nunca fique inacessível no celular.
 
-## Resumo
+Diagnóstico confirmado no código atual:
+- `src/pages/Contact.tsx` e `src/pages/TermsOfUse.tsx` usam container raiz sem `pt-safe`.
+- Ambas têm header sticky com `top-0`, então em iOS/Android com notch o conteúdo pode ficar “por baixo” da área de sistema.
+- O mesmo padrão também existe em `src/pages/PrivacyPolicy.tsx` (risco de reincidência do mesmo bug).
+- Já existe padrão funcional no projeto: utilitário `pt-safe` aplicado em páginas sensíveis (`Login`, `Register`, `ConversationDetail`, etc.).
 
-Expandir a pagina `/contato` para incluir as informacoes completas do ecossistema Subhumano: entidade mantenedora (ITIA), coordenador (Prof. Sandro Mesquita) e apoiadora (Roboticamente), com CNPJ, registros profissionais e links para websites.
+Estratégia (para garantir que não se repita):
+1) Corrigir imediatamente as páginas reportadas
+- Adicionar `pt-safe` no container raiz de:
+  - `src/pages/Contact.tsx`
+  - `src/pages/TermsOfUse.tsx`
 
-## Alteracoes
+2) Prevenir reincidência com padronização real
+- Criar um componente/layout reutilizável para páginas públicas estáticas (ex.: `PublicPageLayout`) com:
+  - wrapper `min-h-screen bg-background text-foreground pt-safe`
+  - header sticky padrão (ArrowLeft + Logo)
+  - slot de conteúdo (`main`)
+  - `LandingFooter`
+- Migrar para esse layout:
+  - `Contact`
+  - `TermsOfUse`
+  - `PrivacyPolicy`
+- Resultado: qualquer nova página pública já nasce com safe area correta e mesma estrutura visual.
 
-Apenas o arquivo `src/pages/Contact.tsx` sera modificado.
+3) Ajuste fino de espaçamento para mobile
+- Garantir header com altura e padding consistentes (mantendo padrão existente).
+- Preservar `pb-20` no conteúdo para respiro inferior e navegação confortável.
 
-### Estrutura final da pagina
+Arquivos envolvidos:
+- `src/pages/Contact.tsx` (ajuste imediato + possível migração para layout comum)
+- `src/pages/TermsOfUse.tsx` (ajuste imediato + possível migração para layout comum)
+- `src/pages/PrivacyPolicy.tsx` (alinhamento preventivo)
+- `src/components/...` (novo layout público reutilizável, se adotado)
 
-A pagina tera 3 cards separados, cada um representando uma entidade do ecossistema:
+Critérios de aceite:
+- Em viewport mobile (390x844 e 375x812), botão de voltar fica totalmente visível e clicável.
+- Header não sobrepõe status bar/hora/notch em iOS e Android.
+- Contato, Termos e Privacidade mantêm o mesmo padrão visual (sticky header + logo + footer).
+- Não há regressão de navegação (voltar para `/` funcionando em todas).
 
-```text
-+----------------------------------+
-| [<-]  Logo                       |
-+----------------------------------+
-|                                  |
-|  Contato                         |
-|                                  |
-|  Mantido pelo ITIA               |  <- Subtitulo da secao
-|  +----------------------------+  |
-|  | ITIA - Instituto de Tecno- |  |
-|  | logia e Inteligencia Art.  |  |
-|  | CNPJ: 58.246.571/0001-90   |  |
-|  | itia.org.br | itia.ia.br   |  |
-|  +----------------------------+  |
-|                                  |
-|  Coordenado por                  |  <- Subtitulo da secao
-|  +----------------------------+  |
-|  | Sandro Costa Mesquita      |  |
-|  | CREA-CE: 44680             |  |
-|  | Email / WhatsApp           |  |
-|  | profsandromesquita.com.br  |  |
-|  +----------------------------+  |
-|                                  |
-|  Apoiado pela Roboticamente      |  <- Subtitulo da secao
-|  +----------------------------+  |
-|  | Roboticamente              |  |
-|  | CNPJ: 43.451.391/0001-73   |  |
-|  | roboticamente.eng.br       |  |
-|  +----------------------------+  |
-|                                  |
-+----------------------------------+
-|  LandingFooter                   |
-+----------------------------------+
-```
+Validação E2E (obrigatória):
+- Abrir `/contato`, `/termos` e `/privacidade` em modo mobile no preview.
+- Tocar no botão voltar em cada página e confirmar retorno para `/`.
+- Verificar em rolagem (topo e meio da página) se header permanece acessível.
+- Repetir em tablet/desktop para confirmar consistência de layout.
 
-### Detalhes de cada card
-
-**Card 1 - ITIA (Mantenedora)**
-- Icone: Building2 (lucide)
-- Nome: ITIA -- Instituto de Tecnologia e Inteligencia Artificial
-- CNPJ: 58.246.571/0001-90
-- Website oficial: itia.org.br (link externo)
-- Website secundario: itia.ia.br (link externo)
-
-**Card 2 - Prof. Sandro Mesquita (Coordenador)**
-- Icone: User (lucide)
-- Nome: Sandro Costa Mesquita
-- CREA-CE: 44680
-- Email: sandro.mesquita@itia.org.br (mailto)
-- WhatsApp: (85) 98818-2453 (wa.me)
-- Website: profsandromesquita.com.br (link externo)
-
-**Card 3 - Roboticamente (Apoiadora)**
-- Icone: Handshake (lucide)
-- Nome: Roboticamente
-- CNPJ: 43.451.391/0001-73
-- Website: roboticamente.eng.br (link externo)
-
-### Detalhes tecnicos
-
-| Item | Detalhe |
-|---|---|
-| Arquivo | `src/pages/Contact.tsx` |
-| Novos icones Lucide | `Building2`, `Handshake`, `Globe`, `FileText`, `ExternalLink` |
-| Layout | Cada card usa `bg-card rounded-xl p-5 space-y-4` |
-| Links externos | `target="_blank" rel="noopener noreferrer"` |
-| Subtitulos | `text-lg font-semibold` acima de cada card |
-| Labels | `text-xs text-muted-foreground` para rotulos como "CNPJ", "CREA-CE" |
+Observação de procedimento padrão (definitivo):
+- Toda nova página fora do `AppLayout` deve obrigatoriamente usar `pt-safe` no wrapper raiz.
+- Para páginas públicas estáticas, usar o layout público reutilizável (com safe area embutida), evitando erro humano em páginas futuras.
