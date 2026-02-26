@@ -1,7 +1,4 @@
-import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Logo } from "@/components/Logo";
-import { LandingFooter } from "@/components/landing/LandingFooter";
+import { PublicPageLayout } from "@/components/PublicPageLayout";
 import {
   Accordion,
   AccordionContent,
@@ -86,50 +83,37 @@ const sections = [
 
 export default function TermsOfUse() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <Logo size="sm" />
-        </div>
-      </header>
+    <PublicPageLayout>
+      <h1 className="text-3xl font-bold tracking-tight mb-2">Termos de Uso</h1>
+      <p className="text-sm text-muted-foreground mb-8">
+        Última atualização: 26 de fevereiro de 2026
+      </p>
 
-      <main className="max-w-3xl mx-auto px-6 py-10 pb-20">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Termos de Uso</h1>
-        <p className="text-sm text-muted-foreground mb-8">
-          Última atualização: 26 de fevereiro de 2026
+      <div className="space-y-6 text-sm text-muted-foreground leading-relaxed mb-8">
+        <p>
+          Bem-vindo ao Subhumano. Estes Termos de Uso regulam o acesso e a utilização da
+          plataforma Subhumano, operada pelo ITIA — Instituto de Tecnologia e Inteligência
+          Artificial (CNPJ: 58.246.571/0001-90). Ao utilizar nossos serviços, você declara ter
+          lido, compreendido e concordado com os termos aqui descritos.
         </p>
+      </div>
 
-        <div className="space-y-6 text-sm text-muted-foreground leading-relaxed mb-8">
-          <p>
-            Bem-vindo ao Subhumano. Estes Termos de Uso regulam o acesso e a utilização da
-            plataforma Subhumano, operada pelo ITIA — Instituto de Tecnologia e Inteligência
-            Artificial (CNPJ: 58.246.571/0001-90). Ao utilizar nossos serviços, você declara ter
-            lido, compreendido e concordado com os termos aqui descritos.
-          </p>
-        </div>
-
-        <Accordion type="multiple" className="space-y-2">
-          {sections.map((section) => (
-            <AccordionItem
-              key={section.id}
-              value={section.id}
-              className="border border-border rounded-xl px-4 bg-card"
-            >
-              <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline">
-                {section.title}
-              </AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
-                {section.content}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </main>
-
-      <LandingFooter />
-    </div>
+      <Accordion type="multiple" className="space-y-2">
+        {sections.map((section) => (
+          <AccordionItem
+            key={section.id}
+            value={section.id}
+            className="border border-border rounded-xl px-4 bg-card"
+          >
+            <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline">
+              {section.title}
+            </AccordionTrigger>
+            <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+              {section.content}
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </PublicPageLayout>
   );
 }
