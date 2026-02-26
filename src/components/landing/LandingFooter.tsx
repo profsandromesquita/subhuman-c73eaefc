@@ -8,7 +8,7 @@ export function LandingFooter() {
         <Logo size="sm" />
 
         <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
-          <a href="#" className="hover:text-foreground transition-colors">Termos de Uso</a>
+          <Link to="/termos" className="hover:text-foreground transition-colors">Termos de Uso</Link>
           <Link to="/privacidade" className="hover:text-foreground transition-colors">Política de Privacidade</Link>
           <Link to="/contato" className="hover:text-foreground transition-colors">Contato</Link>
         </div>
