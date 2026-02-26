@@ -1,51 +1,51 @@
 
 
-# Corrigir Pagina de Contato - Seguir Padrao do Subhumano
+# Pagina de Termos de Uso
 
-## Problema
+## Resumo
 
-A pagina `/contato` foi criada sem seguir o padrao de layout das outras paginas publicas (como `/privacidade`). Falta:
-- Header sticky com botao de voltar (seta ArrowLeft)
-- Footer da landing page (LandingFooter)
-- O usuario fica "preso" na pagina sem navegacao clara
+Criar a pagina `/termos` com os Termos de Uso do Subhumano, seguindo exatamente o padrao de layout das paginas publicas (header sticky com botao voltar + logo, conteudo em accordion, LandingFooter). Tambem atualizar o link "Termos de Uso" no footer da landing page.
 
-## Solucao
+## Alteracoes
 
-Refatorar `src/pages/Contact.tsx` para seguir exatamente o padrao da pagina `/privacidade`:
+### 1. Criar `src/pages/TermsOfUse.tsx`
 
-### Alteracoes em `src/pages/Contact.tsx`
+Pagina publica seguindo o padrao da PrivacyPolicy com:
 
-1. **Header sticky** com backdrop blur, botao de voltar (ArrowLeft linkando para `/`) e Logo, identico ao da PrivacyPolicy
-2. **Adicionar LandingFooter** no final da pagina para manter consistencia com a landing page
-3. **Ajustar estrutura do main** para usar `max-w-3xl` como a pagina de privacidade
+- Header sticky com ArrowLeft + Logo (identico ao padrao)
+- Titulo: "Termos de Uso"
+- Subtitulo com data de atualizacao
+- Paragrafos introdutorios
+- Accordion com secoes:
+  1. Aceitacao dos Termos
+  2. Descricao do Servico
+  3. Cadastro e Conta do Usuario
+  4. Assinatura e Pagamentos
+  5. Propriedade Intelectual
+  6. Regras de Conduta na Comunidade (Canais)
+  7. Uso do Assistente de IA
+  8. Limitacao de Responsabilidade
+  9. Cancelamento e Encerramento
+  10. Alteracoes nos Termos
+  11. Foro e Legislacao Aplicavel
+  12. Contato
+- LandingFooter no rodape
 
-### Estrutura final
+### 2. Adicionar rota em `src/App.tsx`
 
-```text
-+----------------------------------+
-| [<-]  Logo                       |  <- Header sticky com blur
-+----------------------------------+
-|                                  |
-|  Contato                         |  <- Titulo
-|                                  |
-|  +----------------------------+  |
-|  | Responsavel                |  |
-|  | Prof. Sandro Mesquita      |  |  <- Card com infos
-|  | Email / WhatsApp           |  |
-|  +----------------------------+  |
-|                                  |
-+----------------------------------+
-|  Logo + Links + Copyright        |  <- LandingFooter
-+----------------------------------+
-```
+Rota publica: `/termos` com lazy loading.
 
-### Detalhes tecnicos
+### 3. Atualizar `src/components/landing/LandingFooter.tsx`
 
-| Elemento | De | Para |
-|---|---|---|
-| Header | Logo centralizada simples | Header sticky com ArrowLeft + Logo (padrao PrivacyPolicy) |
-| Container | `max-w-md` | `max-w-3xl` para consistencia |
-| Footer | Ausente | `LandingFooter` importado |
-| Import | `User, Mail, Phone` | Adicionar `ArrowLeft`, `LandingFooter` |
+Trocar o link "Termos de Uso" de `<a href="#">` para `<Link to="/termos">`.
 
-Apenas o arquivo `src/pages/Contact.tsx` sera modificado.
+## Detalhes tecnicos
+
+| Arquivo | Alteracao |
+|---|---|
+| `src/pages/TermsOfUse.tsx` | Novo arquivo seguindo padrao PrivacyPolicy (header sticky, accordion, footer) |
+| `src/App.tsx` | Adicionar `const TermsOfUse = lazy(...)` e `<Route path="/termos">` |
+| `src/components/landing/LandingFooter.tsx` | Link "Termos de Uso" apontar para `/termos` |
+
+O conteudo dos termos referencia o ITIA como responsavel, menciona a Ticto como gateway de pagamento, e inclui regras especificas para os canais da comunidade e o assistente de IA, coerentes com as funcionalidades existentes da plataforma.
+
