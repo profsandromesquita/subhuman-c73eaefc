@@ -1,52 +1,80 @@
 
-Objetivo: corrigir definitivamente o problema de safe area no topo (notch/status bar) nas páginas públicas de documento, para que o botão de voltar nunca fique inacessível no celular.
 
-Diagnóstico confirmado no código atual:
-- `src/pages/Contact.tsx` e `src/pages/TermsOfUse.tsx` usam container raiz sem `pt-safe`.
-- Ambas têm header sticky com `top-0`, então em iOS/Android com notch o conteúdo pode ficar “por baixo” da área de sistema.
-- O mesmo padrão também existe em `src/pages/PrivacyPolicy.tsx` (risco de reincidência do mesmo bug).
-- Já existe padrão funcional no projeto: utilitário `pt-safe` aplicado em páginas sensíveis (`Login`, `Register`, `ConversationDetail`, etc.).
+# Implementacao do Service Worker PWABuilder para Google Play Console
 
-Estratégia (para garantir que não se repita):
-1) Corrigir imediatamente as páginas reportadas
-- Adicionar `pt-safe` no container raiz de:
-  - `src/pages/Contact.tsx`
-  - `src/pages/TermsOfUse.tsx`
+## Resumo
 
-2) Prevenir reincidência com padronização real
-- Criar um componente/layout reutilizável para páginas públicas estáticas (ex.: `PublicPageLayout`) com:
-  - wrapper `min-h-screen bg-background text-foreground pt-safe`
-  - header sticky padrão (ArrowLeft + Logo)
-  - slot de conteúdo (`main`)
-  - `LandingFooter`
-- Migrar para esse layout:
-  - `Contact`
-  - `TermsOfUse`
-  - `PrivacyPolicy`
-- Resultado: qualquer nova página pública já nasce com safe area correta e mesma estrutura visual.
+Substituir o Service Worker atual (`public/sw.js`) pelo modelo Workbox do PWABuilder, criar uma nova pagina offline e registrar o SW no `index.html`. O SW atual ja tem logica de push notifications que precisa ser preservada e mesclada com o novo codigo Workbox.
 
-3) Ajuste fino de espaçamento para mobile
-- Garantir header com altura e padding consistentes (mantendo padrão existente).
-- Preservar `pb-20` no conteúdo para respiro inferior e navegação confortável.
+## Desafio: Push Notifications existentes
 
-Arquivos envolvidos:
-- `src/pages/Contact.tsx` (ajuste imediato + possível migração para layout comum)
-- `src/pages/TermsOfUse.tsx` (ajuste imediato + possível migração para layout comum)
-- `src/pages/PrivacyPolicy.tsx` (alinhamento preventivo)
-- `src/components/...` (novo layout público reutilizável, se adotado)
+O `sw.js` atual contem handlers de Push Notifications (`push`, `notificationclick`, `notificationclose`) que sao usados pelo hook `usePushNotifications.ts`. Se simplesmente substituirmos o SW pelo codigo Workbox fornecido, as notificacoes push vao parar de funcionar.
 
-Critérios de aceite:
-- Em viewport mobile (390x844 e 375x812), botão de voltar fica totalmente visível e clicável.
-- Header não sobrepõe status bar/hora/notch em iOS e Android.
-- Contato, Termos e Privacidade mantêm o mesmo padrão visual (sticky header + logo + footer).
-- Não há regressão de navegação (voltar para `/` funcionando em todas).
+**Solucao**: Mesclar o codigo Workbox com os handlers de push existentes no mesmo arquivo.
 
-Validação E2E (obrigatória):
-- Abrir `/contato`, `/termos` e `/privacidade` em modo mobile no preview.
-- Tocar no botão voltar em cada página e confirmar retorno para `/`.
-- Verificar em rolagem (topo e meio da página) se header permanece acessível.
-- Repetir em tablet/desktop para confirmar consistência de layout.
+## Alteracoes
 
-Observação de procedimento padrão (definitivo):
-- Toda nova página fora do `AppLayout` deve obrigatoriamente usar `pt-safe` no wrapper raiz.
-- Para páginas públicas estáticas, usar o layout público reutilizável (com safe area embutida), evitando erro humano em páginas futuras.
+### Tarefa 1: Substituir `public/offline.html`
+
+Substituir o conteudo atual por uma pagina com visual do ecossistema Subhumano IA, exibindo a mensagem solicitada: "Voce esta offline. Verifique sua conexao de internet para acessar o Ecossistema Subhumano IA."
+
+- Manter o visual dark (fundo preto, texto branco) consistente com o design system
+- Incluir icone de wifi-off e botao "Tentar novamente"
+
+### Tarefa 2: Substituir `public/sw.js`
+
+Reescrever o Service Worker com:
+
+1. Import do Workbox via CDN (`workbox-sw.js` v5.1.2)
+2. Cache `pwabuilder-page` com fallback para `offline.html`
+3. Navigation Preload habilitado
+4. Fetch handler para modo `navigate` com fallback offline
+5. **Preservar** os handlers de push notification existentes (`push`, `notificationclick`, `notificationclose`)
+
+Estrutura final do arquivo:
+
+```text
++------------------------------------------+
+| importScripts (Workbox CDN)              |
+| Cache + offline fallback setup           |
+| message listener (SKIP_WAITING)          |
+| install listener (cachear offline.html)  |
+| navigationPreload.enable()               |
+| fetch listener (navigate -> offline)     |
++------------------------------------------+
+| Push notification handlers (preservados) |
+| - push event                             |
+| - notificationclick event                |
+| - notificationclose event                |
++------------------------------------------+
+```
+
+### Tarefa 3: Registrar SW no `index.html`
+
+Adicionar o script de registro do Service Worker antes do `</body>`, **antes** do script do Vite (`/src/main.tsx`):
+
+```html
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js');
+    });
+  }
+</script>
+```
+
+Isso garante que o SW e registrado globalmente na carga da pagina, independente do React.
+
+## Impacto no codigo existente
+
+| Arquivo | Acao |
+|---|---|
+| `public/offline.html` | Substituir conteudo com nova mensagem |
+| `public/sw.js` | Reescrever com Workbox + push handlers preservados |
+| `index.html` | Adicionar script de registro do SW |
+| `src/hooks/usePushNotifications.ts` | Sem alteracao (ja registra o SW no mesmo path `/sw.js`) |
+
+## Observacao sobre registro duplicado
+
+O `usePushNotifications.ts` tambem registra o SW via `navigator.serviceWorker.register('/sw.js')`. Isso nao causa conflito -- o navegador reutiliza o mesmo registro se o path e escopo forem iguais. O registro no `index.html` garante que o SW esteja ativo mesmo antes do React carregar (requisito do PWABuilder/Play Store).
+
