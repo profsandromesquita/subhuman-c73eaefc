@@ -1,27 +1,25 @@
 
-# Atualizar start_url e description no manifest.json
 
-## Situacao atual
+# Corrigir textarea de mensagens para expandir automaticamente
 
-- `start_url` esta como `"/"` (relativo, nao aponta para o dominio subhumano.ia.br)
-- `description` esta como `"Atualizacoes segmentadas sobre Inteligencia Artificial"` (texto curto e generico)
+## Problema
 
-## Alteracoes
+A caixa de texto em `ConversationDetail.tsx` (mensagens diretas) usa um `<textarea>` nativo com `rows={1}` fixo e sem logica de auto-expansao. O usuario so consegue digitar em uma linha.
 
-Duas substituicoes simples no `public/manifest.json`, mantendo todo o resto intacto:
+## Solucao
 
-### 1. start_url (linha 6)
-- **De:** `"/"`
-- **Para:** `"https://subhumano.ia.br/"`
+Aplicar o mesmo padrao do Assistente de IA (`AIAssistant.tsx`), que usa o componente `Textarea` do shadcn com auto-resize dinamico baseado no `scrollHeight`.
 
-### 2. description (linha 5)
-- **De:** `"Atualizacoes segmentadas sobre Inteligencia Artificial"`
-- **Para:** `"Ecossistema focado em alta performance que integra Inteligencia Artificial e Engenharia de Software. O Subhumano IA fornece atualizacoes segmentadas, ferramentas de produtividade e metodologias avancadas para alavancar o desenvolvimento tecnologico de profissionais e empresas."`
+## Alteracoes em `src/pages/ConversationDetail.tsx`
 
-## Risco
+1. Importar o componente `Textarea` de `@/components/ui/textarea`
+2. Adicionar um `ref` para o textarea (`inputRef`)
+3. Criar funcao `handleInputChange` que:
+   - Atualiza o texto (com limite de 500 caracteres)
+   - Ajusta a altura automaticamente: `el.style.height = 'auto'` seguido de `el.style.height = Math.min(el.scrollHeight, 120) + 'px'`
+4. Substituir o `<textarea>` nativo pelo componente `Textarea` com as classes: `flex-1 min-h-[44px] max-h-[120px] resize-none overflow-y-auto py-2.5 bg-input rounded-lg px-4 text-sm`
+5. Resetar a altura ao enviar mensagem (`inputRef.current.style.height = '44px'`)
 
-**Minimo.** Sao apenas dois valores de texto no JSON. Nenhum codigo da aplicacao e afetado.
+### Resultado
 
-## Observacao sobre scope
-
-O campo `scope` (linha 7) permanece como `"/"`. Se no futuro o Google Play exigir consistencia com o dominio absoluto, basta atualizar para `"https://subhumano.ia.br/"` tambem. Por ora, nao faz parte do pedido e nao sera alterado.
+O campo de texto expandira automaticamente conforme o usuario digita (ate 120px de altura), igual ao comportamento do Assistente de IA, e voltara ao tamanho original apos enviar.
