@@ -1,80 +1,60 @@
 
+# Adicionar Screenshots ao manifest.json para Mini-Loja PWA
 
-# Implementacao do Service Worker PWABuilder para Google Play Console
+## Contexto
 
-## Resumo
+O arquivo correto e `public/manifest.json` -- ja possui um array `screenshots` vazio (linha 61). O plano e simples: copiar as 3 imagens para `public/` e preencher esse array.
 
-Substituir o Service Worker atual (`public/sw.js`) pelo modelo Workbox do PWABuilder, criar uma nova pagina offline e registrar o SW no `index.html`. O SW atual ja tem logica de push notifications que precisa ser preservada e mesclada com o novo codigo Workbox.
+## Risco
 
-## Desafio: Push Notifications existentes
+**Minimo.** Apenas adiciona imagens estaticas ao diretorio publico e preenche um campo JSON ja existente. Nenhum codigo da aplicacao e alterado.
 
-O `sw.js` atual contem handlers de Push Notifications (`push`, `notificationclick`, `notificationclose`) que sao usados pelo hook `usePushNotifications.ts`. Se simplesmente substituirmos o SW pelo codigo Workbox fornecido, as notificacoes push vao parar de funcionar.
+## Tarefas
 
-**Solucao**: Mesclar o codigo Workbox com os handlers de push existentes no mesmo arquivo.
+### 1. Copiar as 3 imagens para o diretorio publico
 
-## Alteracoes
+- `user-uploads://screenshot-01-login.png` -> `public/screenshot-01-login.png`
+- `user-uploads://screenshot-02-home.png` -> `public/screenshot-02-home.png`
+- `user-uploads://screenshot-03-ia.png` -> `public/screenshot-03-ia.png`
 
-### Tarefa 1: Substituir `public/offline.html`
+### 2. Atualizar `public/manifest.json`
 
-Substituir o conteudo atual por uma pagina com visual do ecossistema Subhumano IA, exibindo a mensagem solicitada: "Voce esta offline. Verifique sua conexao de internet para acessar o Ecossistema Subhumano IA."
+Substituir o array `"screenshots": []` pelo seguinte:
 
-- Manter o visual dark (fundo preto, texto branco) consistente com o design system
-- Incluir icone de wifi-off e botao "Tentar novamente"
-
-### Tarefa 2: Substituir `public/sw.js`
-
-Reescrever o Service Worker com:
-
-1. Import do Workbox via CDN (`workbox-sw.js` v5.1.2)
-2. Cache `pwabuilder-page` com fallback para `offline.html`
-3. Navigation Preload habilitado
-4. Fetch handler para modo `navigate` com fallback offline
-5. **Preservar** os handlers de push notification existentes (`push`, `notificationclick`, `notificationclose`)
-
-Estrutura final do arquivo:
-
-```text
-+------------------------------------------+
-| importScripts (Workbox CDN)              |
-| Cache + offline fallback setup           |
-| message listener (SKIP_WAITING)          |
-| install listener (cachear offline.html)  |
-| navigationPreload.enable()               |
-| fetch listener (navigate -> offline)     |
-+------------------------------------------+
-| Push notification handlers (preservados) |
-| - push event                             |
-| - notificationclick event                |
-| - notificationclose event                |
-+------------------------------------------+
-```
-
-### Tarefa 3: Registrar SW no `index.html`
-
-Adicionar o script de registro do Service Worker antes do `</body>`, **antes** do script do Vite (`/src/main.tsx`):
-
-```html
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js');
-    });
+```json
+"screenshots": [
+  {
+    "src": "/screenshot-01-login.png",
+    "sizes": "1080x1920",
+    "type": "image/png",
+    "form_factor": "narrow"
+  },
+  {
+    "src": "/screenshot-02-home.png",
+    "sizes": "1080x1920",
+    "type": "image/png",
+    "form_factor": "narrow"
+  },
+  {
+    "src": "/screenshot-03-ia.png",
+    "sizes": "1080x1920",
+    "type": "image/png",
+    "form_factor": "narrow"
   }
-</script>
+]
 ```
 
-Isso garante que o SW e registrado globalmente na carga da pagina, independente do React.
+O `form_factor: "narrow"` indica telas de celular, que e exatamente o que o Chrome/Edge usa para exibir a mini-loja ao usuario antes da instalacao.
 
-## Impacto no codigo existente
+### Arquivos modificados
 
 | Arquivo | Acao |
 |---|---|
-| `public/offline.html` | Substituir conteudo com nova mensagem |
-| `public/sw.js` | Reescrever com Workbox + push handlers preservados |
-| `index.html` | Adicionar script de registro do SW |
-| `src/hooks/usePushNotifications.ts` | Sem alteracao (ja registra o SW no mesmo path `/sw.js`) |
+| `public/screenshot-01-login.png` | Criado (copia da imagem enviada) |
+| `public/screenshot-02-home.png` | Criado (copia da imagem enviada) |
+| `public/screenshot-03-ia.png` | Criado (copia da imagem enviada) |
+| `public/manifest.json` | Atualizado (array screenshots preenchido) |
 
-## Observacao sobre registro duplicado
+### Observacao sobre tamanho das imagens
 
-O `usePushNotifications.ts` tambem registra o SW via `navigator.serviceWorker.register('/sw.js')`. Isso nao causa conflito -- o navegador reutiliza o mesmo registro se o path e escopo forem iguais. O registro no `index.html` garante que o SW esteja ativo mesmo antes do React carregar (requisito do PWABuilder/Play Store).
-
+O campo `sizes` sera definido como `1080x1920` conforme voce solicitou. Se as imagens reais tiverem dimensoes diferentes, o navegador ainda as exibira corretamente -- mas para precisao maxima, confirme se as capturas estao em 1080x1920. Caso contrario, posso ajustar os valores apos aprovacao.
