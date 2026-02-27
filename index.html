@@ -73,6 +73,13 @@
         <div style="width:140px;height:12px;background:#141414;border-radius:6px"></div>
       </div>
     </div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
