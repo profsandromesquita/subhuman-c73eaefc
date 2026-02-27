@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, PaperPlaneTilt } from "@phosphor-icons/react";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthorModal } from "@/components/post/AuthorModal";
-import { useProfile } from "@/hooks/useProfile";
+import { Textarea } from "@/components/ui/textarea";
 import {
   useConversationMessages,
   useSendMessage,
@@ -32,6 +32,7 @@ export default function ConversationDetail() {
   const [text, setText] = useState("");
   const [showAuthorModal, setShowAuthorModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: messages, isLoading } = useConversationMessages(recipientId);
   const sendMessage = useSendMessage();
@@ -69,10 +70,18 @@ export default function ConversationDetail() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value.slice(0, MAX_LENGTH));
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  };
+
   const handleSend = () => {
     if (!text.trim() || !recipientId) return;
     sendMessage.mutate({ receiverId: recipientId, content: text.trim() });
     setText("");
+    if (inputRef.current) inputRef.current.style.height = "44px";
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -151,14 +160,14 @@ export default function ConversationDetail() {
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-card px-4 py-3">
         <div className="flex items-end gap-2">
-          <textarea
+          <Textarea
+            ref={inputRef}
             value={text}
-            onChange={e => setText(e.target.value.slice(0, MAX_LENGTH))}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Escreva uma mensagem..."
             rows={1}
-            className="flex-1 resize-none bg-input rounded-lg px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border"
-            style={{ maxHeight: 120 }}
+            className="flex-1 min-h-[44px] max-h-[120px] resize-none overflow-y-auto bg-input border-0 rounded-lg px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border"
           />
           <Button
             size="icon"
