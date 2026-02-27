@@ -58,5 +58,24 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": []
+  "screenshots": [
+    {
+      "src": "/screenshot-01-login.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-02-home.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-03-ia.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
 }
