@@ -15,6 +15,7 @@ import { LandingCTA } from "@/components/landing/LandingCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { GradientOrbs } from "@/components/landing/GradientOrbs";
 import { StickyBottomCTA } from "@/components/landing/StickyBottomCTA";
+import { ShaderBackground } from "@/components/landing/ShaderBackground";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
+      <ShaderBackground />
       <GradientOrbs />
       <LandingHero />
       <LandingSocialProof />
