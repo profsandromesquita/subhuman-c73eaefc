@@ -58,6 +58,7 @@ export interface CreateEventInput {
   location?: string | null;
   max_participants?: number | null;
   checkout_url?: string | null;
+  access_url?: string | null;
   ticto_offer_id?: string | null;
   is_published?: boolean;
   sessions: SessionInput[];

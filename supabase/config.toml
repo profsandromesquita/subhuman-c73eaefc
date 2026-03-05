@@ -25,3 +25,7 @@ project_id = "akkbfzfjappludgsrwsw"
     verify_jwt = false
   [functions.verify-password]
     verify_jwt = false
+  [functions.google-play-webhook]
+    verify_jwt = false
+  [functions.verify-play-purchase]
+    verify_jwt = false

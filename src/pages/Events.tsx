@@ -1,25 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
 import { useEvents, useUserEventPurchases, type EventFilters, type Event } from "@/hooks/useEvents";
-import { useSubscription } from "@/hooks/useSubscription";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon } from "@phosphor-icons/react";
+import { useUserAccess } from "@/hooks/useUserAccess";
+import { useAuth } from "@/hooks/useAuth";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const periodOptions = [
-  { value: "all", label: "Todos" },
-  { value: "future", label: "Futuros" },
-  { value: "past", label: "Passados" },
-];
-
 const modalityOptions = [
-  { value: "all", label: "Todos" },
-  { value: "online", label: "Online" },
+  { value: "all", label: "Todas" },
+  { value: "online_gravado", label: "Online Gravado" },
+  { value: "online_ao_vivo", label: "Online ao Vivo" },
   { value: "presencial", label: "Presencial" },
   { value: "hibrido", label: "Híbrido" },
 ];
@@ -28,9 +24,11 @@ const typeOptions = [
   { value: "all", label: "Todos" },
   { value: "workshop", label: "Workshop" },
   { value: "palestra", label: "Palestra" },
-  { value: "live", label: "Live" },
-  { value: "mentoria", label: "Mentoria" },
   { value: "curso", label: "Curso" },
+  { value: "mentoria_grupo", label: "Mentoria em Grupo" },
+  { value: "mentoria_individual", label: "Mentoria Individual" },
+  { value: "live", label: "Live" },
+  { value: "aula_ao_vivo", label: "Aula ao Vivo" },
 ];
 
 const typeLabels: Record<string, string> = {
@@ -39,16 +37,18 @@ const typeLabels: Record<string, string> = {
   live: "Live",
   aula_ao_vivo: "Aula ao Vivo",
   mentoria: "Mentoria",
+  mentoria_grupo: "Mentoria em Grupo",
+  mentoria_individual: "Mentoria Individual",
   curso: "Curso",
 };
 
 const modalityLabels: Record<string, string> = {
   online: "Online",
+  online_gravado: "Online Gravado",
+  online_ao_vivo: "Online ao Vivo",
   presencial: "Presencial",
   hibrido: "Híbrido",
 };
-
-// FilterChips removed — replaced by Select dropdowns
 
 function formatSessionDates(sessions: Event["sessions"]): string {
   if (!sessions.length) return "Sem datas definidas";
@@ -66,48 +66,98 @@ function formatSessionDates(sessions: Event["sessions"]): string {
   return `${dates.join(" e ")}, ${timeRange}`;
 }
 
-function EventCard({
-  event,
-  isPurchased,
-  isSubscriber,
-}: {
-  event: Event;
-  isPurchased: boolean;
-  isSubscriber: boolean;
-}) {
-  const navigate = useNavigate();
+function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean }) {
+  const { canAccessEvent, tier } = useUserAccess();
+  const { user } = useAuth();
   const now = new Date().toISOString();
   const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
+  const hasAccess = canAccessEvent(event.id, event.event_type, event.modality);
 
-  const getActionButton = () => {
+  const handleCheckout = () => {
+    if (!event.checkout_url) return;
+    const url = new URL(event.checkout_url);
+    if (user?.id) url.searchParams.set("src", user.id);
+    if (user?.email) url.searchParams.set("email", user.email);
+    window.open(url.toString(), "_blank");
+  };
+
+  const handleAccess = () => {
+    const accessUrl = (event as any).access_url;
+    if (accessUrl) {
+      window.open(accessUrl, "_blank");
+      return;
+    }
+    // Fallback to first future session URL
+    const futureSession = event.sessions.find((s) => s.ends_at > now);
+    if (futureSession?.session_url) {
+      window.open(futureSession.session_url, "_blank");
+    }
+  };
+
+  const getActionButtons = () => {
     if (isPast) {
       return (
-        <Button disabled className="w-full rounded-lg" size="sm">
+        <Button disabled className="w-full rounded-lg opacity-50" size="sm">
           Encerrado
         </Button>
       );
     }
-    if (isPurchased || isSubscriber) {
+
+    const accessUrl = (event as any).access_url;
+    const futureSession = event.sessions.find((s) => s.ends_at > now);
+    const hasDestination = !!accessUrl || !!futureSession?.session_url;
+
+    if (hasAccess) {
       return (
-        <Button
-          className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-foreground"
-          size="sm"
-        >
-          Acessar
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 text-foreground"
+            size="sm"
+            onClick={handleAccess}
+            disabled={!hasDestination}
+          >
+            <ArrowSquareOut className="w-4 h-4 mr-1.5" />
+            {hasDestination ? "Acessar" : "Em breve"}
+          </Button>
+        </div>
       );
     }
+
     return (
-      <Button
-        className="w-full rounded-lg"
-        size="sm"
-        onClick={() => navigate("/plans")}
-      >
-        {event.is_free
-          ? "Inscrever-se"
-          : `Adquirir – R$ ${Number(event.price).toFixed(2).replace(".", ",")}`}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          disabled
+          variant="outline"
+          className="flex-1 rounded-lg opacity-50"
+          size="sm"
+        >
+          <Lock className="w-3.5 h-3.5 mr-1.5" />
+          Acessar
+        </Button>
+        {event.checkout_url ? (
+          <Button
+            className="flex-1 rounded-lg"
+            size="sm"
+            onClick={handleCheckout}
+          >
+            <ShoppingCart className="w-4 h-4 mr-1.5" />
+            {event.is_free
+              ? "Inscrever-se"
+              : `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`}
+          </Button>
+        ) : (
+          <Button disabled className="flex-1 rounded-lg opacity-50" size="sm">
+            Em breve
+          </Button>
+        )}
+      </div>
     );
+  };
+
+  const getPriceLabel = () => {
+    if (event.is_free) return "Gratuito";
+    if (hasAccess && !isPurchased) return "Incluso no plano";
+    return `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`;
   };
 
   return (
@@ -124,13 +174,18 @@ function EventCard({
         </div>
       )}
       <div className="p-4 space-y-3">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Badge variant="secondary" className="text-xs">
             {typeLabels[event.event_type] || event.event_type}
           </Badge>
           <Badge variant="outline" className="text-xs">
             {modalityLabels[event.modality] || event.modality}
           </Badge>
+          {isPast && (
+            <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">
+              Encerrado
+            </Badge>
+          )}
         </div>
 
         <h3 className="font-semibold text-foreground leading-tight line-clamp-2">
@@ -145,38 +200,34 @@ function EventCard({
 
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <CalendarBlank className="w-3.5 h-3.5" />
+            <CalendarBlank className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{formatSessionDates(event.sessions)}</span>
           </div>
           {event.location && (
             <div className="flex items-center gap-1.5">
-              {event.modality === "online" ? (
-                <VideoCamera className="w-3.5 h-3.5" />
+              {event.modality?.startsWith("online") ? (
+                <VideoCamera className="w-3.5 h-3.5 flex-shrink-0" />
               ) : (
-                <MapPin className="w-3.5 h-3.5" />
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
               )}
               <span>{event.location}</span>
             </div>
           )}
           {event.max_participants && (
             <div className="flex items-center gap-1.5">
-              <UsersIcon className="w-3.5 h-3.5" />
+              <UsersIcon className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Máx. {event.max_participants} participantes</span>
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <span className="font-semibold text-foreground">
-            {event.is_free
-              ? "Gratuito"
-              : isSubscriber
-              ? "Incluso no plano"
-              : `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`}
+          <span className="font-semibold text-foreground text-sm">
+            {getPriceLabel()}
           </span>
         </div>
 
-        {getActionButton()}
+        {getActionButtons()}
       </div>
     </div>
   );
@@ -191,12 +242,42 @@ export default function Events() {
 
   const { data: events, isLoading } = useEvents(filters);
   const { data: purchases } = useUserEventPurchases();
-  const subscription = useSubscription();
 
   const purchasedIds = new Set(purchases?.map((p) => p.event_id) || []);
-  const isSubscriber =
-    subscription.status === "active" &&
-    ["monthly", "yearly", "lifetime"].includes(subscription.planType || "");
+
+  // Split events into future and past
+  const { futureEvents, pastEvents } = useMemo(() => {
+    if (!events) return { futureEvents: [], pastEvents: [] };
+    const now = new Date().toISOString();
+    const future: Event[] = [];
+    const past: Event[] = [];
+
+    events.forEach((event) => {
+      const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
+      if (isPast) {
+        past.push(event);
+      } else {
+        future.push(event);
+      }
+    });
+
+    return { futureEvents: future, pastEvents: past };
+  }, [events]);
+
+  const SkeletonCard = () => (
+    <div className="bg-card rounded-xl animate-pulse">
+      <div className="w-full aspect-video bg-secondary rounded-t-xl" />
+      <div className="p-4 space-y-3">
+        <div className="flex gap-2">
+          <div className="h-5 w-16 bg-secondary rounded" />
+          <div className="h-5 w-14 bg-secondary rounded" />
+        </div>
+        <div className="h-5 w-3/4 bg-secondary rounded" />
+        <div className="h-4 w-1/2 bg-secondary rounded" />
+        <div className="h-9 w-full bg-secondary rounded-lg" />
+      </div>
+    </div>
+  );
 
   return (
     <AppLayout>
@@ -268,31 +349,32 @@ export default function Events() {
                   <div className="h-4 w-1/2 bg-secondary rounded" />
                   <div className="h-9 w-full bg-secondary rounded-lg" />
                 </div>
+                {pastEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isPurchased={purchasedIds.has(event.id)}
+                  />
+                ))}
               </div>
-            ))
-          ) : events && events.length > 0 ? (
-            events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                isPurchased={purchasedIds.has(event.id)}
-                isSubscriber={isSubscriber}
-              />
-            ))
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                <CalendarBlank className="w-8 h-8 text-muted-foreground" />
+            )}
+
+            {/* Empty state */}
+            {futureEvents.length === 0 && pastEvents.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+                  <CalendarBlank className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground">
+                  Nenhum evento encontrado
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Novos eventos serão publicados em breve
+                </p>
               </div>
-              <h3 className="font-medium text-foreground">
-                Nenhum evento encontrado
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Novos eventos serão publicados em breve
-              </p>
-            </div>
-          )}
-        </div>
+            )}
+          </>
+        )}
       </div>
     </AppLayout>
   );
