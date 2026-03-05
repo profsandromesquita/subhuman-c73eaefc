@@ -17,6 +17,7 @@ import { useUserAccess } from "@/hooks/useUserAccess";
 import { ContentPaywall } from "@/components/ContentPaywall";
 import { useDeleteChannelPost } from "@/hooks/usePosts";
 import { useChannelPostDetail, type ChannelPostComment } from "@/hooks/useChannelPostDetail";
+import { useChannelAccess } from "@/hooks/useChannelAccess";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +50,10 @@ export default function ChannelPostDetail() {
   const { user } = useAuth();
   const { isAdminOrModerator } = useAdminAuth();
   const { canReadFullChannelPosts, canComment, canLike } = useUserAccess();
+  const { accessType } = useChannelAccess(channelId);
+  const isOpenChannel = accessType === 'open';
+  const canReadContent = isOpenChannel || canReadFullChannelPosts;
+  const canCommentHere = (isOpenChannel && !!user) || canComment;
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteChannelPost();
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -455,7 +460,7 @@ export default function ChannelPostDetail() {
           {post.title && (
             <h1 className="text-xl font-bold mb-3">{post.title}</h1>
           )}
-          {canReadFullChannelPosts ? (
+          {canReadContent ? (
             <div 
               ref={contentRef}
               className="prose prose-sm dark:prose-invert max-w-none [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
@@ -502,7 +507,7 @@ export default function ChannelPostDetail() {
         <Separator className="my-6" />
 
         {/* Comments Section */}
-        {canComment && (
+        {canCommentHere && (
           <>
             <div className="space-y-6 mb-6">
               <h2 className="font-semibold">Comentários</h2>
