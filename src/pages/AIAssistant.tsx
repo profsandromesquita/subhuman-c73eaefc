@@ -138,8 +138,8 @@ export default function AIAssistant() {
     }
   };
   return <AppLayout>
-      <div className="fixed inset-0 flex flex-col bg-background z-10 pt-safe">
-      <div className="flex flex-col flex-1 max-w-lg mx-auto w-full overflow-hidden">
+      <div className="flex flex-col bg-background lg:h-[calc(100vh)] lg:overflow-hidden">
+      <div className="flex flex-col flex-1 max-w-lg mx-auto w-full overflow-hidden lg:max-w-4xl lg:h-full">
         {/* Header */}
         <div className="px-4 py-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
@@ -227,7 +227,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Input Area */}
-        <div className="px-4 py-3 pb-28 border-t border-border bg-background shrink-0">
+        <div className="px-4 py-3 pb-28 border-t border-border bg-background shrink-0 lg:pb-6">
           {canUseAI ? (
             <form onSubmit={handleSubmit} className="flex gap-2">
               <Textarea ref={inputRef} value={input} onChange={handleInputChange} placeholder="Digite sua pergunta..." disabled={isLoading} rows={1} className="flex-1 min-h-[44px] max-h-[168px] resize-none overflow-y-auto py-2.5" />

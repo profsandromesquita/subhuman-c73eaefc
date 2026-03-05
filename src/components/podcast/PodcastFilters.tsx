@@ -24,8 +24,8 @@ export function PodcastFilters({ selectedSpaceId, onSpaceSelect }: PodcastFilter
   }
 
   return (
-    <ScrollArea className="w-full whitespace-nowrap">
-      <div className="flex gap-2 pb-2">
+    <ScrollArea className="w-full whitespace-nowrap lg:overflow-visible">
+      <div className="flex gap-2 pb-2 lg:flex-wrap lg:pb-0">
         {/* "Todos" filter */}
         <button
           onClick={() => onSpaceSelect(null)}

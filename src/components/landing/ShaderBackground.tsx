@@ -1,17 +1,16 @@
 import { MeshGradient } from "@paper-design/shaders-react";
 
 export function ShaderBackground() {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   return (
-    <div className="fixed inset-0 z-0 pointer-events-none">
+    <div className="w-full h-screen bg-black fixed inset-0 z-0 pointer-events-none overflow-hidden">
       <MeshGradient
-        colors={["#0a0a0a", "#2a2a2a", "#151515", "#333333"]}
-        distortion={0.6}
-        swirl={0.8}
-        speed={0.08}
-        style={{ width: "100%", height: "100%" }}
+        className="w-full h-full absolute inset-0"
+        colors={["#000000", "#111111", "#222222", "#3a3a3a"]}
+        speed={isMobile ? 0.6 : 0.3}
+        distortion={isMobile ? 0.6 : 0.3}
+        swirl={isMobile ? 0.7 : 0.4}
       />
-      {/* Subtle overlay */}
-      <div className="absolute inset-0 bg-background/20" />
     </div>
   );
 }

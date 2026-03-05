@@ -5,13 +5,13 @@ import { ScrollReveal } from "./ScrollReveal";
 
 export function LandingCTA() {
   return (
-    <section className="py-20 sm:py-28 px-6 relative overflow-hidden">
+    <section className="py-12 sm:py-28 px-5 sm:px-6 relative overflow-hidden">
       {/* Subtle gradient */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,hsl(0_0%_12%_/_0.5)_0%,transparent_70%)]" />
 
       <div className="relative max-w-3xl mx-auto text-center z-10">
         <ScrollReveal>
-          <blockquote className="text-base sm:text-lg lg:text-xl italic text-muted-foreground leading-relaxed mb-10 max-w-2xl mx-auto">
+          <blockquote className="text-sm sm:text-lg lg:text-xl italic text-muted-foreground leading-relaxed mb-8 sm:mb-10 max-w-2xl mx-auto">
             "Se você ainda tem dúvida, não use seu cartão. Entre, use a plataforma por 7 dias, ouça os podcasts, consulte o nosso Oráculo de IA e leia a curadoria dos Espaços. Se em uma semana você não sentir que recuperou o comando da tecnologia, basta sair. Sem letras miúdas. O risco de provar nossa autoridade é todo nosso."
           </blockquote>
         </ScrollReveal>

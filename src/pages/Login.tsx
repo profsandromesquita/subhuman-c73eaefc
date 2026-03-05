@@ -10,6 +10,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { GoogleButton } from "@/components/GoogleButton";
 import { AuthDivider } from "@/components/AuthDivider";
+import { LoginHero } from "@/components/landing/LoginHero";
+import { ShaderBackground } from "@/components/landing/ShaderBackground";
+import { DottedSurface } from "@/components/ui/dotted-surface";
 
 // --- Rate limiting helpers ---
 const STORAGE_KEYS = {
@@ -193,147 +196,150 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background pt-safe">
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
+    <div className="min-h-screen bg-background">
+      {/* ── DESKTOP layout ── */}
+      <div className="hidden lg:flex min-h-screen">
+        {/* Left: form */}
+        <div className="w-2/5 flex flex-col items-center justify-start px-12 pt-12 pb-10 relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+          <div className="w-full max-w-sm relative z-10">
+            <Link to="/" className="inline-flex p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors mb-8">
+              <ArrowLeft className="w-5 h-5" weight="bold" />
+            </Link>
+
+            <div className="flex justify-center mb-8">
+              <Logo size="md" />
+            </div>
+
+            <h1 className="text-2xl font-bold tracking-tight mb-1">Bem-vindo de volta</h1>
+            <p className="text-muted-foreground text-sm mb-8">Entre na sua conta para continuar</p>
+
+            {isLockedOut && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-6"
+              >
+                <LockSimple className="w-5 h-5 text-destructive flex-shrink-0" weight="bold" />
+                <div>
+                  <p className="text-sm text-destructive font-medium">Acesso temporariamente bloqueado</p>
+                  <p className="text-xs text-destructive/70 mt-0.5">Tente novamente em {formatCountdown(lockoutRemaining)}</p>
+                </div>
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Email</label>
+                <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLockedOut} />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-muted-foreground">Senha</label>
+                  <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Esqueceu a senha?</Link>
+                </div>
+                <div className="relative">
+                  <Input type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLockedOut} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                    {showPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+              <Button type="submit" variant="glow" size="xl" className="w-full mt-6" disabled={isLoading || isLockedOut}>
+                {isLockedOut ? `Bloqueado (${formatCountdown(lockoutRemaining)})` : isLoading ? "Entrando..." : "Entrar"}
+              </Button>
+            </form>
+
+            <AuthDivider />
+            <GoogleButton onClick={handleGoogleSignIn} isLoading={isGoogleLoading} label="Continuar com Google" />
+
+            <p className="text-center text-muted-foreground mt-8 text-sm">
+              Não tem uma conta?{" "}
+              <Link to="/register" className="text-foreground font-medium hover:underline">Criar conta</Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Right: hero */}
+        <div className="w-3/5 h-screen">
+          <LoginHero />
+        </div>
       </div>
 
-      <div className="relative max-w-lg mx-auto px-6 pt-8 pb-12">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center mb-8"
+      {/* ── MOBILE layout ── */}
+      <div className="lg:hidden min-h-screen relative overflow-hidden">
+        {/* Landing animations */}
+        <ShaderBackground />
+        <div
+          className="fixed inset-0 z-[1] pointer-events-none"
+          style={{ WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)", maskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)" }}
         >
-          <Link
-            to="/"
-            className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" weight="bold" />
-          </Link>
-        </motion.div>
+          <DottedSurface style={{ width: "100%", height: "100%" }} />
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.05 }}
-          className="flex justify-center mb-8"
-        >
-          <Logo size="md" />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Bem-vindo de volta
-          </h1>
-          <p className="text-muted-foreground mb-8">
-            Entre na sua conta para continuar
-          </p>
-
-          {isLockedOut && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-6"
-            >
-              <LockSimple className="w-5 h-5 text-destructive flex-shrink-0" weight="bold" />
-              <div>
-                <p className="text-sm text-destructive font-medium">
-                  Acesso temporariamente bloqueado
-                </p>
-                <p className="text-xs text-destructive/70 mt-0.5">
-                  Tente novamente em {formatCountdown(lockoutRemaining)}
-                </p>
-              </div>
+        <div className="relative z-[2] pt-safe">
+          <div className="max-w-lg mx-auto px-6 pt-8 pb-12">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center mb-8">
+              <Link to="/" className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors">
+                <ArrowLeft className="w-5 h-5" weight="bold" />
+              </Link>
             </motion.div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Email
-              </label>
-              <Input
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLockedOut}
-              />
-            </div>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }} className="flex justify-center mb-8">
+              <Logo size="md" />
+            </motion.div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Senha
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <h1 className="text-3xl font-bold tracking-tight mb-2">Bem-vindo de volta</h1>
+              <p className="text-muted-foreground mb-8">Entre na sua conta para continuar</p>
+
+              {isLockedOut && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 mb-6"
                 >
-                  Esqueceu a senha?
-                </Link>
-              </div>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLockedOut}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeSlash className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
+                  <LockSimple className="w-5 h-5 text-destructive flex-shrink-0" weight="bold" />
+                  <div>
+                    <p className="text-sm text-destructive font-medium">Acesso temporariamente bloqueado</p>
+                    <p className="text-xs text-destructive/70 mt-0.5">Tente novamente em {formatCountdown(lockoutRemaining)}</p>
+                  </div>
+                </motion.div>
+              )}
 
-            <Button
-              type="submit"
-              variant="glow"
-              size="xl"
-              className="w-full mt-6"
-              disabled={isLoading || isLockedOut}
-            >
-              {isLockedOut
-                ? `Bloqueado (${formatCountdown(lockoutRemaining)})`
-                : isLoading
-                  ? "Entrando..."
-                  : "Entrar"}
-            </Button>
-          </form>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Email</label>
+                  <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLockedOut} />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-muted-foreground">Senha</label>
+                    <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Esqueceu a senha?</Link>
+                  </div>
+                  <div className="relative">
+                    <Input type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLockedOut} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                      {showPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+                <Button type="submit" variant="glow" size="xl" className="w-full mt-6" disabled={isLoading || isLockedOut}>
+                  {isLockedOut ? `Bloqueado (${formatCountdown(lockoutRemaining)})` : isLoading ? "Entrando..." : "Entrar"}
+                </Button>
+              </form>
 
-          <AuthDivider />
+              <AuthDivider />
+              <GoogleButton onClick={handleGoogleSignIn} isLoading={isGoogleLoading} label="Continuar com Google" />
 
-          <GoogleButton
-            onClick={handleGoogleSignIn}
-            isLoading={isGoogleLoading}
-            label="Continuar com Google"
-          />
-
-          <p className="text-center text-muted-foreground mt-8">
-            Não tem uma conta?{" "}
-            <Link
-              to="/register"
-              className="text-foreground font-medium hover:underline"
-            >
-              Criar conta
-            </Link>
-          </p>
-        </motion.div>
+              <p className="text-center text-muted-foreground mt-8">
+                Não tem uma conta?{" "}
+                <Link to="/register" className="text-foreground font-medium hover:underline">Criar conta</Link>
+              </p>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

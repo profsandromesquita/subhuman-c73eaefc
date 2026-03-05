@@ -33,13 +33,13 @@ const badges = [
 
 export function LandingAuthor() {
   return (
-    <section className="py-20 sm:py-28 px-6 surface-elevated">
+    <section className="py-12 sm:py-28 px-5 sm:px-6 surface-elevated">
       <div className="max-w-5xl mx-auto">
         <ScrollReveal>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-3">
+          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-2 sm:mb-3">
             O Arquiteto do Sistema
           </h2>
-          <p className="text-muted-foreground text-center text-base sm:text-lg max-w-2xl mx-auto mb-6">
+          <p className="text-muted-foreground text-center text-sm sm:text-lg max-w-2xl mx-auto mb-4 sm:mb-6">
             Você não está seguindo um "guru". Você está acessando a curadoria de um especialista de fronteira.
           </p>
         </ScrollReveal>

@@ -77,7 +77,7 @@ export default function Notifications() {
   if (authLoading || isLoading) {
     return (
       <AppLayout>
-        <div className="max-w-lg mx-auto px-4 pt-8">
+        <div className="px-4 pt-8 lg:px-10">
           <div className="mb-6">
             <Skeleton className="h-8 w-32 mb-2" />
             <Skeleton className="h-4 w-64" />
@@ -95,7 +95,7 @@ export default function Notifications() {
   if (!user) {
     return (
       <AppLayout>
-        <div className="max-w-lg mx-auto px-4 pt-8 text-center">
+        <div className="px-4 pt-8 lg:px-10 text-center">
           <p className="text-muted-foreground mb-4">
             Faça login para ver suas notificações
           </p>
@@ -108,16 +108,16 @@ export default function Notifications() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-8">
+      <div className="px-4 pt-8 pb-28 lg:px-10 lg:pt-10 lg:pb-10">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-6 lg:max-w-3xl lg:mx-auto"
         >
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">Notificações</h1>
-            <Logo size="sm" />
+            <h1 className="text-2xl font-bold lg:text-3xl lg:font-bold lg:tracking-tight">Notificações</h1>
+            <Logo size="sm" className="lg:hidden" />
           </div>
           <div className="flex items-center justify-between">
             <p className="text-muted-foreground text-sm">
@@ -140,7 +140,7 @@ export default function Notifications() {
         </motion.div>
 
         {/* Notifications List - Separated by read/unread */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:max-w-3xl lg:mx-auto">
           {notifications.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}

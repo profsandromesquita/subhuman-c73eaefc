@@ -11,6 +11,7 @@ import { usePodcastEngagement } from "@/hooks/usePodcastEngagement";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { ContentPaywall } from "@/components/ContentPaywall";
+import { Heart, ChatCircle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -220,82 +221,130 @@ export default function PodcastDetail() {
       />
 
       <div className="pt-14">
-        <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
-          {canListenPodcast ? (
-            <PodcastPlayer
-              audioUrl={podcast.audio_url}
-              title={podcast.title}
-              coverUrl={podcast.cover_url}
-              podcastId={podcast.id}
-              durationSeconds={podcast.duration_seconds}
-              initialProgress={savedProgress?.completed ? null : savedProgress?.progress_seconds}
-            />
-          ) : (
-            <ContentPaywall maxLines={0} type="podcast">
-              <div className="aspect-video w-full rounded-2xl bg-secondary flex items-center justify-center">
-                <img src={podcast.cover_url || ''} alt="" className="w-full h-full object-cover rounded-2xl opacity-50" />
+        {/* Desktop layout */}
+        <div className="lg:px-10 lg:pt-8 lg:grid lg:grid-cols-[1fr_260px] lg:gap-10">
+          {/* Main column */}
+          <div>
+            <div className="max-w-lg mx-auto px-4 pt-6 space-y-6 lg:max-w-none lg:px-0 lg:pt-0">
+              {canListenPodcast ? (
+                <PodcastPlayer
+                  audioUrl={podcast.audio_url}
+                  title={podcast.title}
+                  coverUrl={podcast.cover_url}
+                  podcastId={podcast.id}
+                  durationSeconds={podcast.duration_seconds}
+                  initialProgress={savedProgress?.completed ? null : savedProgress?.progress_seconds}
+                />
+              ) : (
+                <ContentPaywall maxLines={0} type="podcast">
+                  <div className="aspect-video w-full rounded-2xl bg-secondary flex items-center justify-center">
+                    <img src={podcast.cover_url || ''} alt="" className="w-full h-full object-cover rounded-2xl opacity-50" />
+                  </div>
+                </ContentPaywall>
+              )}
+
+              <div className="space-y-4 lg:text-left">
+                <h1 className="text-2xl font-bold text-foreground lg:text-3xl lg:tracking-tight">{podcast.title}</h1>
+                
+                {podcast.spaces && (
+                  <p className="text-sm text-muted-foreground">
+                    {podcast.spaces.name}
+                    {timeAgo && ` · ${timeAgo}`}
+                  </p>
+                )}
+
+                {podcast.tags && podcast.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {podcast.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        #{tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {podcast.description && (
+                  <div className="text-muted-foreground mt-6 whitespace-pre-wrap leading-relaxed lg:text-[15px] lg:leading-[1.75]">
+                    {podcast.description}
+                  </div>
+                )}
               </div>
-            </ContentPaywall>
-          )}
+            </div>
 
-          <div className="space-y-4 text-center">
-            <h1 className="text-2xl font-bold text-foreground">{podcast.title}</h1>
-            
-            {podcast.spaces && (
-              <p className="text-sm text-muted-foreground">
-                {podcast.spaces.name}
-                {timeAgo && ` · ${timeAgo}`}
-              </p>
-            )}
-
-            {podcast.tags && podcast.tags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2">
-                {podcast.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {podcast.description && (
-              <div className="text-muted-foreground text-left mt-6 whitespace-pre-wrap leading-relaxed">
-                {podcast.description}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <PostEngagement
-            likesCount={likesCount}
-            commentsCount={comments.length}
-            isLiked={isLiked}
-            onLikeToggle={handleLikeToggle}
-            onCommentClick={handleCommentClick}
-          />
-        </div>
-
-        {canComment && (
-          <>
-            <div ref={commentSectionRef}>
-              <CommentSection
-                comments={comments}
-                currentUserId={user?.id}
-                onLikeComment={handleLikeComment}
-                onReplyComment={handleReplyComment}
-                onEditComment={handleEditComment}
-                onDeleteComment={handleDeleteComment}
+            <div className="mt-8">
+              <PostEngagement
+                likesCount={likesCount}
+                commentsCount={comments.length}
+                isLiked={isLiked}
+                onLikeToggle={handleLikeToggle}
+                onCommentClick={handleCommentClick}
               />
             </div>
 
-            <CommentInput
-              onSubmit={handleSubmitComment}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-            />
-          </>
-        )}
+            {canComment && (
+              <>
+                <div ref={commentSectionRef}>
+                  <CommentSection
+                    comments={comments}
+                    currentUserId={user?.id}
+                    onLikeComment={handleLikeComment}
+                    onReplyComment={handleReplyComment}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
+                  />
+                </div>
+
+                <CommentInput
+                  onSubmit={handleSubmitComment}
+                  replyTo={replyTo}
+                  onCancelReply={() => setReplyTo(null)}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Right sidebar — desktop only */}
+          <aside className="hidden lg:block">
+            <div className="sticky top-20 space-y-4">
+              {/* Episode info */}
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Episódio</p>
+                {podcast.cover_url && (
+                  <img src={podcast.cover_url} alt="" className="w-full aspect-square object-cover rounded-xl" />
+                )}
+                {podcast.spaces && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">{podcast.spaces.name}</span>
+                  </div>
+                )}
+                {timeAgo && (
+                  <p className="text-xs text-muted-foreground">{timeAgo}</p>
+                )}
+              </div>
+
+              {/* Engagement */}
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-1">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">Engajamento</p>
+                <button
+                  onClick={handleLikeToggle}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium ${
+                    isLiked ? "text-red-400" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Heart className="w-4 h-4" weight={isLiked ? "fill" : "regular"} />
+                  <span>{likesCount} curtidas</span>
+                </button>
+                <button
+                  onClick={handleCommentClick}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <ChatCircle className="w-4 h-4" />
+                  <span>{comments.length} comentários</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
     </AppLayout>
   );

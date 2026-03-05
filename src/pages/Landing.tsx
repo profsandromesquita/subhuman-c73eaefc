@@ -16,6 +16,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { GradientOrbs } from "@/components/landing/GradientOrbs";
 import { StickyBottomCTA } from "@/components/landing/StickyBottomCTA";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
+import { DottedSurface } from "@/components/ui/dotted-surface";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -39,20 +40,29 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
       <ShaderBackground />
+      <DottedSurface
+        className="fixed inset-0 z-[1] pointer-events-none"
+        style={{
+          maskImage: 'linear-gradient(to top, black 0%, transparent 65%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 0%, transparent 65%)',
+        }}
+      />
       <GradientOrbs />
-      <LandingHero />
-      <LandingSocialProof />
-      <LandingProblem />
-      <LandingSpaces />
-      <LandingFeatures />
-      <LandingEvents />
-      <LandingMethod />
-      <LandingAuthor />
-      <LandingFAQ />
-      <div id="landing-cta-final">
-        <LandingCTA />
+      <div className="relative z-[2]">
+        <LandingHero />
+        <LandingSocialProof />
+        <LandingProblem />
+        <LandingSpaces />
+        <LandingFeatures />
+        <LandingEvents />
+        <LandingMethod />
+        <LandingAuthor />
+        <LandingFAQ />
+        <div id="landing-cta-final">
+          <LandingCTA />
+        </div>
+        <LandingFooter />
       </div>
-      <LandingFooter />
       <StickyBottomCTA />
     </div>
   );

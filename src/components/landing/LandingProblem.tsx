@@ -3,24 +3,24 @@ import { ScrollReveal } from "./ScrollReveal";
 
 export function LandingProblem() {
   return (
-    <section className="py-20 sm:py-28 px-6">
+    <section className="py-12 sm:py-28 px-5 sm:px-6">
       <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-12 md:gap-16 items-center">
         {/* Text */}
         <div className="md:w-[60%]">
           <ScrollReveal>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-6">
+            <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-4 sm:mb-6">
               O FIM DA "SIRENE"{" "}
               <span className="text-muted-foreground">NO SEU FEED</span>
             </h2>
           </ScrollReveal>
           <ScrollReveal delay={0.1}>
-            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-4">
+            <p className="text-muted-foreground text-sm sm:text-lg leading-relaxed mb-3 sm:mb-4">
               Seu feed virou uma sirene constante. Toda hora um "curso definitivo", um hack milagroso ou uma trend vazia anunciando que a IA matou sua profissão. Para quem precisa liderar e entregar, o barulho é ensurdecedor e a referência do que é real sumiu.
             </p>
-            <p className="text-foreground font-semibold text-base sm:text-lg mb-4">
+            <p className="text-foreground font-semibold text-sm sm:text-lg mb-3 sm:mb-4">
               Chega. Sua carreira exige foco.
             </p>
-            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed">
+            <p className="text-muted-foreground text-sm sm:text-lg leading-relaxed">
               O Subhumano é sua dieta de informação validada por quem constrói IA na prática.
             </p>
           </ScrollReveal>

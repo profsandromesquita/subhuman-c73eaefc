@@ -25,15 +25,15 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
   return (
     <Link
       to={`/podcasts/${podcast.slug}`}
-      className="relative flex gap-4 p-4 bg-card rounded-xl hover:bg-elevated transition-colors overflow-hidden"
+      className="relative flex gap-4 p-4 bg-card rounded-2xl hover:bg-white/5 border border-border/60 hover:border-border transition-all duration-200 overflow-hidden group"
     >
       {/* Cover Image */}
-      <div className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-secondary">
+      <div className="relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-secondary lg:w-24 lg:h-24">
         {podcast.cover_url ? (
           <img
             src={podcast.cover_url}
             alt={podcast.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
         ) : (
@@ -42,7 +42,7 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
           </div>
         )}
         {/* Duration Badge */}
-        <div className="absolute bottom-1 right-1 bg-background/80 backdrop-blur-sm text-xs font-medium px-1.5 py-0.5 rounded">
+        <div className="absolute bottom-1 right-1 bg-background/80 backdrop-blur-sm text-xs font-medium px-1.5 py-0.5 rounded-lg">
           {formatDuration(podcast.duration_seconds)}
         </div>
         {/* Listened indicator */}
@@ -56,19 +56,18 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col justify-between">
         <div>
-          <h3 className="font-semibold text-foreground line-clamp-1">
+          <h3 className="font-semibold text-foreground line-clamp-1 lg:line-clamp-2 lg:text-[15px]">
             {podcast.title}
           </h3>
           {podcast.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">
               {podcast.description}
             </p>
           )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap mt-2">
-          {/* Tags */}
-          {podcast.tags?.slice(0, 3).map((tag) => (
+          {podcast.tags?.slice(0, 2).map((tag) => (
             <Badge
               key={tag}
               variant="secondary"
@@ -78,7 +77,6 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
             </Badge>
           ))}
           
-          {/* Stats and meta */}
           <span className="text-xs text-muted-foreground flex items-center gap-2">
             <span className={`flex items-center gap-0.5 ${isLikedByUser ? 'text-red-500' : ''}`}>
               <Heart className="w-3.5 h-3.5" weight={isLikedByUser ? "fill" : "regular"} />
@@ -88,7 +86,7 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
               <ChatCircle className="w-3.5 h-3.5" />
               {commentsCount}
             </span>
-            <span>·</span>
+            <span className="text-border">·</span>
             {podcast.spaces?.name}
             {timeAgo && ` · ${timeAgo}`}
           </span>

@@ -116,7 +116,7 @@ function EventCard({
         <img
           src={event.cover_url}
           alt={event.title}
-          className="w-full h-40 object-cover"
+          className="w-full h-40 object-cover lg:h-52"
         />
       ) : (
         <div className="w-full h-28 bg-secondary flex items-center justify-center">
@@ -200,22 +200,29 @@ export default function Events() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-8 pb-24 space-y-6">
-        {/* Header */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-foreground">Eventos</h1>
-            <Logo size="sm" />
-          </div>
-          <p className="text-muted-foreground mt-1">
-            Workshops, palestras, mentorias e mais
-          </p>
+      {/* Mobile header */}
+      <div className="lg:hidden sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-border/50">
+        <div className="flex items-center justify-between px-4 h-14">
+          <h1 className="font-semibold">Eventos</h1>
+          <Logo size="sm" />
+        </div>
+      </div>
+
+      <div className="px-4 pt-5 pb-28 space-y-5 lg:px-10 lg:pt-8 lg:pb-10">
+        {/* Desktop title */}
+        <div className="hidden lg:block">
+          <h1 className="text-3xl font-bold tracking-tight">Eventos</h1>
+          <p className="text-muted-foreground mt-1">Workshops, palestras, mentorias e mais</p>
         </div>
 
+        {/* Mobile subtitle */}
+        <p className="text-sm text-muted-foreground lg:hidden">Workshops, palestras, mentorias e mais</p>
+
         {/* Filters */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 lg:flex-row lg:gap-3 lg:items-center">
+          <p className="hidden lg:block text-sm text-muted-foreground shrink-0">Filtrar por:</p>
           <Select value={filters.period || "all"} onValueChange={(v) => setFilters((f) => ({ ...f, period: v as any }))}>
-            <SelectTrigger className="flex-1 bg-card border-border text-foreground h-9 text-xs">
+            <SelectTrigger className="flex-1 bg-card border-border text-foreground h-9 text-xs lg:w-36 lg:flex-none">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent className="bg-card border-border z-50">
@@ -247,7 +254,7 @@ export default function Events() {
         </div>
 
         {/* Event List */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-6 lg:space-y-0">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="bg-card rounded-xl animate-pulse">

@@ -70,7 +70,7 @@ export function TrialBanner({ daysRemaining }: TrialBannerProps) {
           animate={{ opacity: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, x: 100, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed bottom-20 right-4 z-50 max-w-sm sm:bottom-6"
+          className="fixed bottom-20 right-4 z-50 max-w-sm sm:bottom-6 lg:bottom-6"
         >
           <div 
             className={`

@@ -1,133 +1,96 @@
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ChatCircle, 
-  Users, 
-  ArrowRight, 
-  Lock, 
-  Crown,
-  Question,
-  Rocket,
-  Wrench,
-  Handshake
-} from "@phosphor-icons/react";
+import { ChatCircle, Users, ArrowRight, Lock, Crown, Question, Rocket, Wrench, Handshake } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 import { useChannels } from "@/hooks/useChannels";
 import { formatTime } from "@/lib/formatTime";
 
 const iconMap: Record<string, React.ComponentType<any>> = {
-  ChatCircle: ChatCircle,
-  Question: Question,
-  Users: Users,
-  Rocket: Rocket,
-  Wrench: Wrench,
-  Handshake: Handshake,
+  ChatCircle, Question, Users, Rocket, Wrench, Handshake,
 };
 
-// Max animation delay (prevents long waits for lists)
 const MAX_STAGGER_ITEMS = 4;
-const STAGGER_DELAY = 0.03;
+const STAGGER_DELAY = 0.04;
 
 export default function Channels() {
-  const { data: channels = [], isLoading: loading } = useChannels();
-
-
-  const getAccessBadge = (channel: { access_type: string }) => {
-    if (channel.access_type === 'premium') {
-      return (
-        <Badge variant="secondary" className="gap-1 text-yellow-600 bg-yellow-500/10">
-          <Crown className="w-3 h-3" weight="fill" />
-          Premium
-        </Badge>
-      );
-    }
-    if (channel.access_type === 'subscribers') {
-      return (
-        <Badge variant="secondary" className="gap-1">
-          <Lock className="w-3 h-3" />
-          Assinantes
-        </Badge>
-      );
-    }
-    return null;
-  };
+  const { data: channels = [], isLoading } = useChannels();
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-8 pb-24">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">Canais</h1>
-            <Logo size="sm" />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Participe das discussões da comunidade
-          </p>
+      {/* Mobile header */}
+      <div className="lg:hidden sticky top-0 z-30 bg-background/90 backdrop-blur-xl border-b border-border/50">
+        <div className="flex items-center justify-between px-4 h-14">
+          <h1 className="font-semibold">Canais</h1>
+          <Logo size="sm" />
+        </div>
+      </div>
+
+      <div className="px-4 pt-5 pb-28 lg:px-10 lg:pt-8 lg:pb-10">
+        {/* Desktop title */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="hidden lg:block mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">Canais</h1>
+          <p className="text-muted-foreground mt-1">Participe das discussões da comunidade</p>
         </motion.div>
 
-        {/* Channels List */}
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-28 w-full" />
-            ))}
+        {/* Mobile subtitle */}
+        <p className="text-sm text-muted-foreground mb-5 lg:hidden">Participe das discussões da comunidade</p>
+
+        {isLoading ? (
+          <div className="space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[110px] w-full rounded-2xl" />)}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
             {channels.map((channel, index) => {
-              const IconComponent = iconMap[channel.icon || 'ChatCircle'] || ChatCircle;
-              
+              const Icon = iconMap[channel.icon || "ChatCircle"] || ChatCircle;
+              const isPremium = channel.access_type === "premium";
+              const isSubscribers = channel.access_type === "subscribers";
+
               return (
                 <motion.div
                   key={channel.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                 >
-                  <Link to={`/channels/${channel.id}`}>
-                    <Card className={`hover:border-muted-foreground/30 transition-all duration-200 ${!channel.has_access ? 'opacity-75' : ''}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="p-2 rounded-lg bg-secondary">
-                                <IconComponent className="w-4 h-4" weight="bold" />
-                              </div>
-                              <h3 className="font-semibold">{channel.name}</h3>
-                              {getAccessBadge(channel)}
+                  <Link to={`/channels/${channel.id}`} className="block group">
+                    <div className={`rounded-2xl border bg-card p-4 transition-all duration-200 hover:border-border lg:p-5 ${!channel.has_access ? "opacity-70" : "border-border/60 hover:bg-card/80"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className="p-2 rounded-xl bg-secondary shrink-0">
+                              <Icon className="w-4 h-4" weight="bold" />
                             </div>
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                              {channel.description}
-                            </p>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                {channel.members_count}
-                              </span>
-                              <span>{channel.posts_count} posts</span>
-                              {channel.last_activity && (
-                                <span>Ativo {formatTime(channel.last_activity)}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            {!channel.has_access && (
-                              <Lock className="w-4 h-4 text-muted-foreground" />
+                            <h3 className="font-semibold truncate">{channel.name}</h3>
+                            {isPremium && (
+                              <Badge variant="secondary" className="gap-1 text-yellow-600 bg-yellow-500/10 shrink-0 text-[11px]">
+                                <Crown className="w-3 h-3" weight="fill" />Premium
+                              </Badge>
                             )}
-                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                            {isSubscribers && !isPremium && (
+                              <Badge variant="secondary" className="gap-1 shrink-0 text-[11px]">
+                                <Lock className="w-3 h-3" />Assinantes
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">{channel.description}</p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />{channel.members_count}
+                            </span>
+                            <span>{channel.posts_count} posts</span>
+                            {channel.last_activity && <span>· {formatTime(channel.last_activity)}</span>}
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <div className="flex items-center gap-1.5 mt-1 shrink-0">
+                          {!channel.has_access && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                          <ArrowRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                        </div>
+                      </div>
+                    </div>
                   </Link>
                 </motion.div>
               );

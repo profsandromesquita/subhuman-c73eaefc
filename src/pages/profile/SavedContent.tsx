@@ -181,19 +181,16 @@ export default function SavedContent() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-        <div className="flex items-center gap-3 mb-6">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => navigate("/profile")}
-          >
-            <ArrowLeft className="w-5 h-5" weight="bold" />
-          </Button>
-          <h1 className="text-xl font-bold">Conteúdos salvos</h1>
-        </div>
-
-        <Tabs defaultValue="articles">
+      <div className="px-4 pt-6 pb-24 lg:px-10 lg:pt-10 lg:pb-10">
+        <div className="lg:max-w-3xl lg:mx-auto">
+          <div className="flex items-center gap-3 mb-6 lg:mb-8">
+            <Button size="icon" variant="ghost" onClick={() => navigate("/profile")}>
+              <ArrowLeft className="w-5 h-5" weight="bold" />
+            </Button>
+            <h1 className="text-xl font-bold lg:text-3xl lg:tracking-tight">Conteúdos salvos</h1>
+          </div>
+          <div>
+          <Tabs defaultValue="articles">
           <TabsList className="w-full">
             <TabsTrigger value="articles" className="flex-1">
               Artigos
@@ -209,6 +206,8 @@ export default function SavedContent() {
             <SavedPodcastsList />
           </TabsContent>
         </Tabs>
+        </div>
+        </div>
       </div>
     </AppLayout>
   );

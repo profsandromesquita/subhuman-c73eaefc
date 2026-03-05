@@ -15,14 +15,14 @@ const steps = [
 
 export function LandingMethod() {
   return (
-    <section className="py-20 sm:py-28 px-6">
+    <section className="py-12 sm:py-28 px-5 sm:px-6">
       <div className="max-w-3xl mx-auto">
         <ScrollReveal>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-3">
+          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-2 sm:mb-3">
             O Método Piloto Subhumano{" "}
             <span className="text-muted-foreground">(MPS)</span>
           </h2>
-          <p className="text-muted-foreground text-center text-base sm:text-lg mb-14">
+          <p className="text-muted-foreground text-center text-sm sm:text-lg mb-10 sm:mb-14">
             Para tirar você do caos da infoxicação, não basta boa vontade; é preciso método.
           </p>
         </ScrollReveal>

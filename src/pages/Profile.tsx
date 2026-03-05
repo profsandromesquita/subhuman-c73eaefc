@@ -7,11 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SubscriptionModal } from "@/components/SubscriptionModal";
-import { 
-  User as UserIcon, 
-  Gear, 
-  CreditCard, 
-  Bell, 
+import {
+  User as UserIcon,
+  Gear,
+  CreditCard,
+  Bell,
   ShieldCheck,
   CaretRight,
   SignOut,
@@ -56,15 +56,9 @@ export default function Profile() {
 
   const getInitials = (name: string | null) => {
     if (!name) return user?.email?.[0]?.toUpperCase() || "U";
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  // Menu items - "Dados pessoais" label changes based on account type
   const menuItems = [
     {
       icon: EnvelopeSimple,
@@ -108,7 +102,7 @@ export default function Profile() {
   if (authLoading || profileLoading) {
     return (
       <AppLayout>
-        <div className="max-w-lg mx-auto px-4 pt-8">
+        <div className="max-w-lg mx-auto px-4 pt-8 lg:max-w-none lg:px-10">
           <div className="flex items-center gap-4 mb-8">
             <Skeleton className="w-16 h-16 rounded-full" />
             <div className="space-y-2">
@@ -116,7 +110,7 @@ export default function Profile() {
               <Skeleton className="h-4 w-48" />
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:max-w-3xl">
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="h-16 w-full rounded-xl" />
             ))}
@@ -128,19 +122,25 @@ export default function Profile() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-8">
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-28 lg:max-w-none lg:px-10 lg:pt-10 lg:pb-10">
+        {/* Desktop title */}
+        <div className="hidden lg:block mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">Perfil</h1>
+          <p className="text-muted-foreground mt-1">Gerencie sua conta e preferências</p>
+        </div>
+
         <div className="flex items-center justify-between mb-4">
           <div />
-          <Logo size="sm" />
+          <Logo size="sm" className="lg:hidden" />
         </div>
-        
+
         {/* Profile Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-8"
+          className="flex items-center gap-4 mb-8 lg:max-w-3xl"
         >
-          <Avatar className="h-16 w-16">
+          <Avatar className="h-16 w-16 lg:h-20 lg:w-20">
             <AvatarImage src={profile?.avatar_url || undefined} />
             <AvatarFallback className="text-xl bg-secondary">
               {getInitials(profile?.full_name ?? null)}
@@ -148,7 +148,7 @@ export default function Profile() {
           </Avatar>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">{profile?.full_name || "Usuário"}</h1>
+              <h1 className="text-xl font-bold lg:text-2xl">{profile?.full_name || "Usuário"}</h1>
               <Badge variant={isCompanyAccount ? "default" : "secondary"} className="text-[10px] h-5">
                 {isCompanyAccount ? "Empresa" : "Pessoal"}
               </Badge>
@@ -162,12 +162,9 @@ export default function Profile() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          className="mb-2"
+          className="mb-2 lg:max-w-3xl"
         >
-          <button 
-            onClick={() => setShowSubscriptionModal(true)} 
-            className="w-full text-left"
-          >
+          <button onClick={() => setShowSubscriptionModal(true)} className="w-full text-left">
             <Card className="hover:border-muted-foreground/30 transition-all duration-200">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -190,7 +187,7 @@ export default function Profile() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.12 }}
-          className="mb-2"
+          className="mb-2 lg:max-w-3xl"
         >
           <Link to="/search">
             <Card className="hover:border-muted-foreground/30 transition-all duration-200">
@@ -210,12 +207,12 @@ export default function Profile() {
           </Link>
         </motion.div>
 
-        {/* Menu Items - single list, no separate company link */}
+        {/* Menu Items */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.16 }}
-          className="space-y-2 mb-8"
+          className="space-y-2 mb-8 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:max-w-3xl"
         >
           {menuItems.map((item, index) => (
             <motion.div
@@ -256,6 +253,7 @@ export default function Profile() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
+          className="lg:max-w-3xl"
         >
           <Button variant="outline" className="w-full" onClick={handleLogout}>
             <SignOut className="w-4 h-4" weight="bold" />
@@ -263,9 +261,9 @@ export default function Profile() {
           </Button>
         </motion.div>
 
-        <SubscriptionModal 
-          isOpen={showSubscriptionModal} 
-          onClose={() => setShowSubscriptionModal(false)} 
+        <SubscriptionModal
+          isOpen={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
         />
       </div>
     </AppLayout>

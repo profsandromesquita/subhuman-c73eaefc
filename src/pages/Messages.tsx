@@ -53,10 +53,11 @@ export default function Messages() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Mensagens</h1>
-          <Logo size="sm" />
+      <div className="px-4 pt-6 pb-24 lg:px-10 lg:pt-10 lg:pb-10">
+        <div className="lg:max-w-3xl lg:mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold lg:text-3xl lg:tracking-tight">Mensagens</h1>
+          <Logo size="sm" className="lg:hidden" />
         </div>
 
         <div className="relative mb-4">
@@ -169,6 +170,7 @@ export default function Messages() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </AppLayout>
   );

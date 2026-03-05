@@ -17,7 +17,8 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AuthPromptDialog } from "@/components/AuthPromptDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Lock } from "@phosphor-icons/react";
+import { ArrowRight, Lock, BookmarkSimple, Heart, ChatCircle } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import {
   Dialog,
@@ -264,48 +265,110 @@ export default function PostDetail() {
 
       <AuthPromptDialog open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
 
-      <PostContent
-        title={post.title}
-        content={post.content || ""}
-        thumbnailUrl={post.thumbnail_url}
-        mediaType={post.media_type}
-        spaceName={post.space.name}
-        spaceSlug={post.space.slug}
-        authorName={post.author?.full_name || "Autor"}
-        publishedAt={formatTime(post.published_at || post.created_at)}
-        readTime={estimateReadTime(post.content)}
-        media={media}
-        author={post.author}
-      />
-
-      <PostEngagement
-        likesCount={likesCount}
-        commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
-        isLiked={isLiked}
-        onLikeToggle={canLike ? handleLikeToggle : showAccessPrompt}
-        onCommentClick={handleCommentClick}
-      />
-
-      {canComment && (
-        <>
-          <div ref={commentSectionRef}>
-            <CommentSection
-              comments={comments}
-              currentUserId={user?.id}
-              onLikeComment={handleLikeComment}
-              onReplyComment={handleReplyComment}
-              onEditComment={handleEditComment}
-              onDeleteComment={handleDeleteComment}
-            />
-          </div>
-
-          <CommentInput
-            onSubmit={handleSubmitComment}
-            replyTo={replyTo}
-            onCancelReply={() => setReplyTo(null)}
+      {/* Desktop: three-column layout */}
+      <div className="lg:flex lg:px-10 lg:gap-12 lg:min-h-screen">
+        {/* Article column */}
+        <div className="flex-1 min-w-0 lg:max-w-[760px]">
+          <PostContent
+            title={post.title}
+            content={post.content || ""}
+            thumbnailUrl={post.thumbnail_url}
+            mediaType={post.media_type}
+            spaceName={post.space.name}
+            spaceSlug={post.space.slug}
+            authorName={post.author?.full_name || "Autor"}
+            publishedAt={formatTime(post.published_at || post.created_at)}
+            readTime={estimateReadTime(post.content)}
+            media={media}
+            author={post.author}
           />
-        </>
-      )}
+
+          <PostEngagement
+            likesCount={likesCount}
+            commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+            isLiked={isLiked}
+            onLikeToggle={canLike ? handleLikeToggle : showAccessPrompt}
+            onCommentClick={handleCommentClick}
+          />
+
+          {canComment && (
+            <>
+              <div ref={commentSectionRef}>
+                <CommentSection
+                  comments={comments}
+                  currentUserId={user?.id}
+                  onLikeComment={handleLikeComment}
+                  onReplyComment={handleReplyComment}
+                  onEditComment={handleEditComment}
+                  onDeleteComment={handleDeleteComment}
+                />
+              </div>
+
+              <CommentInput
+                onSubmit={handleSubmitComment}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Right sidebar — desktop only */}
+        <aside className="hidden lg:block lg:w-56 lg:shrink-0 lg:pt-20">
+          <div className="sticky top-20 space-y-4">
+            {/* Engagement vertical */}
+            <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">Engajamento</p>
+              <button
+                onClick={canLike ? handleLikeToggle : showAccessPrompt}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium ${
+                  isLiked ? "text-red-400" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Heart className="w-4.5 h-4.5" weight={isLiked ? "fill" : "regular"} />
+                <span>{likesCount} curtidas</span>
+              </button>
+              <button
+                onClick={handleCommentClick}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ChatCircle className="w-4.5 h-4.5" />
+                <span>{comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)} comentários</span>
+              </button>
+              <button
+                onClick={handleSaveToggle}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium ${
+                  isSaved ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <BookmarkSimple className="w-4.5 h-4.5" weight={isSaved ? "fill" : "regular"} />
+                <span>{isSaved ? "Salvo" : "Salvar"}</span>
+              </button>
+            </div>
+
+            {/* Author info */}
+            {post.author && (
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Autor</p>
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-10 h-10 ring-1 ring-border/50">
+                    <AvatarImage src={post.author.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary text-sm">
+                      {post.author.full_name?.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{post.author.full_name}</p>
+                    {post.author.bio && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-relaxed">{post.author.bio}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
 
       <Dialog open={showUpgradePrompt} onOpenChange={setShowUpgradePrompt}>
         <DialogContent className="bg-card border-border max-w-sm">

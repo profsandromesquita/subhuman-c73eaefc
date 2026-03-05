@@ -94,16 +94,16 @@ const decorations: Record<string, React.FC> = {
 
 export function LandingFeatures() {
   return (
-    <section className="py-20 sm:py-28 px-6 surface-elevated">
+    <section className="py-12 sm:py-28 px-5 sm:px-6 surface-elevated">
       <div className="max-w-5xl mx-auto">
         <ScrollReveal>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-16">
+          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-10 sm:mb-16">
             Ferramentas de{" "}
             <span className="text-muted-foreground">Soberania Profissional</span>
           </h2>
         </ScrollReveal>
 
-        <div className="space-y-16 sm:space-y-20">
+        <div className="space-y-10 sm:space-y-20">
           {features.map((feat, i) => {
             const Decoration = decorations[feat.decoration];
             return (
@@ -116,8 +116,8 @@ export function LandingFeatures() {
                   {Decoration && <Decoration />}
 
                   {/* Icon */}
-                  <div className="flex-shrink-0 p-6 rounded-2xl bg-card border border-border">
-                    <feat.icon className="w-12 h-12 text-foreground" />
+                  <div className="flex-shrink-0 p-4 sm:p-6 rounded-2xl bg-card border border-border">
+                    <feat.icon className="w-9 h-9 sm:w-12 sm:h-12 text-foreground" />
                   </div>
 
                   {/* Content */}

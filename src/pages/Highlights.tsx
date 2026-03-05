@@ -181,7 +181,8 @@ export default function Highlights() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-background">
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
+        {/* Mobile sticky header */}
+        <div className="lg:hidden sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="flex items-center gap-3 p-4">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
               <ArrowLeft className="h-5 w-5" />
@@ -207,14 +208,42 @@ export default function Highlights() {
           </ScrollArea>
         </div>
 
-        <div className="p-4">
+        {/* Desktop header */}
+        <div className="hidden lg:block px-10 pt-8 pb-6 border-b border-border/40">
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">Destaques</h1>
+                <p className="text-muted-foreground mt-0.5">Conteúdo em alta dos seus espaços</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {dateFilters.map((filter) => (
+                <Button
+                  key={filter.value}
+                  variant={selectedFilter === filter.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedFilter(filter.value)}
+                  className="rounded-xl"
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 pb-28 lg:px-10 lg:py-8">
           {!user ? (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-12">
               <p className="text-muted-foreground mb-4">Faça login para ver os destaques dos seus espaços</p>
               <Button onClick={() => navigate("/login")}>Fazer login</Button>
             </motion.div>
           ) : loading ? (
-            <div className="space-y-3">
+            <div className="space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
               {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
@@ -225,20 +254,20 @@ export default function Highlights() {
               <Button variant="outline" onClick={() => navigate("/spaces")}>Explorar espaços</Button>
             </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
               {highlights.map((highlight, index) => (
                 <motion.div
                   key={highlight.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  transition={{ delay: index * 0.04 }}
                 >
-                  <Card className="p-3 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => handleCardClick(highlight)}>
+                  <Card className="p-3 lg:p-4 cursor-pointer hover:bg-white/5 border-border/60 hover:border-border transition-all duration-200" onClick={() => handleCardClick(highlight)}>
                     <div className="flex gap-3">
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
                           <Badge variant="secondary" className="mb-2 text-xs">{highlight.space_name}</Badge>
-                          <h3 className="font-medium text-sm leading-snug line-clamp-3">{highlight.title}</h3>
+                          <h3 className="font-medium text-sm leading-snug line-clamp-2 lg:text-[15px] lg:line-clamp-2">{highlight.title}</h3>
                         </div>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
@@ -249,7 +278,7 @@ export default function Highlights() {
                             <ChatCircle className="h-3.5 w-3.5" />
                             <span>{highlight.comments_count}</span>
                           </div>
-                          <span>·</span>
+                          <span className="text-border">·</span>
                           <span>{formatTime(highlight.published_at)}</span>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" />
@@ -263,7 +292,7 @@ export default function Highlights() {
                             src={highlight.thumbnail_url}
                             alt=""
                             loading="lazy"
-                            className="w-20 h-20 object-cover rounded-lg bg-muted"
+                            className="w-20 h-20 object-cover rounded-xl bg-muted lg:w-24 lg:h-24 lg:rounded-2xl"
                           />
                         </div>
                       )}

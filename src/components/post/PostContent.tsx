@@ -162,7 +162,7 @@ export function PostContent({
     >
       {/* Hero Media */}
       {thumbnailUrl && (
-        <div className="relative w-full aspect-video bg-muted">
+        <div className="relative w-full aspect-video bg-muted lg:max-h-[480px] lg:overflow-hidden">
           <img
             src={thumbnailUrl}
             alt=""
@@ -184,7 +184,7 @@ export function PostContent({
       )}
 
       {/* Content Container */}
-      <div className="max-w-2xl mx-auto px-5 py-6">
+      <div className="max-w-2xl mx-auto px-5 py-6 lg:px-10 lg:py-8">
         {/* Space Badge */}
         <Link to={`/spaces/${spaceSlug}`}>
           <Badge 
@@ -196,12 +196,12 @@ export function PostContent({
         </Link>
 
         {/* Title */}
-        <h1 className="text-2xl sm:text-3xl font-bold leading-tight mb-4">
+        <h1 className="text-2xl sm:text-3xl font-bold leading-tight mb-4 lg:text-[2.25rem] lg:leading-[1.2] lg:tracking-tight">
           {title}
         </h1>
 
         {/* Meta Info */}
-        <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8 flex-wrap">
           <button 
             onClick={() => author && setShowAuthorModal(true)}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
@@ -218,9 +218,9 @@ export function PostContent({
             </span>
             <PremiumBadge type={badgeType} size={16} />
           </button>
-          <span>•</span>
+          <span className="text-border">·</span>
           <span>{publishedAt}</span>
-          <span>•</span>
+          <span className="text-border">·</span>
           <span className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" />
             {readTime}
@@ -228,20 +228,20 @@ export function PostContent({
         </div>
 
         {/* Divider */}
-        <div className="w-full h-px bg-border mb-8" />
+        <div className="w-full h-px bg-border/60 mb-8" />
 
-        {/* Content - mentions rendered as clickable links via data attributes */}
+        {/* Content */}
         {canReadFullArticles ? (
           <div 
             ref={contentRef}
-            className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+            className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer lg:prose-base lg:leading-[1.85] lg:[&_p]:text-[17px] lg:[&_li]:text-[17px]"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
           />
         ) : (
           <ContentPaywall maxLines={7} type="article">
             <div 
               ref={contentRef}
-              className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer"
+              className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-a:text-primary [&_.mention]:text-primary [&_.mention]:font-medium [&_.mention]:cursor-pointer lg:prose-base lg:leading-[1.85] lg:[&_p]:text-[17px] lg:[&_li]:text-[17px]"
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content || '', { ADD_ATTR: ['data-mention-type', 'data-mention-id'] }) }}
             />
           </ContentPaywall>

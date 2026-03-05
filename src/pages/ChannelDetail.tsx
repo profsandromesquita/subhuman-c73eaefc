@@ -131,7 +131,11 @@ export default function ChannelDetail() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-24">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-24 lg:max-w-none lg:px-10 lg:pt-8 lg:pb-10">
+        {/* Desktop two-column layout */}
+        <div className="lg:grid lg:grid-cols-[1fr_260px] lg:gap-10">
+          {/* Main column */}
+          <div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -288,6 +292,34 @@ export default function ChannelDetail() {
             </div>
           )}
         </AnimatePresence>
+          </div>
+
+          {/* Right sidebar — desktop only */}
+          <div className="hidden lg:block">
+            <div className="lg:sticky lg:top-8 lg:self-start space-y-4">
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-secondary">
+                    <IconComponent className="w-5 h-5" weight="bold" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{channel?.name}</h3>
+                    <p className="text-xs text-muted-foreground">{membersCount} participantes · {posts.length} posts</p>
+                  </div>
+                </div>
+                {channel?.description && (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{channel.description}</p>
+                )}
+                {user && hasAccess && canPostInChannels && (
+                  <Button size="sm" className="w-full gap-1.5 rounded-xl" onClick={handleNavigateToCreatePost}>
+                    <Plus className="w-4 h-4" weight="bold" />
+                    Nova publicação
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <AuthorModal
         author={mentionAuthor}

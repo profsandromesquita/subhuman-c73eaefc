@@ -31,10 +31,10 @@ const faqs = [
 
 export function LandingFAQ() {
   return (
-    <section className="py-20 sm:py-28 px-6">
+    <section className="py-12 sm:py-28 px-5 sm:px-6">
       <div className="max-w-3xl mx-auto">
         <ScrollReveal>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-12">
+          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-8 sm:mb-12">
             Você pode estar pensando...
           </h2>
         </ScrollReveal>

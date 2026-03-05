@@ -181,7 +181,7 @@ export default function Plans() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
       </div>
 
-      <div className="relative max-w-lg mx-auto px-6 pt-safe pb-12">
+      <div className="relative max-w-lg mx-auto px-6 pt-safe pb-12 lg:max-w-2xl">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
