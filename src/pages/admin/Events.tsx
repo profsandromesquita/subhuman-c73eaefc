@@ -48,12 +48,14 @@ const typeOptions = [
   { value: "palestra", label: "Palestra" },
   { value: "live", label: "Live" },
   { value: "aula_ao_vivo", label: "Aula ao Vivo" },
-  { value: "mentoria", label: "Mentoria" },
+  { value: "mentoria_grupo", label: "Mentoria em Grupo" },
+  { value: "mentoria_individual", label: "Mentoria Individual" },
   { value: "curso", label: "Curso" },
 ];
 
 const modalityOptions = [
-  { value: "online", label: "Online" },
+  { value: "online_gravado", label: "Online Gravado" },
+  { value: "online_ao_vivo", label: "Online ao Vivo" },
   { value: "presencial", label: "Presencial" },
   { value: "hibrido", label: "Híbrido" },
 ];
@@ -68,6 +70,7 @@ interface FormData {
   location: string;
   max_participants: string;
   checkout_url: string;
+  access_url: string;
   ticto_offer_id: string;
   sessions: SessionInput[];
 }
@@ -76,12 +79,13 @@ const emptyForm: FormData = {
   title: "",
   description: "",
   event_type: "workshop",
-  modality: "online",
+  modality: "online_gravado",
   price: "0",
   is_free: false,
   location: "",
   max_participants: "",
   checkout_url: "",
+  access_url: "",
   ticto_offer_id: "",
   sessions: [],
 };
@@ -127,6 +131,7 @@ export default function AdminEvents() {
       location: event.location || "",
       max_participants: event.max_participants ? String(event.max_participants) : "",
       checkout_url: event.checkout_url || "",
+      access_url: (event as any).access_url || "",
       ticto_offer_id: event.ticto_offer_id || "",
       sessions: event.sessions.map((s) => ({
         starts_at: s.starts_at.slice(0, 16),
@@ -222,6 +227,7 @@ export default function AdminEvents() {
       location: formData.location.trim() || null,
       max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
       checkout_url: formData.checkout_url.trim() || null,
+      access_url: formData.access_url.trim() || null,
       ticto_offer_id: formData.ticto_offer_id.trim() || null,
       is_published: publish,
       cover_url: coverUrl,
@@ -531,7 +537,16 @@ export default function AdminEvents() {
               />
             </div>
 
-            {/* Sessions */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">URL da área de membros</label>
+              <Input
+                value={formData.access_url}
+                onChange={(e) => setFormData((p) => ({ ...p, access_url: e.target.value }))}
+                placeholder="https://members.ticto.app/..."
+              />
+              <p className="text-xs text-muted-foreground">Link para quem já tem acesso ao evento</p>
+            </div>
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Sessões</label>

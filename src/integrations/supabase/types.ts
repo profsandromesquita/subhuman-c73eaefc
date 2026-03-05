@@ -632,6 +632,7 @@ export type Database = {
       }
       events: {
         Row: {
+          access_url: string | null
           checkout_url: string | null
           cover_url: string | null
           created_at: string
@@ -652,6 +653,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_url?: string | null
           checkout_url?: string | null
           cover_url?: string | null
           created_at?: string
@@ -672,6 +674,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_url?: string | null
           checkout_url?: string | null
           cover_url?: string | null
           created_at?: string

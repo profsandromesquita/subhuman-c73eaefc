@@ -18,7 +18,7 @@ export interface UserAccess {
   aiDailyLimit: number;
   canPostInChannels: boolean;
   canViewMemberCards: boolean;
-  canAccessEvent: (eventId: string) => boolean;
+  canAccessEvent: (eventId: string, eventType?: string, modality?: string) => boolean;
   canAccessFreeEvents: boolean;
   canAccessAllOnlineEvents: boolean;
   hasPremiumBadge: 'blue' | 'gold' | null;
@@ -205,11 +205,33 @@ export function useUserAccess(): UserAccess {
   const purchasedEventIds = eventPurchases ?? [];
 
   const canAccessEvent = useMemo(() => {
-    return (eventId: string): boolean => {
+    return (eventId: string, eventType?: string, modality?: string): boolean => {
       if (tier === 'admin') return true;
+
+      // Purchased individually
+      if (purchasedEventIds.includes(eventId)) return true;
+
+      // No tier-based access for these
+      if (['freemium', 'coupon', 'student', 'trial'].includes(tier)) return false;
+
+      // Monthly: palestra, workshop, curso — only online_gravado
+      if (tier === 'monthly') {
+        const allowedTypes = ['palestra', 'workshop', 'curso'];
+        const allowedModalities = ['online_gravado'];
+        return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
+      }
+
+      // Yearly: + mentoria_grupo, + online_ao_vivo, hibrido
+      if (tier === 'yearly') {
+        const allowedTypes = ['palestra', 'workshop', 'curso', 'mentoria_grupo'];
+        const allowedModalities = ['online_gravado', 'online_ao_vivo', 'hibrido'];
+        return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
+      }
+
+      // Lifetime: full access
       if (tier === 'lifetime') return true;
-      if (['monthly', 'yearly'].includes(tier)) return true;
-      return purchasedEventIds.includes(eventId);
+
+      return false;
     };
   }, [tier, purchasedEventIds]);
 
