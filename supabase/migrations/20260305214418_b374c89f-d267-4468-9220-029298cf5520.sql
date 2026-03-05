@@ -1,0 +1,1 @@
+ALTER TABLE public.events ADD COLUMN access_url text;
