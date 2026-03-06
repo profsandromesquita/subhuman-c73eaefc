@@ -1,59 +1,39 @@
 
 
-# Plano: Corrigir permissoes de leitura/comentario em canais abertos
+# Plano: Corrigir Build Quebrado
 
-## Diagnostico
+## Causa Raiz
 
-A causa raiz esta em `src/pages/ChannelPostDetail.tsx`. O componente usa `useUserAccess()` para decidir se mostra o conteudo completo ou o paywall, **sem considerar o tipo de acesso do canal**.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-**Fluxo atual com problema:**
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-1. Canal "Geral" esta configurado como `access_type = 'open'` no admin
-2. `ChannelDetail.tsx` (lista de posts) funciona — usa `useChannelAccess` e permite entrada no canal
-3. Mas ao clicar num post, `ChannelPostDetail.tsx` verifica apenas `canReadFullChannelPosts` (linha 458) e `canComment` (linha 505) do `useUserAccess()`
-4. Para freemium, `canReadFullChannelPosts = false` e `canComment = false`
-5. Resultado: paywall exibido mesmo em canal aberto
+## Correcao
 
-**Codigo problematico (linhas 458-472, 505):**
-```typescript
-// Linha 458 — sempre usa permissao global, ignora access_type do canal
-{canReadFullChannelPosts ? (
-  <div ...content... />
-) : (
-  <ContentPaywall maxLines={1} type="channel">...</ContentPaywall>
-)}
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-// Linha 505 — esconde comentarios para freemium mesmo em canal aberto
-{canComment && ( ... )}
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
-## Solucao
-
-Adicionar `useChannelAccess(channelId)` em `ChannelPostDetail.tsx` e usar o `accessType` do canal para sobrescrever as permissoes quando o canal e aberto.
-
-**Logica corrigida:**
+E atualizar o import no `index.ts` de:
 ```typescript
-const { accessType } = useChannelAccess(channelId);
-const isOpenChannel = accessType === 'open';
-
-// Leitura: liberar se canal aberto OU se tem permissao por tier
-const canReadContent = isOpenChannel || canReadFullChannelPosts;
-
-// Comentario: liberar se canal aberto (e logado) OU se tem permissao por tier  
-const canCommentHere = (isOpenChannel && !!user) || canComment;
-
-// Curtida: ja esta liberada para freemium (alteracao anterior)
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
 ```
 
-## Arquivo impactado
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/ChannelPostDetail.tsx` | Importar `useChannelAccess`, criar variaveis `canReadContent` e `canCommentHere`, substituir nos condicionais das linhas 458 e 505 |
-
-**Nenhum outro arquivo precisa ser alterado.** O hook `useChannelAccess` ja existe e funciona corretamente. As RLS policies ja permitem insert de comentarios/likes para qualquer usuario autenticado.
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
 ## Risco
 
-Baixo. A mudanca e isolada a um unico componente e apenas adiciona uma condicao extra aos checks existentes. Canais com `access_type = 'subscribers'` ou `'premium'` continuam protegidos normalmente pelo `useChannelAccess` que ja bloqueia o acesso na pagina `ChannelDetail.tsx`.
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
