@@ -134,7 +134,7 @@ export default function AdminEvents() {
       modality: event.modality,
       price: event.price?.toString() || "",
       is_free: event.is_free,
-      cover_url: event.cover_url || "",
+      
       location: event.location || "",
       max_participants: event.max_participants?.toString() || "",
       checkout_url: event.checkout_url || "",
