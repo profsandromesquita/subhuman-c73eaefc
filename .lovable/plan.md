@@ -1,56 +1,39 @@
 
 
-# Plano: Corrigir Sincronização de Horários nos Eventos
+# Plano: Corrigir Build Quebrado
 
 ## Causa Raiz
 
-O input `datetime-local` no admin retorna strings como `"2026-03-06T10:00"` (sem timezone). Quando enviadas ao banco (`timestamptz`), o Supabase interpreta como **UTC**. Na exibição, `new Date()` converte UTC para horário local (UTC-3 no Brasil), resultando em 10h → 7h.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-O mesmo problema ocorre ao editar: a linha `s.starts_at.slice(0, 16)` corta o sufixo de timezone do valor UTC retornado pelo banco, mostrando o horário UTC no campo de edição.
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-## Correção
+## Correcao
 
-**Dois pontos de ajuste:**
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-### 1. Ao salvar (admin → banco): anexar offset local
-
-No `useAdminEvents.ts`, antes de inserir sessions, converter a string local para ISO com timezone:
-
-```typescript
-// "2026-03-06T10:00" → "2026-03-06T10:00:00-03:00"
-function localToTimestamptz(localStr: string): string {
-  const date = new Date(localStr);
-  return date.toISOString(); // ou usar offset explícito
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
 }
 ```
 
-Usar `new Date(localStr).toISOString()` faz o JS interpretar como local e converter para UTC corretamente. Isso garante que "10:00 local" vira "13:00:00Z" no banco.
-
-### 2. Ao carregar para edição (banco → admin): converter UTC para local
-
-No `openEditModal` em `admin/Events.tsx`, a linha `s.starts_at.slice(0, 16)` está cortando o timestamp UTC. Precisa converter para local:
-
+E atualizar o import no `index.ts` de:
 ```typescript
-function utcToLocalInput(utcStr: string): string {
-  const date = new Date(utcStr);
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60000);
-  return local.toISOString().slice(0, 16);
-}
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
 ```
 
-### 3. Exibição pública — já funciona
-
-Os componentes públicos (`Events.tsx`, `LandingEvents.tsx`, `Plans.tsx`) usam `new Date(s.starts_at)` + `format()`, que automaticamente converte UTC para local. O problema é apenas que o valor salvo no banco está errado (UTC quando deveria representar horário local). Com a correção no passo 1, a exibição ficará correta automaticamente.
-
-## Arquivos impactados
-
-| Arquivo | Alteração |
-|---|---|
-| `src/hooks/useAdminEvents.ts` | Converter `starts_at`/`ends_at` com `new Date().toISOString()` antes de salvar |
-| `src/pages/admin/Events.tsx` | Converter timestamps UTC para local no `openEditModal` |
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
 ## Risco
 
-Baixo. Eventos já cadastrados continuarão com o horário deslocado (dados históricos). Novos eventos serão salvos corretamente. Para corrigir eventos existentes, o admin pode re-salvar cada um.
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
