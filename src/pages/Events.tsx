@@ -12,6 +12,12 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+const periodOptions = [
+  { value: "all", label: "Todos" },
+  { value: "future", label: "Próximos" },
+  { value: "past", label: "Encerrados" },
+];
+
 const modalityOptions = [
   { value: "all", label: "Todas" },
   { value: "online_gravado", label: "Online Gravado" },
@@ -349,32 +355,42 @@ export default function Events() {
                   <div className="h-4 w-1/2 bg-secondary rounded" />
                   <div className="h-9 w-full bg-secondary rounded-lg" />
                 </div>
-                {pastEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    isPurchased={purchasedIds.has(event.id)}
-                  />
-                ))}
               </div>
-            )}
+            ))
+          ) : (
+            <>
+              {futureEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  isPurchased={purchasedIds.has(event.id)}
+                />
+              ))}
+              {pastEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  isPurchased={purchasedIds.has(event.id)}
+                />
+              ))}
 
-            {/* Empty state */}
-            {futureEvents.length === 0 && pastEvents.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                  <CalendarBlank className="w-8 h-8 text-muted-foreground" />
+              {/* Empty state */}
+              {futureEvents.length === 0 && pastEvents.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+                    <CalendarBlank className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-medium text-foreground">
+                    Nenhum evento encontrado
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Novos eventos serão publicados em breve
+                  </p>
                 </div>
-                <h3 className="font-medium text-foreground">
-                  Nenhum evento encontrado
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Novos eventos serão publicados em breve
-                </p>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
     </AppLayout>
   );
