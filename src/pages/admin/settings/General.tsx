@@ -4,22 +4,28 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import { THEME_OPTIONS, type ThemeSlug } from '@/hooks/useTheme';
 
 interface AppSettings {
   app_name: string;
   app_description: string;
   support_email: string;
   maintenance_mode: boolean;
+  active_theme: ThemeSlug;
 }
 
 export default function GeneralSettings() {
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<AppSettings>({
     app_name: 'Subhumano',
     app_description: 'Comunidade de desenvolvimento pessoal',
     support_email: '',
-    maintenance_mode: false
+    maintenance_mode: false,
+    active_theme: 'default',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,7 +50,8 @@ export default function GeneralSettings() {
           app_name: settingsMap.app_name || 'Subhumano',
           app_description: settingsMap.app_description || 'Comunidade de desenvolvimento pessoal',
           support_email: settingsMap.support_email || '',
-          maintenance_mode: settingsMap.maintenance_mode || false
+          maintenance_mode: settingsMap.maintenance_mode || false,
+          active_theme: settingsMap.active_theme || 'default',
         });
       }
     } catch (error) {
@@ -59,7 +66,7 @@ export default function GeneralSettings() {
     try {
       const settingsToSave = Object.entries(settings).map(([key, value]) => ({
         key,
-        value
+        value,
       }));
 
       for (const setting of settingsToSave) {
@@ -70,6 +77,9 @@ export default function GeneralSettings() {
             { onConflict: 'key' }
           );
       }
+
+      // Invalidate theme cache so it applies immediately
+      await queryClient.invalidateQueries({ queryKey: ['app-theme'] });
 
       toast.success('Configurações salvas!');
     } catch (error) {
@@ -146,6 +156,69 @@ export default function GeneralSettings() {
             >
               {saving ? 'Salvando...' : 'Salvar Configurações'}
             </Button>
+          </div>
+        </div>
+
+        {/* Theme Selector */}
+        <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Tema Sazonal
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Altere a identidade visual da plataforma para campanhas sazonais
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-foreground">
+              Tema Ativo
+            </label>
+            <Select
+              value={settings.active_theme}
+              onValueChange={(value: ThemeSlug) =>
+                setSettings({ ...settings, active_theme: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um tema" />
+              </SelectTrigger>
+              <SelectContent>
+                {THEME_OPTIONS.map((theme) => (
+                  <SelectItem key={theme.value} value={theme.value}>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="inline-block w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: theme.accent }}
+                      />
+                      <span>{theme.label}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Preview */}
+            {settings.active_theme !== 'default' && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                <span
+                  className="w-8 h-8 rounded-lg"
+                  style={{
+                    backgroundColor: THEME_OPTIONS.find(
+                      (t) => t.value === settings.active_theme
+                    )?.accent,
+                  }}
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {THEME_OPTIONS.find((t) => t.value === settings.active_theme)?.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Salve para aplicar em toda a plataforma
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
