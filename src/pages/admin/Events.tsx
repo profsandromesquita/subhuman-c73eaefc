@@ -121,21 +121,28 @@ export default function AdminEvents() {
 
   const openEditModal = (event: AdminEvent) => {
     setSelectedEvent(event);
+    const utcToLocalInput = (utcStr: string) => {
+      const date = new Date(utcStr);
+      const offset = date.getTimezoneOffset();
+      const local = new Date(date.getTime() - offset * 60000);
+      return local.toISOString().slice(0, 16);
+    };
     setFormData({
       title: event.title,
       description: event.description || "",
       event_type: event.event_type,
       modality: event.modality,
-      price: String(event.price ?? 0),
+      price: event.price?.toString() || "",
       is_free: event.is_free,
+      cover_url: event.cover_url || "",
       location: event.location || "",
-      max_participants: event.max_participants ? String(event.max_participants) : "",
+      max_participants: event.max_participants?.toString() || "",
       checkout_url: event.checkout_url || "",
-      access_url: (event as any).access_url || "",
+      access_url: event.access_url || "",
       ticto_offer_id: event.ticto_offer_id || "",
       sessions: event.sessions.map((s) => ({
-        starts_at: s.starts_at.slice(0, 16),
-        ends_at: s.ends_at.slice(0, 16),
+        starts_at: utcToLocalInput(s.starts_at),
+        ends_at: utcToLocalInput(s.ends_at),
         session_url: s.session_url || "",
       })),
     });

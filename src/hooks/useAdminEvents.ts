@@ -133,8 +133,8 @@ export function useUpdateEvent() {
           .insert(
             sessions.map((s) => ({
               event_id: id,
-              starts_at: s.starts_at,
-              ends_at: s.ends_at,
+              starts_at: new Date(s.starts_at).toISOString(),
+              ends_at: new Date(s.ends_at).toISOString(),
               session_url: s.session_url || null,
             }))
           );
