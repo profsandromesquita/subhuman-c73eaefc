@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { queryClient } from "@/lib/queryClient";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingFallback } from "@/components/LoadingFallback";
+import { useTheme } from "@/hooks/useTheme";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { AdminGuard } from "./components/admin/AdminGuard";
 
@@ -74,9 +75,15 @@ const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
 const AdminEvents = lazy(() => import("./pages/admin/Events"));
 const ContentIntelligence = lazy(() => import("./pages/admin/ContentIntelligence"));
 
+function ThemeInitializer() {
+  useTheme();
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <ThemeInitializer />
       <TooltipProvider>
         <Sonner position="top-center" />
         <BrowserRouter>
