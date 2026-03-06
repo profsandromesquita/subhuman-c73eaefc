@@ -74,9 +74,15 @@ const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
 const AdminEvents = lazy(() => import("./pages/admin/Events"));
 const ContentIntelligence = lazy(() => import("./pages/admin/ContentIntelligence"));
 
+function ThemeInitializer() {
+  useTheme();
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <ThemeInitializer />
       <TooltipProvider>
         <Sonner position="top-center" />
         <BrowserRouter>
