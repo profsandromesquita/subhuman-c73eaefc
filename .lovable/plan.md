@@ -1,39 +1,34 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Correção: Erro 500 no Assistente de IA — `getClaims is not a function`
 
-## Causa Raiz
+## Causa raiz
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Os logs mostram claramente: `TypeError: supabase.auth.getClaims is not a function`. O método `getClaims()` não existe no cliente Supabase disponível nas Edge Functions. A mudança anterior introduziu esse bug ao tentar otimizar a validação de token.
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+## Correção
 
-## Correcao
+Reverter para `supabase.auth.getUser()` que funciona corretamente no runtime das Edge Functions.
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+### Arquivo: `supabase/functions/ai-assistant/index.ts` (linhas 430-435)
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
+Substituir:
+```typescript
+const token = authHeader.replace("Bearer ", "");
+const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+if (claimsError || !claimsData?.claims?.sub) {
+  return new Response(JSON.stringify({ error: "Token inválido" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+const user = { id: claimsData.claims.sub as string };
+```
+
+Por:
+```typescript
+const { data: { user }, error: userError } = await supabase.auth.getUser();
+if (userError || !user) {
+  return new Response(JSON.stringify({ error: "Token inválido" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 ```
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
-
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
-
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+Isso remove a variável `token` não utilizada e restaura a validação funcional via `getUser()`.
 
