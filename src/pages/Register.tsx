@@ -94,8 +94,8 @@ export default function Register() {
       const { error, isExistingUser } = await signUp(email, password, name);
 
       if (error) {
-        if (error.message.includes("rate limit")) {
-          toast.error("Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.");
+        if (error.message.includes("rate limit") || (error as any).status === 429) {
+          toast.error("O sistema está com volume alto de cadastros no momento. Por favor, tente novamente em 5 a 10 minutos.", { duration: 8000 });
         } else if (error.message.includes("already registered")) {
           toast.error("Este email já está cadastrado");
         } else {
