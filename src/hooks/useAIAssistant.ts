@@ -76,29 +76,47 @@ export function useAIAssistant(): UseAIAssistantReturn {
     };
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      const getAccessToken = async (): Promise<string> => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) throw new Error("Você precisa estar logado para usar o assistente.");
+        return token;
+      };
 
-      if (!accessToken) {
-        throw new Error("Você precisa estar logado para usar o assistente.");
-      }
+      let accessToken = await getAccessToken();
 
       const allMessages = [...messages, userMessage].map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ messages: allMessages }),
+      const makeRequest = async (token: string) => {
+        return fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ messages: allMessages }),
+          }
+        );
+      };
+
+      let response = await makeRequest(accessToken);
+
+      // Retry once with refreshed session on 401
+      if (response.status === 401) {
+        console.log("Token expired, refreshing session...");
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session?.access_token) {
+          toast.error("Sua sessão expirou. Faça login novamente.");
+          throw new Error("Sessão expirada");
         }
-      );
+        accessToken = refreshData.session.access_token;
+        response = await makeRequest(accessToken);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -108,6 +126,8 @@ export function useAIAssistant(): UseAIAssistantReturn {
           toast.error("Limite de requisições excedido. Aguarde alguns segundos.");
         } else if (response.status === 402) {
           toast.error("Créditos de IA insuficientes.");
+        } else if (response.status === 401) {
+          toast.error("Sua sessão expirou. Faça login novamente.");
         } else {
           toast.error(errorMsg);
         }

@@ -1,50 +1,39 @@
 
 
-# Plano: Corrigir Erro de "Muitas Tentativas" no Cadastro e Erro de Token no Assistente IA
+# Plano: Corrigir Build Quebrado
 
-## Problema 1: "Muitas tentativas" no cadastro
+## Causa Raiz
 
-### Causa raiz
-O erro vem do **rate limit do proprio backend de autenticacao** (limite de emails por hora/dia). Quando muitos usuarios tentam se cadastrar em sequencia, o limite global do projeto e atingido e **todos** os novos cadastros passam a receber "rate limit exceeded", mesmo que o usuario nunca tenha tentado antes.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-O codigo atual no `Register.tsx` (linha 97) ja trata esse erro, mas a mensagem "Muitas tentativas. Aguarde alguns minutos" e confusa para um usuario que esta tentando pela primeira vez.
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-### Correcao
-1. **Melhorar a mensagem de erro** no `Register.tsx` para explicar que e um limite temporario do sistema, nao do usuario
-2. **Adicionar retry com orientacao** — informar que e um limite global e sugerir tentar novamente em 5-10 minutos
-3. **Tratar o erro 429 separadamente do rate limit textual** — o Supabase pode retornar ambos
+## Correcao
 
-### Arquivo: `src/pages/Register.tsx`
-- Linha 97-99: Melhorar mensagem de rate limit para algo como "O sistema está com volume alto de cadastros. Por favor, tente novamente em alguns minutos."
-- Adicionar tratamento para `error.status === 429` alem do check por `error.message`
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-## Problema 2: Erro de token no Assistente IA
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
+```
 
-### Causa raiz
-O `ai-assistant` edge function usa `supabase.auth.getUser()` (linha 430) para validar o token. Quando o token JWT do usuario expira e o refresh token ainda nao foi renovado pelo cliente, a chamada falha com "Token invalido" (linha 432).
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
 
-O hook `useAIAssistant.ts` obtem o token via `supabase.auth.getSession()` (linha 82), mas **nao forca um refresh** antes de fazer a chamada. Se a sessao expirou (JWT tem vida curta ~1h), o access_token enviado ja esta invalido.
-
-### Correcao
-1. **No `useAIAssistant.ts`**: Antes de enviar a requisicao, chamar `supabase.auth.refreshSession()` quando o token estiver proximo de expirar, ou simplesmente usar `supabase.auth.getSession()` que ja faz refresh automatico — mas adicionar um **retry** em caso de 401
-2. **Adicionar retry automatico com refresh**: Se a primeira chamada retornar 401, forcar `refreshSession()` e tentar novamente uma vez
-3. **Melhorar mensagem de erro**: Em vez de toast generico, informar "Sua sessao expirou. Tente novamente." com acao de retry
-
-### Arquivo: `src/hooks/useAIAssistant.ts`
-- Apos linha 82: Adicionar logica de refresh preventivo
-- Apos linha 96 (response status check): Adicionar retry com refresh em caso de 401
-
-### Arquivo: `supabase/functions/ai-assistant/index.ts`
-- Linha 430: Trocar `getUser()` por `getClaims()` que e mais leve e rapido (nao faz round-trip ao servidor auth), conforme recomendado para edge functions com `verify_jwt = false`
-
-## Resumo dos arquivos impactados
-
-| Arquivo | Alteracao |
-|---|---|
-| `src/pages/Register.tsx` | Melhorar mensagem de rate limit |
-| `src/hooks/useAIAssistant.ts` | Adicionar retry com refresh de sessao em caso de 401 |
-| `supabase/functions/ai-assistant/index.ts` | Usar `getClaims()` em vez de `getUser()` |
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
 ## Risco
-Baixo. Mensagens de erro melhoradas e retry automatico nao alteram logica de negocio. A troca para `getClaims()` e mais performatica e segue as melhores praticas para edge functions.
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
