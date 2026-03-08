@@ -145,6 +145,17 @@ export function useMediaUpload() {
     }
   };
 
+  const deleteMediaFromPost = async (postId: string) => {
+    const { error } = await supabase
+      .from("channel_post_media")
+      .delete()
+      .eq("post_id", postId);
+
+    if (error) {
+      console.error("Error deleting post media:", error);
+    }
+  };
+
   const getMediaForSpaceUpdate = async (updateId: string): Promise<MediaFile[]> => {
     const { data, error } = await supabase
       .from("space_update_media")

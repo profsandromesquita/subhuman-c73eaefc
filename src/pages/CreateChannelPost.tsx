@@ -162,6 +162,12 @@ export default function CreateChannelPost() {
           return;
         }
 
+        // Deletar mídia antiga e re-salvar nova
+        await deleteMediaFromPost(postId!);
+        if (media.length > 0) {
+          await saveMediaToPost(postId!, media);
+        }
+
         await queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
         await queryClient.invalidateQueries({ queryKey: ["channel-post-detail", postId] });
         toast.success("Publicação atualizada!");
