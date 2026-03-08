@@ -266,7 +266,7 @@ export default function PostDetail() {
       <AuthPromptDialog open={showAuthPrompt} onOpenChange={setShowAuthPrompt} />
 
       {/* Desktop: three-column layout */}
-      <div className="lg:flex lg:px-10 lg:gap-12 lg:min-h-screen">
+      <div className="lg:flex lg:px-10 lg:gap-12 lg:min-h-screen lg:max-w-6xl lg:mx-auto">
         {/* Article column */}
         <div className="flex-1 min-w-0 lg:max-w-[760px]">
           <PostContent

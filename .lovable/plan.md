@@ -1,18 +1,39 @@
 
 
-# Plano: Centralizar página de artigo no desktop
+# Plano: Corrigir Build Quebrado
 
-## Diagnóstico
+## Causa Raiz
 
-Na linha 269 do `PostDetail.tsx`, o container desktop usa `lg:flex lg:px-10 lg:gap-12` mas não tem `max-width` nem `margin: auto`, fazendo o conteúdo ficar colado à esquerda em telas largas. Além disso, o `AppLayout` adiciona `lg:ml-56` para compensar a sidebar, mas o conteúdo do artigo não se centraliza dentro do espaço restante.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-## Correção
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-Adicionar `lg:max-w-6xl lg:mx-auto` ao container flex principal (linha 269) para centralizar o layout de 3 colunas no espaço disponível. Isso alinha o artigo + sidebar direita ao centro da viewport.
+## Correcao
 
-### Arquivo impactado
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-| Arquivo | Alteração |
-|---|---|
-| `src/pages/PostDetail.tsx` | Adicionar `lg:max-w-6xl lg:mx-auto` na div container (linha 269) |
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
+```
+
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
+
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+
+## Risco
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
