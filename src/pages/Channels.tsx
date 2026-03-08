@@ -56,9 +56,9 @@ export default function Channels() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}
                 >
-                  <Link to={`/channels/${channel.id}`} className="block group">
-                    <div className={`rounded-2xl border bg-card p-4 transition-all duration-200 hover:border-border lg:p-5 ${!channel.has_access ? "opacity-70" : "border-border/60 hover:bg-card/80"}`}>
-                      <div className="flex items-start justify-between gap-3">
+                  <Link to={`/channels/${channel.id}`} className="block group h-full">
+                    <div className={`rounded-2xl border bg-card p-4 transition-all duration-200 hover:border-border lg:p-5 h-full flex flex-col ${!channel.has_access ? "opacity-70" : "border-border/60 hover:bg-card/80"}`}>
+                      <div className="flex items-start justify-between gap-3 flex-1">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2.5 mb-2">
                             <div className="p-2 rounded-xl bg-secondary shrink-0">
@@ -77,18 +77,18 @@ export default function Channels() {
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">{channel.description}</p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" />{channel.members_count}
-                            </span>
-                            <span>{channel.posts_count} posts</span>
-                            {channel.last_activity && <span>· {formatTime(channel.last_activity)}</span>}
-                          </div>
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 shrink-0">
                           {!channel.has_access && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                           <ArrowRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                         </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-auto pt-2">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />{channel.members_count}
+                        </span>
+                        <span>{channel.posts_count} posts</span>
+                        {channel.last_activity && <span>· {formatTime(channel.last_activity)}</span>}
                       </div>
                     </div>
                   </Link>
