@@ -24,12 +24,20 @@ const STAGGER_DELAY = 0.04;
 export default function Home() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [feedSort, setFeedSort] = useState<"trending" | "recent">("trending");
 
-  const { data: highlights = [], isLoading: loadingHighlights } = useHighlights();
-  const { data: discussions = [], isLoading: loadingDiscussions } = useRecentDiscussions();
+  const { data: trendingHighlights = [], isLoading: loadingTrendingHighlights } = useHighlights();
+  const { data: recentHighlights = [], isLoading: loadingRecentHighlights } = useRecentHighlights();
+  const { data: trendingDiscussions = [], isLoading: loadingTrendingDiscussions } = useRecentDiscussions();
+  const { data: chronoDiscussions = [], isLoading: loadingChronoDiscussions } = useRecentDiscussionsChronological();
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+
+  const highlights = feedSort === "trending" ? trendingHighlights : recentHighlights;
+  const loadingHighlights = feedSort === "trending" ? loadingTrendingHighlights : loadingRecentHighlights;
+  const discussions = feedSort === "trending" ? trendingDiscussions : chronoDiscussions;
+  const loadingDiscussions = feedSort === "trending" ? loadingTrendingDiscussions : loadingChronoDiscussions;
 
   const showOnboarding = !!(user && !authLoading && !loadingSpaces && subscribedSpaces.length === 0);
 
