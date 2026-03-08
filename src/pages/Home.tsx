@@ -91,10 +91,38 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Feed sort toggle */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFeedSort("trending")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  feedSort === "trending"
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TrendUp className="w-4 h-4" weight="bold" />
+                Em alta
+              </button>
+              <button
+                onClick={() => setFeedSort("recent")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  feedSort === "recent"
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Clock className="w-4 h-4" weight="bold" />
+                Mais recentes
+              </button>
+            </div>
+
             {/* Highlights */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-base lg:text-lg">Destaques da semana</h2>
+                <h2 className="font-semibold text-base lg:text-lg">
+                  {feedSort === "trending" ? "Destaques da semana" : "Atualizações recentes"}
+                </h2>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -mr-2" onClick={() => navigate("/highlights")}>
                   Ver tudo <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
