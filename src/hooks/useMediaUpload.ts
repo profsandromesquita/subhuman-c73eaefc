@@ -224,6 +224,7 @@ export function useMediaUpload() {
   return {
     uploadFile,
     saveMediaToPost,
+    deleteMediaFromPost,
     saveMediaToSpaceUpdate,
     deleteMediaFromSpaceUpdate,
     getMediaForSpaceUpdate,

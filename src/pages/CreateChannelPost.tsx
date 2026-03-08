@@ -25,7 +25,7 @@ export default function CreateChannelPost() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { hasAccess, loading: accessLoading } = useChannelAccess(channelId);
-  const { saveMediaToPost } = useMediaUpload();
+  const { saveMediaToPost, deleteMediaFromPost } = useMediaUpload();
   const queryClient = useQueryClient();
 
   const isEditMode = !!postId;
