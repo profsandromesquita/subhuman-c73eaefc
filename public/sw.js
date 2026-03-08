@@ -1,8 +1,9 @@
 // Service Worker PWABuilder (Workbox) + Push Notifications - Subhumano
+const SW_VERSION = "2.0.0";
 
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/5.1.2/workbox-sw.js');
 
-const CACHE = "pwabuilder-page";
+const CACHE = "pwabuilder-page-v2";
 const offlineFallbackPage = "offline.html";
 
 // ============================

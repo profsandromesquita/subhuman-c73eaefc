@@ -9,8 +9,8 @@ export const queryClient = new QueryClient({
       gcTime: 1000 * 60 * 30,
       // Retry failed requests once
       retry: 1,
-      // Don't refetch on window focus by default
-      refetchOnWindowFocus: false,
+      // Refetch on window focus to keep PWA data fresh
+      refetchOnWindowFocus: true,
       // Show stale data while revalidating
       placeholderData: (previousData: unknown) => previousData,
     },
