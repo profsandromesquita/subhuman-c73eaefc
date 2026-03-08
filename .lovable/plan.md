@@ -1,39 +1,47 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Plano: Corrigir sincronismo de curtidas/comentários no app mobile (PWA)
 
-## Causa Raiz
+## Diagnóstico
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Após investigação profunda, confirmei que:
+- **Banco de dados está correto**: ambas as views (`space_update_stats`, `channel_post_stats`) retornam dados para TODAS as postagens
+- **Código de renderização é idêntico** para mobile e desktop — não há branch condicional por dispositivo
+- **Sem erros no console**
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+### Causa raiz identificada: cache do TanStack Query + ciclo de vida da PWA
 
-## Correcao
+O `queryClient.ts` global tem duas configurações que causam o problema no contexto de PWA mobile:
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+1. **`refetchOnWindowFocus: false`** — Quando o usuário reabre o app (PWA) após colocá-lo em background, o TanStack Query NÃO busca dados novos. No desktop, o usuário tende a recarregar a página (F5 / nova aba), o que força um fetch fresco.
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
-```
+2. **`staleTime: 5 minutos`** + **`gcTime: 30 minutos`** — Dados ficam em cache até 30 minutos. No app mobile, a PWA pode sobreviver em memória por horas sem ser fechada, servindo dados obsoletos.
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
+3. **`placeholderData: previousData`** — Enquanto o refetch acontece (se acontecer), a UI mostra os dados antigos. Se o fetch original foi feito quando as views tinham `security_invoker=on`, os contadores ficaram em `0` e permanecem assim no cache.
 
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+**Resultado**: No desktop o usuário recarrega e obtém dados frescos; no mobile, o app PWA em background continua mostrando cache antigo sem nunca disparar um refetch.
 
-## Risco
+## Correção
 
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+### 1. Habilitar `refetchOnWindowFocus` no queryClient global
+
+Mudar de `false` para `true`. Isso garante que ao reabrir a PWA (evento `visibilitychange`), as queries stale são revalidadas automaticamente.
+
+### 2. Reduzir `staleTime` para queries de engajamento
+
+As queries de Home já sobrescrevem para 2 minutos. Manter o global em 5 minutos, mas garantir que `refetchOnWindowFocus: true` atue corretamente.
+
+### 3. Versionar o Service Worker para forçar atualização
+
+Adicionar uma constante de versão no `sw.js` para garantir que qualquer usuário com PWA instalada receba a versão mais recente do app (e consequentemente o código atualizado do fetch de stats).
+
+### Arquivos impactados
+
+| Arquivo | Alteração |
+|---|---|
+| `src/lib/queryClient.ts` | Mudar `refetchOnWindowFocus` para `true` |
+| `public/sw.js` | Adicionar constante de versão + limpar cache antigo no `activate` |
+
+### Risco
+Baixo. Habilitar `refetchOnWindowFocus` aumenta levemente o número de requests mas é o padrão recomendado pelo TanStack Query. A limpeza de cache do SW é segura pois só remove caches antigas.
 
