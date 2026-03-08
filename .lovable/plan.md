@@ -1,44 +1,39 @@
 
 
-# Plano: Corrigir persistência de mídia na edição de publicação de canal
+# Plano: Corrigir Build Quebrado
 
-## Causa raiz
+## Causa Raiz
 
-No `CreateChannelPost.tsx`, o modo de edição (linhas 148-168) atualiza apenas `title`, `content` e `updated_at` na tabela `channel_posts`. **A mídia não é tocada** — não há exclusão da mídia antiga nem inserção da nova na tabela `channel_post_media`. O usuário vê a troca na UI, mas ao salvar, a mídia antiga permanece no banco.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-No modo de criação existe `saveMediaToPost`, mas não há equivalente para deletar e re-salvar no modo de edição.
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-## Correção
+## Correcao
 
-### 1. Adicionar função `deleteMediaFromPost` no `useMediaUpload.ts`
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-Similar ao existente `deleteMediaFromSpaceUpdate`:
-
-```typescript
-const deleteMediaFromPost = async (postId: string) => {
-  await supabase.from("channel_post_media").delete().eq("post_id", postId);
-};
-```
-
-### 2. Atualizar fluxo de edição no `CreateChannelPost.tsx`
-
-Após o update do post (linha 157), adicionar:
-
-```typescript
-// Deletar mídia antiga e salvar nova
-await deleteMediaFromPost(postId);
-if (media.length > 0) {
-  await saveMediaToPost(postId, media);
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
 }
 ```
 
-### Arquivos impactados
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
 
-| Arquivo | Alteração |
-|---|---|
-| `src/hooks/useMediaUpload.ts` | Adicionar `deleteMediaFromPost` e exportá-la |
-| `src/pages/CreateChannelPost.tsx` | Chamar delete + save de mídia no bloco de edição |
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-### Risco
-Baixo. A abordagem "delete all + re-insert" é a mesma usada para `space_update_media`. A RLS já permite que o autor delete suas próprias mídias.
+## Risco
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 

@@ -25,7 +25,7 @@ export default function CreateChannelPost() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { hasAccess, loading: accessLoading } = useChannelAccess(channelId);
-  const { saveMediaToPost } = useMediaUpload();
+  const { saveMediaToPost, deleteMediaFromPost } = useMediaUpload();
   const queryClient = useQueryClient();
 
   const isEditMode = !!postId;
@@ -160,6 +160,12 @@ export default function CreateChannelPost() {
           console.error("Error updating post:", updateError);
           toast.error("Erro ao atualizar publicação");
           return;
+        }
+
+        // Deletar mídia antiga e re-salvar nova
+        await deleteMediaFromPost(postId!);
+        if (media.length > 0) {
+          await saveMediaToPost(postId!, media);
         }
 
         await queryClient.invalidateQueries({ queryKey: ["channel-posts", channelId] });
