@@ -1,8 +1,9 @@
 // Service Worker PWABuilder (Workbox) + Push Notifications - Subhumano
+const SW_VERSION = "2.0.0";
 
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/5.1.2/workbox-sw.js');
 
-const CACHE = "pwabuilder-page";
+const CACHE = "pwabuilder-page-v2";
 const offlineFallbackPage = "offline.html";
 
 // ============================
@@ -25,6 +26,19 @@ self.addEventListener('install', async (event) => {
 if (workbox.navigationPreload.isSupported()) {
   workbox.navigationPreload.enable();
 }
+
+// Limpar caches antigos ao ativar nova versão do SW
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
