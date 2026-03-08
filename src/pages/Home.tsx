@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { formatTime } from "@/lib/formatTime";
-import { ArrowRight, Heart, ChatCircle, Bell, BookmarkSimple, Envelope, TrendUp } from "@phosphor-icons/react";
+import { ArrowRight, Heart, ChatCircle, Bell, BookmarkSimple, Envelope, TrendUp, Clock } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,7 @@ import { OnboardingModal } from "@/components/OnboardingModal";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
-import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
+import { useHighlights, useRecentDiscussions, useRecentHighlights, useRecentDiscussionsChronological } from "@/hooks/usePosts";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { useUnreadNotificationsCount } from "@/hooks/useNotifications";
 import { useUnreadMessagesCount } from "@/hooks/useMessages";
@@ -23,12 +24,20 @@ const STAGGER_DELAY = 0.04;
 export default function Home() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [feedSort, setFeedSort] = useState<"trending" | "recent">("trending");
 
-  const { data: highlights = [], isLoading: loadingHighlights } = useHighlights();
-  const { data: discussions = [], isLoading: loadingDiscussions } = useRecentDiscussions();
+  const { data: trendingHighlights = [], isLoading: loadingTrendingHighlights } = useHighlights();
+  const { data: recentHighlights = [], isLoading: loadingRecentHighlights } = useRecentHighlights();
+  const { data: trendingDiscussions = [], isLoading: loadingTrendingDiscussions } = useRecentDiscussions();
+  const { data: chronoDiscussions = [], isLoading: loadingChronoDiscussions } = useRecentDiscussionsChronological();
   const { data: subscribedSpaces = [], isLoading: loadingSpaces } = useSubscribedSpaces();
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+
+  const highlights = feedSort === "trending" ? trendingHighlights : recentHighlights;
+  const loadingHighlights = feedSort === "trending" ? loadingTrendingHighlights : loadingRecentHighlights;
+  const discussions = feedSort === "trending" ? trendingDiscussions : chronoDiscussions;
+  const loadingDiscussions = feedSort === "trending" ? loadingTrendingDiscussions : loadingChronoDiscussions;
 
   const showOnboarding = !!(user && !authLoading && !loadingSpaces && subscribedSpaces.length === 0);
 
@@ -82,10 +91,38 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Feed sort toggle */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFeedSort("trending")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  feedSort === "trending"
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TrendUp className="w-4 h-4" weight="bold" />
+                Em alta
+              </button>
+              <button
+                onClick={() => setFeedSort("recent")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  feedSort === "recent"
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Clock className="w-4 h-4" weight="bold" />
+                Mais recentes
+              </button>
+            </div>
+
             {/* Highlights */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-base lg:text-lg">Destaques da semana</h2>
+                <h2 className="font-semibold text-base lg:text-lg">
+                  {feedSort === "trending" ? "Destaques da semana" : "Atualizações recentes"}
+                </h2>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -mr-2" onClick={() => navigate("/highlights")}>
                   Ver tudo <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
@@ -148,7 +185,9 @@ export default function Home() {
             {/* Discussions */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-base lg:text-lg">Em alta nos canais</h2>
+                <h2 className="font-semibold text-base lg:text-lg">
+                  {feedSort === "trending" ? "Em alta nos canais" : "Últimas discussões"}
+                </h2>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -mr-2" onClick={() => navigate("/channels")}>
                   Ver tudo <ArrowRight className="h-3.5 w-3.5" />
                 </Button>

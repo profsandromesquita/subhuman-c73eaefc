@@ -1,46 +1,39 @@
 
 
-# Plano: Adicionar filtro "Em alta" / "Mais recentes" na página Início
+# Plano: Corrigir Build Quebrado
 
-## O que muda
+## Causa Raiz
 
-Adicionar um toggle de filtro nas duas seções principais da Home ("Destaques" e "Em alta nos canais") para alternar entre ordenação por engajamento (padrão atual) e por data (mais recentes).
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-## Implementação
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-### 1. Estado de filtro no `Home.tsx`
+## Correcao
 
-Adicionar um estado `feedSort` com duas opções: `"trending"` (padrão) e `"recent"`. Renderizar um par de botões estilo pill/chip acima das seções para alternar.
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-### 2. Novos hooks em `usePosts.ts`
-
-- **`useRecentHighlights()`**: Igual ao `useHighlights()` mas ordena por `published_at` desc (sem reordenar por engajamento). Retorna os 5 mais recentes dos espaços inscritos.
-- **`useRecentDiscussionsChronological()`**: Igual ao `useRecentDiscussions()` mas ordena por `created_at` desc (sem reordenar por engajamento). Retorna os 5 mais recentes.
-
-### 3. UI do filtro
-
-Dois botões pill no topo da área de conteúdo (abaixo do título desktop, acima da seção "Destaques"):
-
-```text
-[ 🔥 Em alta ]  [ 🕐 Mais recentes ]
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
-- Estilo: `rounded-full`, fundo `bg-foreground text-background` quando ativo, `bg-secondary text-muted-foreground` quando inativo (mesmo padrão usado em `PodcastFilters.tsx`)
-- Ícones: `TrendUp` para "Em alta", `Clock` para "Mais recentes"
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
 
-### 4. Renderização condicional
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-- Quando `feedSort === "trending"`: usa `useHighlights()` + `useRecentDiscussions()` (comportamento atual)
-- Quando `feedSort === "recent"`: usa `useRecentHighlights()` + `useRecentDiscussionsChronological()`
-- Os títulos das seções mudam: "Destaques da semana" → "Atualizações recentes" e "Em alta nos canais" → "Últimas discussões"
+## Risco
 
-### Arquivos impactados
-
-| Arquivo | Alteração |
-|---|---|
-| `src/hooks/usePosts.ts` | Adicionar `useRecentHighlights()` e `useRecentDiscussionsChronological()` |
-| `src/pages/Home.tsx` | Adicionar estado de filtro, botões de toggle, renderização condicional por modo |
-
-### Risco
-Baixo. Reutiliza queries existentes com ordenação diferente. Sem mudanças de banco.
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
