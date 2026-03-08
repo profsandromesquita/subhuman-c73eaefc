@@ -185,7 +185,9 @@ export default function Home() {
             {/* Discussions */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-base lg:text-lg">Em alta nos canais</h2>
+                <h2 className="font-semibold text-base lg:text-lg">
+                  {feedSort === "trending" ? "Em alta nos canais" : "Últimas discussões"}
+                </h2>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -mr-2" onClick={() => navigate("/channels")}>
                   Ver tudo <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
