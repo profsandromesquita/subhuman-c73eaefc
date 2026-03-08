@@ -167,7 +167,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
   };
 
   return (
-    <div className="bg-card rounded-xl overflow-hidden">
+    <div className="bg-card rounded-xl overflow-hidden h-full flex flex-col">
       {event.cover_url ? (
         <img
           src={event.cover_url}
@@ -179,7 +179,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
           <CalendarBlank className="w-10 h-10 text-muted-foreground" />
         </div>
       )}
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 flex-1 flex flex-col">
         <div className="flex gap-2 flex-wrap">
           <Badge variant="secondary" className="text-xs">
             {typeLabels[event.event_type] || event.event_type}
@@ -227,13 +227,14 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <span className="font-semibold text-foreground text-sm">
-            {getPriceLabel()}
-          </span>
+        <div className="mt-auto space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground text-sm">
+              {getPriceLabel()}
+            </span>
+          </div>
+          {getActionButtons()}
         </div>
-
-        {getActionButtons()}
       </div>
     </div>
   );
