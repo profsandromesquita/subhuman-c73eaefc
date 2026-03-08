@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { formatTime } from "@/lib/formatTime";
-import { ArrowRight, Heart, ChatCircle, Bell, BookmarkSimple, Envelope, TrendUp } from "@phosphor-icons/react";
+import { ArrowRight, Heart, ChatCircle, Bell, BookmarkSimple, Envelope, TrendUp, Clock } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { OnboardingModal } from "@/components/OnboardingModal";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscribedSpaces } from "@/hooks/useSpaces";
-import { useHighlights, useRecentDiscussions } from "@/hooks/usePosts";
+import { useHighlights, useRecentDiscussions, useRecentHighlights, useRecentDiscussionsChronological } from "@/hooks/usePosts";
 import { getIconComponent } from "@/components/admin/IconPicker";
 import { useUnreadNotificationsCount } from "@/hooks/useNotifications";
 import { useUnreadMessagesCount } from "@/hooks/useMessages";

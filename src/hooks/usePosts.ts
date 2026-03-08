@@ -506,6 +506,159 @@ export function useDeleteChannelPost() {
   });
 }
 
+// Fetch recent highlights (chronological, no engagement sort)
+export function useRecentHighlights() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["recent-highlights", user?.id],
+    queryFn: async (): Promise<SpaceUpdate[]> => {
+      if (!user) return [];
+
+      const { data: subscriptions } = await supabase
+        .from("user_space_subscriptions")
+        .select("space_id")
+        .eq("user_id", user.id);
+
+      if (!subscriptions || subscriptions.length === 0) return [];
+
+      const spaceIds = subscriptions.map((s) => s.space_id);
+
+      const { data: updates, error } = await supabase
+        .from("space_updates")
+        .select(`
+          id, title, slug, thumbnail_url, media_type, published_at, space_id, read_time_minutes,
+          spaces!inner(name, slug)
+        `)
+        .in("space_id", spaceIds)
+        .eq("is_published", true)
+        .order("published_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      if (!updates || updates.length === 0) return [];
+
+      const updateIds = updates.map((u) => u.id);
+
+      const [statsResult, userLikesResult] = await Promise.all([
+        supabase.from("space_update_stats").select("update_id, likes_count, comments_count").in("update_id", updateIds),
+        supabase.from("update_likes").select("update_id").eq("user_id", user.id).in("update_id", updateIds),
+      ]);
+
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsResult.data || []).forEach((s: any) => {
+        statsMap[s.update_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
+      });
+
+      const likedSet = new Set((userLikesResult.data || []).map((l: any) => l.update_id));
+
+      return updates.map((update) => ({
+        id: update.id,
+        title: update.title,
+        slug: (update as any).slug || "",
+        content: null,
+        thumbnail_url: update.thumbnail_url,
+        media_type: update.media_type,
+        published_at: update.published_at,
+        created_at: update.published_at || "",
+        space_id: update.space_id,
+        space_name: (update.spaces as any)?.name || "",
+        space_slug: (update.spaces as any)?.slug || "",
+        likes_count: statsMap[update.id]?.likes_count || 0,
+        comments_count: statsMap[update.id]?.comments_count || 0,
+        is_liked: likedSet.has(update.id),
+        read_time_minutes: (update as any).read_time_minutes,
+      }));
+    },
+    enabled: !!user,
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+// Fetch recent discussions chronologically (no engagement sort)
+export function useRecentDiscussionsChronological() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["recent-discussions-chrono", user?.id],
+    queryFn: async () => {
+      const { data: posts, error } = await supabase
+        .from("channel_posts")
+        .select("id, title, content, created_at, channel_id, author_id")
+        .eq("is_moderated", false)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      if (!posts || posts.length === 0) return [];
+
+      const postIds = posts.map((p) => p.id);
+      const authorIds = [...new Set(posts.map((p) => p.author_id).filter(Boolean))] as string[];
+      const channelIds = [...new Set(posts.map((p) => p.channel_id))];
+
+      const [profilesResult, channelsResult, statsResult, mediaResult, userLikesResult] =
+        await Promise.all([
+          authorIds.length > 0
+            ? supabase.from("profiles").select("id, full_name").in("id", authorIds)
+            : Promise.resolve({ data: [] }),
+          supabase.from("channels").select("id, name, slug").in("id", channelIds),
+          supabase.from("channel_post_stats").select("post_id, likes_count, comments_count").in("post_id", postIds),
+          supabase
+            .from("channel_post_media")
+            .select("post_id, file_url")
+            .in("post_id", postIds)
+            .in("file_type", ["image", "video"]),
+          user
+            ? supabase.from("channel_post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id)
+            : Promise.resolve({ data: [] }),
+        ]);
+
+      const profilesMap: Record<string, string> = {};
+      (profilesResult.data || []).forEach((p: any) => {
+        profilesMap[p.id] = p.full_name || "Usuário";
+      });
+
+      const channelsMap: Record<string, { name: string; slug: string }> = {};
+      (channelsResult.data || []).forEach((c: any) => {
+        channelsMap[c.id] = { name: c.name, slug: c.slug || "" };
+      });
+
+      const statsMap: Record<string, { likes_count: number; comments_count: number }> = {};
+      (statsResult.data || []).forEach((s: any) => {
+        statsMap[s.post_id] = { likes_count: Number(s.likes_count), comments_count: Number(s.comments_count) };
+      });
+
+      const mediaMap: Record<string, string> = {};
+      (mediaResult.data || []).forEach((media: any) => {
+        if (!mediaMap[media.post_id]) {
+          mediaMap[media.post_id] = media.file_url;
+        }
+      });
+
+      const likedSet = new Set((userLikesResult.data || []).map((l: any) => l.post_id));
+
+      return posts.map((post) => ({
+        id: post.id,
+        title: post.title || post.content.substring(0, 100),
+        content: post.content,
+        created_at: post.created_at,
+        channel_id: post.channel_id,
+        channel_name: channelsMap[post.channel_id]?.name || "",
+        channel_slug: channelsMap[post.channel_id]?.slug || "",
+        author_name: post.author_id ? (profilesMap[post.author_id] || "Usuário") : "Usuário",
+        likes_count: statsMap[post.id]?.likes_count || 0,
+        comments_count: statsMap[post.id]?.comments_count || 0,
+        is_liked: likedSet.has(post.id),
+        thumbnail_url: mediaMap[post.id] || null,
+      }));
+    },
+    enabled: true,
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
 // Hook para atualizar publicação de canal
 export function useUpdateChannelPost() {
   const queryClient = useQueryClient();
