@@ -1,39 +1,75 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Plano: Ajustes de layout em 4 páginas
 
-## Causa Raiz
+## 1. Caixa de comentário desproporcional na página de artigo (Imagem 1)
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+**Problema**: O `CommentInput` usa `fixed bottom-0 left-0 right-0` com `max-w-2xl`, fazendo a barra ocupar toda a largura da tela. No desktop com sidebar, ela deveria se alinhar à coluna do artigo.
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+**Correção em `src/components/post/CommentInput.tsx`**:
+- Trocar o container interno de `max-w-2xl` para `lg:max-w-[760px]` (mesmo max-width da coluna do artigo em `PostDetail.tsx` linha 271)
+- Adicionar `lg:ml-56` para compensar a sidebar de navegação, mantendo a barra de comentário alinhada à coluna de conteúdo
 
-## Correcao
+## 2. Cards de artigos em `/spaces/:slug` e `/home` fora do padrão de `/highlights` (Imagens 2 e 3)
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+**Problema**: A página `/highlights` usa um grid responsivo (`lg:grid-cols-2 xl:grid-cols-3`) com cards compactos estilo "badge + título + thumbnail". As páginas `/home` e `/spaces/:slug` usam cards em lista vertical (`space-y-2.5` / `space-y-3`), sem grid no desktop.
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
+**Correção em `src/pages/Home.tsx`** (seção Highlights, linhas 141-181):
+- Trocar `space-y-2.5` por `space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0` — mesmo padrão de `/highlights`
+
+**Correção em `src/pages/SpaceDetail.tsx`** (seção Feed, linhas 114-161):
+- Trocar `space-y-3` por `space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0`
+
+## 3. Cards de canais com altura desigual (Imagem 4)
+
+**Problema**: Em `src/pages/Channels.tsx`, os cards usam altura automática (`bg-card rounded-2xl`), fazendo cards com mais texto ficarem mais altos que outros.
+
+**Correção em `src/pages/Channels.tsx`** (linha 60):
+- Adicionar `h-full flex flex-col` ao container do card
+- Truncar a descrição com `line-clamp-2` (já existe) e fixar o footer de stats na base com `mt-auto`
+- Envolver o `motion.div` pai com classe que garanta stretch no grid: os filhos do grid CSS já esticam por padrão, basta garantir que o `<Link>` e a div interna usem `h-full`
+
+Estrutura:
+```
+<Link className="block group h-full">
+  <div className="... h-full flex flex-col">
+    <div className="flex-1">  <!-- conteúdo -->
+    <div className="mt-auto">  <!-- stats fixo na base -->
+  </div>
+</Link>
 ```
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
+## 4. Botão do evento muda de posição conforme texto (Imagem 5)
+
+**Problema**: Em `src/pages/Events.tsx`, o `EventCard` não tem altura fixa nem layout flex-col com botão fixo na base. Cards com mais descrição empurram o botão para baixo.
+
+**Correção em `src/pages/Events.tsx`** (EventCard, linhas 170-239):
+- Envolver o card em `h-full flex flex-col`
+- A div de conteúdo (`p-4 space-y-3`) deve usar `flex-1 flex flex-col`
+- O bloco de botões (`getActionButtons()`) deve receber `mt-auto` para ficar fixo na base
+- Truncar `event.description` com `line-clamp-2` (já existe)
+- Truncar `event.title` com `line-clamp-2` (já existe)
+
+Estrutura:
 ```
-Para:
-```typescript
-import { Resend } from "resend";
+<div className="bg-card rounded-xl overflow-hidden h-full flex flex-col">
+  <img ... />
+  <div className="p-4 space-y-3 flex-1 flex flex-col">
+    <!-- badges, título, descrição, datas -->
+    <div className="mt-auto space-y-3">
+      <!-- preço + botões -->
+    </div>
+  </div>
+</div>
 ```
 
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+## Resumo de arquivos
 
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+| Arquivo | Alteração |
+|---|---|
+| `src/components/post/CommentInput.tsx` | Alinhar barra à coluna do artigo no desktop |
+| `src/pages/Home.tsx` | Grid responsivo nos cards de highlights |
+| `src/pages/SpaceDetail.tsx` | Grid responsivo nos cards de artigos |
+| `src/pages/Channels.tsx` | Altura fixa nos cards + stats na base |
+| `src/pages/Events.tsx` | Altura fixa nos cards + botão na base |
 
