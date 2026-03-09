@@ -184,7 +184,7 @@ export function PostContent({
       )}
 
       {/* Content Container */}
-      <div className="max-w-2xl mx-auto px-5 py-6 lg:px-10 lg:py-8">
+      <div className="max-w-2xl mx-auto px-5 py-6 lg:max-w-none lg:px-0 lg:py-8">
         {/* Space Badge */}
         <Link to={`/spaces/${spaceSlug}`}>
           <Badge 

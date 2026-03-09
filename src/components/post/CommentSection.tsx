@@ -42,7 +42,7 @@ export function CommentSection({
   onDeleteComment,
 }: CommentSectionProps) {
   return (
-    <div className="max-w-2xl mx-auto px-5 pb-32">
+    <div className="max-w-2xl mx-auto px-5 pb-32 lg:max-w-none lg:px-0">
       {/* Header */}
       <div className="flex items-center gap-2 mb-6">
         <ChatCircle className="w-5 h-5" weight="bold" />

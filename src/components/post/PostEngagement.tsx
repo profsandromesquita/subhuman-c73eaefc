@@ -18,7 +18,7 @@ export function PostEngagement({
   onCommentClick,
 }: PostEngagementProps) {
   return (
-    <div className="max-w-2xl mx-auto px-5">
+    <div className="max-w-2xl mx-auto px-5 lg:max-w-none lg:px-0">
       {/* Divider */}
       <div className="w-full h-px bg-border mb-6" />
       

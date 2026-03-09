@@ -253,7 +253,7 @@ export default function PostDetail() {
 
       {!user && (
         <div className="fixed top-14 left-0 right-0 z-40 bg-card border-b border-border">
-          <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-4 lg:px-10 py-2.5 flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Conheça o Subhumano</span>
             <Button size="sm" variant="outline" onClick={() => navigate("/")}>
               Ver plataforma
