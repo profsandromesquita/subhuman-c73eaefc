@@ -175,7 +175,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
           className="w-full h-40 object-cover lg:h-52"
         />
       ) : (
-        <div className="w-full h-28 bg-secondary flex items-center justify-center">
+        <div className="w-full h-40 lg:h-52 bg-secondary flex items-center justify-center">
           <CalendarBlank className="w-10 h-10 text-muted-foreground" />
         </div>
       )}
