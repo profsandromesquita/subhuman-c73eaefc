@@ -18,16 +18,14 @@ export function CommentInput({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 pb-safe">
-      <div className="max-w-6xl mx-auto lg:px-10">
-        <div className="lg:max-w-[760px]">
-          <MentionCommentInput
-            onSubmit={handleSubmit}
-            replyTo={replyTo}
-            onCancelReply={onCancelReply}
-            placeholder={placeholder}
-          />
-        </div>
+    <div className="fixed bottom-0 left-0 right-0 w-full bg-background border-t border-border p-4 pb-safe">
+      <div className="px-0 lg:px-10">
+        <MentionCommentInput
+          onSubmit={handleSubmit}
+          replyTo={replyTo}
+          onCancelReply={onCancelReply}
+          placeholder={placeholder}
+        />
       </div>
     </div>
   );
