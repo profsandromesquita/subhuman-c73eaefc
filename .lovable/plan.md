@@ -1,30 +1,39 @@
 
 
-# Correção: "Em alta nos canais" em grid no desktop
+# Plano: Corrigir Build Quebrado
 
-## Problema
-Linha 201 de `Home.tsx` — o container dos cards de discussão usa apenas `space-y-2.5` (coluna única), enquanto a seção "Destaques da semana" (linha 141) e a página `/highlights` (linha 257) usam `lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0`.
+## Causa Raiz
 
-## Correção (1 arquivo)
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-**`src/pages/Home.tsx` — linha 201**
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-De:
-```tsx
-<div className="space-y-2.5">
+## Correcao
+
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
 Para:
-```tsx
-<div className="space-y-2.5 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
+```typescript
+import { Resend } from "resend";
 ```
 
-Mesmas classes já usadas na seção de destaques (linha 141) e na página `/highlights` (linha 257).
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-## Resultado
-- Desktop: cards em grid de 2-3 colunas, consistente com "Destaques da semana" e `/highlights`
-- Mobile: sem alteração (`space-y-2.5` continua ativo abaixo de `lg`)
+## Risco
 
-## Arquivo alterado
-- `src/pages/Home.tsx` (1 linha)
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
