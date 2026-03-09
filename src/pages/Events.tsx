@@ -216,7 +216,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
               ) : (
                 <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
               )}
-              <span>{event.location}</span>
+              <span className="truncate">{event.location}</span>
             </div>
           )}
           {event.max_participants && (
