@@ -1,39 +1,34 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Correção: Botões desalinhados nos cards de /events
 
-## Causa Raiz
+## Causa raiz
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
-
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
-
-## Correcao
-
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
-
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
+Linha 182 do `Events.tsx`:
+```tsx
+<div className="p-4 space-y-3 flex-1 flex flex-col">
 ```
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
+O `space-y-3` aplica `margin-top: 0.75rem` via seletor `> :not([hidden]) ~ :not([hidden])`, que **sobrescreve** o `mt-auto` (linha 230) do bloco de ação. Resultado: o `mt-auto` não empurra o bloco de ação para a base do card.
+
+## Correção (1 arquivo: `src/pages/Events.tsx`)
+
+**Linha 182** — trocar `space-y-3` por `gap-3`:
+
+De:
+```tsx
+<div className="p-4 space-y-3 flex-1 flex flex-col">
 ```
 Para:
-```typescript
-import { Resend } from "resend";
+```tsx
+<div className="p-4 gap-3 flex-1 flex flex-col">
 ```
 
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+`gap` funciona nativamente com flexbox e **não interfere** com `mt-auto`, pois não aplica `margin-top` nos filhos. O espaçamento visual permanece idêntico (0.75rem entre itens), mas agora `mt-auto` funciona corretamente, fixando o bloco de ação na base de todos os cards.
 
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+## Resultado
+- Botões alinhados na mesma posição vertical em todos os cards da linha
+- Espaçamento interno idêntico ao atual
+- Mobile inalterado
+- 1 linha alterada
 
