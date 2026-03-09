@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform } from "framer-motion";
+import { useState, useEffect } from "react";
 import { ArrowLeft, BookmarkSimple, ShareNetwork } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -13,45 +13,36 @@ interface PostHeaderProps {
 
 export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeaderProps) {
   const navigate = useNavigate();
-  const { scrollY } = useScroll();
-  
-  const headerBg = useTransform(
-    scrollY,
-    [0, 100],
-    ["hsl(0 0% 0% / 0)", "hsl(0 0% 0% / 0.95)"]
-  );
-  
-  const headerBorder = useTransform(
-    scrollY,
-    [0, 100],
-    ["hsl(0 0% 18% / 0)", "hsl(0 0% 18% / 1)"]
-  );
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleShare = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: title,
-          url: window.location.href,
-        });
+        await navigator.share({ title, url: window.location.href });
       } else {
         await navigator.clipboard.writeText(window.location.href);
         toast.success("Link copiado!");
       }
-    } catch (error) {
+    } catch {
       // User cancelled share
     }
   };
 
   return (
-    <motion.header
-      style={{ 
-        backgroundColor: headerBg,
-        borderBottomColor: headerBorder,
-      }}
-      className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md pt-safe"
+    <header
+      className={`fixed top-0 left-0 right-0 w-full z-50 border-b backdrop-blur-md pt-safe transition-colors duration-200 ${
+        scrolled
+          ? "bg-background/95 border-border"
+          : "bg-transparent border-transparent"
+      }`}
     >
-      <div className="px-4 h-14 flex items-center justify-between lg:px-10 lg:max-w-6xl lg:mx-auto">
+      <div className="px-4 h-14 flex items-center justify-between lg:px-10">
         <Button
           variant="ghost"
           size="icon"
@@ -83,6 +74,6 @@ export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeader
           </Button>
         </div>
       </div>
-    </motion.header>
+    </header>
   );
 }
