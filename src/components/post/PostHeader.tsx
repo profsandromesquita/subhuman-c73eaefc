@@ -49,7 +49,7 @@ export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeader
         backgroundColor: headerBg,
         borderBottomColor: headerBorder,
       }}
-      className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md pt-safe lg:left-56"
+      className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md pt-safe"
     >
       <div className="px-4 h-14 flex items-center justify-between lg:px-10 lg:max-w-6xl lg:mx-auto">
         <Button
