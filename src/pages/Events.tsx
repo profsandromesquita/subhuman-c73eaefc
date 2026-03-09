@@ -207,7 +207,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <CalendarBlank className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{formatSessionDates(event.sessions)}</span>
+            <span className="truncate">{formatSessionDates(event.sessions)}</span>
           </div>
           {event.location && (
             <div className="flex items-center gap-1.5">
