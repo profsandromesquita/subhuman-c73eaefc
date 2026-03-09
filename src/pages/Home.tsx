@@ -198,7 +198,7 @@ export default function Home() {
               ) : discussions.length === 0 ? (
                 <EmptyCard message="Nenhuma discussão em alta no momento" />
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
                   {discussions.map((d, i) => (
                     <motion.div key={d.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}>
                       <button
