@@ -1,30 +1,39 @@
 
 
-# Correção: Cards uniformes na página /spaces (desktop)
+# Plano: Corrigir Build Quebrado
 
-## Problema
-Os cards em `/spaces` têm altura variável porque título e descrição crescem livremente. A ação "Ver publicações" não fica alinhada na base entre cards da mesma linha.
+## Causa Raiz
 
-Os cards na Home (`/home`) usam um componente diferente (compact buttons) que já são uniformes — não precisam de alteração.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-## Correção (1 arquivo: `src/pages/Spaces.tsx`)
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-### Alterações no `renderCard` (linhas 46-77):
+## Correcao
 
-1. **Outer `motion.div`** — adicionar `lg:h-full` para que preencha a célula do grid
-2. **Card container div** (linha 47) — adicionar `lg:h-full lg:flex lg:flex-col` para que o card ocupe toda a altura da célula
-3. **Inner padding div** (linha 48) — adicionar `lg:flex-1 lg:flex lg:flex-col` para distribuir o espaço interno
-4. **Content area** (div com flex items-start gap-4, linha 49) — adicionar `lg:flex-1` para que ocupe o espaço disponível acima da ação
-5. **Título h3** (linha 55) — adicionar `truncate` para truncar com reticências no desktop
-6. **Descrição p** (linha 66) — adicionar `line-clamp-2` para limitar a 2 linhas com reticências
-7. **Link "Ver publicações"** (linha 69) — adicionar `lg:mt-auto` para fixá-lo na base do card
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-Todas as classes usam `lg:` prefix ou são seguras para mobile (`truncate`, `line-clamp-2` melhoram ambos).
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
+```
 
-## Resultado
-- Cards da mesma linha terão altura idêntica (grid + h-full + flex-col)
-- Títulos longos truncados com `...`
-- Descrições limitadas a 2 linhas
-- "Ver publicações" sempre alinhado na base
-- Mobile inalterado (classes `lg:` não aplicam)
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
+
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+
+## Risco
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 

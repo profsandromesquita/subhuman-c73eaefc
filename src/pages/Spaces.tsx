@@ -43,16 +43,16 @@ export default function Spaces() {
     const Icon = getIconComponent(space.icon);
 
     return (
-      <motion.div key={space.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 4) * 0.04 }}>
-        <div className={`rounded-2xl border bg-card transition-all duration-200 ${isSubscribed ? "border-border" : "border-border/60"}`}>
-          <div className="p-4 lg:p-5">
-            <div className="flex items-start gap-4">
+      <motion.div key={space.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 4) * 0.04 }} className="lg:h-full">
+        <div className={`rounded-2xl border bg-card transition-all duration-200 lg:h-full lg:flex lg:flex-col ${isSubscribed ? "border-border" : "border-border/60"}`}>
+          <div className="p-4 lg:p-5 lg:flex-1 lg:flex lg:flex-col">
+            <div className="flex items-start gap-4 lg:flex-1">
               <div className={`p-3 rounded-xl shrink-0 transition-colors ${isSubscribed ? "bg-foreground" : "bg-secondary"}`}>
                 <Icon className={`w-5 h-5 ${isSubscribed ? "text-background" : "text-foreground"}`} weight="bold" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="font-semibold">{space.name}</h3>
+                  <h3 className="font-semibold truncate">{space.name}</h3>
                   <Button
                     size="icon"
                     variant={isSubscribed ? "outline" : "default"}
@@ -63,12 +63,12 @@ export default function Spaces() {
                     {isSubscribed ? <Check className="w-4 h-4" weight="bold" /> : <Plus className="w-4 h-4" weight="bold" />}
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{space.description || "Sem descrição"}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{space.description || "Sem descrição"}</p>
               </div>
             </div>
             <Link
               to={`/spaces/${space.slug}`}
-              className="mt-4 pt-3.5 border-t border-border/50 flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="mt-4 pt-3.5 border-t border-border/50 flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors lg:mt-auto"
             >
               <span>Ver publicações</span>
               <ArrowRight className="w-4 h-4" />
