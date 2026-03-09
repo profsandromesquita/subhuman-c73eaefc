@@ -175,7 +175,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
           className="w-full h-40 object-cover lg:h-52"
         />
       ) : (
-        <div className="w-full h-28 bg-secondary flex items-center justify-center">
+        <div className="w-full h-40 lg:h-52 bg-secondary flex items-center justify-center">
           <CalendarBlank className="w-10 h-10 text-muted-foreground" />
         </div>
       )}
@@ -207,7 +207,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <CalendarBlank className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{formatSessionDates(event.sessions)}</span>
+            <span className="truncate">{formatSessionDates(event.sessions)}</span>
           </div>
           {event.location && (
             <div className="flex items-center gap-1.5">
@@ -216,7 +216,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
               ) : (
                 <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
               )}
-              <span>{event.location}</span>
+              <span className="truncate">{event.location}</span>
             </div>
           )}
           {event.max_participants && (
