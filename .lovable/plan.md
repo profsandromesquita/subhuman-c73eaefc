@@ -1,41 +1,39 @@
 
 
-# Correção: Cards de /events uniformes no desktop
+# Plano: Corrigir Build Quebrado
 
-## Análise
+## Causa Raiz
 
-O `EventCard` (linha 170) já possui `h-full flex flex-col` e `mt-auto` na área de ação. Imagens já usam `h-40 lg:h-52`. Título e descrição já têm `line-clamp-2`. Datas e localização já têm `truncate`.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-O problema residual está em:
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-1. **Badges com `flex-wrap`** (linha 183) — quando há 3 badges (tipo + modalidade + "Encerrado"), a segunda linha de badges aumenta a altura do card em relação aos vizinhos
-2. **Descrição condicional** — quando `event.description` é `null`, o card não renderiza o `<p>`, mas `mt-auto` compensa isso (OK)
-3. **Participantes condicionais** — idem, compensado por `mt-auto` (OK)
+## Correcao
 
-## Correção (1 arquivo: `src/pages/Events.tsx`)
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-### Linha 183 — Badges
-De: `flex gap-2 flex-wrap`
-Para: `flex gap-2 flex-wrap lg:flex-nowrap lg:overflow-hidden`
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
+```
 
-Impede que badges quebrem para segunda linha no desktop, mantendo a altura uniforme.
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
 
-### Linha 197 — Título
-De: `line-clamp-2`
-Para: `line-clamp-1 lg:line-clamp-2`
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-Reforço: no mobile 1 linha, desktop até 2 — mantém consistência máxima. (Alternativa: manter `line-clamp-2` em ambos se preferir.)
+## Risco
 
-Na verdade, o plano original pede truncar título — vou manter `line-clamp-2` que já existe. Está correto.
-
-### Resumo das alterações
-
-| Local | Antes | Depois |
-|---|---|---|
-| Badges (L183) | `flex gap-2 flex-wrap` | `flex gap-2 flex-wrap lg:flex-nowrap lg:overflow-hidden` |
-
-Isso é a única mudança necessária. O restante da estrutura já está corretamente implementada com `h-full`, `flex-col`, `mt-auto`, `line-clamp-2`, `truncate`, e `h-40 lg:h-52`.
-
-## Arquivo alterado
-- `src/pages/Events.tsx` (1 linha)
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 

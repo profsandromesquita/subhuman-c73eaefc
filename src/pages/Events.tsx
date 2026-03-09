@@ -180,7 +180,7 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
         </div>
       )}
       <div className="p-4 space-y-3 flex-1 flex flex-col">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap lg:flex-nowrap lg:overflow-hidden">
           <Badge variant="secondary" className="text-xs">
             {typeLabels[event.event_type] || event.event_type}
           </Badge>
