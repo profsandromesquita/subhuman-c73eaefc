@@ -76,7 +76,7 @@ export function CommentItem({
   const remainingReplies = replies.length - visibleRepliesCount;
   const hasMoreReplies = remainingReplies > 0;
   
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress = useRef(false);
 
   const isOwner = currentUserId && userId && currentUserId === userId;
