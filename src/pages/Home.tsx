@@ -140,12 +140,12 @@ export default function Home() {
               ) : (
                 <div className="space-y-2.5 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
                   {highlights.map((h, i) => (
-                    <motion.div key={h.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}>
+                    <motion.div key={h.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, MAX_STAGGER_ITEMS) * STAGGER_DELAY }} className="lg:h-full">
                       <button
                         onClick={() => handleHighlightClick(h)}
-                        className="w-full text-left group"
+                        className="w-full text-left group lg:h-full"
                       >
-                        <div className="flex gap-3 p-3.5 rounded-2xl bg-card border border-border/60 hover:border-border hover:bg-card/80 transition-all duration-200 lg:p-4">
+                        <div className="flex gap-3 p-3.5 rounded-2xl bg-card border border-border/60 hover:border-border hover:bg-card/80 transition-all duration-200 lg:p-4 lg:h-full">
                           <div className="flex-1 min-w-0 flex flex-col justify-between gap-2">
                             <div>
                               <Badge variant="secondary" className="mb-2 text-[11px] h-5">{h.space_name}</Badge>
