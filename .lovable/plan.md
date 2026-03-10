@@ -1,39 +1,26 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Consistência de altura dos cards em `/podcast`
 
-## Causa Raiz
+## Causa raiz
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Na grid de `/podcast`, o wrapper `Link` e o `Card` não preenchem a célula do grid. Quando títulos têm 1 vs 2 linhas, ou quando um card tem badge de espaço e outro não, a altura varia.
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+Em `/highlights`, o mesmo problema potencial existe mas é menos visível porque a maioria dos cards tem thumbnail e badge. Em `/home`, isso já foi corrigido adicionando `lg:h-full` aos wrappers.
 
-## Correcao
+## Correção (1 arquivo: `src/components/podcast/PodcastCard.tsx`)
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+| Elemento | Antes | Depois |
+|---|---|---|
+| `Link` (L33) | `className="block"` | `className="block lg:h-full"` |
+| `Card` (L34) | `className="relative p-3 lg:p-4 ..."` | adicionar `lg:h-full` |
+| Inner flex `div` (L35) | `className="flex gap-3"` | adicionar `lg:h-full` |
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
-```
+A coluna de texto (L37) já tem `flex flex-col justify-between` — os metadados já ficam ancorados na base quando o card preenche a célula.
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
-
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
-
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+## Resultado
+- Cards da mesma linha terão altura idêntica (grid stretch + h-full cascade)
+- Metadados alinhados na mesma posição vertical
+- Mobile inalterado (todas as classes usam `lg:`)
+- Nenhuma outra página afetada
 
