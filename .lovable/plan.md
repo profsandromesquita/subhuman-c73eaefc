@@ -1,39 +1,38 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Padronizar grid de cards em páginas com sidebar contextual
 
-## Causa Raiz
+## Análise
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Páginas com sidebar lateral contextual no desktop:
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+| Página | Layout | Grid dos cards | Problema |
+|---|---|---|---|
+| `/home` | `lg:grid-cols-[1fr_280px]` | `lg:grid-cols-2 xl:grid-cols-3` | 3 colunas comprime cards |
+| `/spaces/:slug` (SpaceDetail) | `lg:grid-cols-[1fr_260px]` | `lg:grid-cols-2 xl:grid-cols-3` | 3 colunas comprime cards |
+| `/channels/:id` (ChannelDetail) | `lg:grid-cols-[1fr_260px]` | Sem grid (lista vertical) | Não afetado |
 
-## Correcao
+Páginas sem sidebar (como `/highlights`, `/events`, `/spaces`, `/channels`) usam a largura total e podem manter 3 colunas.
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+## Correção
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
-```
+Remover `xl:grid-cols-3` dos grids de cards nas duas páginas afetadas. Isso limita a 2 colunas máximo, que é o correto para o espaço disponível com sidebar.
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
+### `src/pages/Home.tsx`
+- **Linha 141** (Destaques): `lg:grid-cols-2 xl:grid-cols-3` → `lg:grid-cols-2`
+- **Linha 201** (Em alta nos canais): `lg:grid-cols-2 xl:grid-cols-3` → `lg:grid-cols-2`
 
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+### `src/pages/SpaceDetail.tsx`
+- **Linha 114** (Feed): `lg:grid-cols-2 xl:grid-cols-3` → `lg:grid-cols-2`
 
-## Risco
+### Não alterados
+- `/highlights` — sem sidebar, mantém 3 colunas
+- `/channels/:id` — sem grid de cards (lista vertical)
+- `/events`, `/spaces`, `/channels`, `/podcasts` — sem sidebar contextual
 
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+## Resultado
+- Cards legíveis em páginas com sidebar
+- 2 colunas max no desktop com sidebar
+- 1 coluna no mobile (inalterado)
+- 3 colunas preservadas em páginas full-width
 
