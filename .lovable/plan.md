@@ -1,39 +1,32 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Padronizar PodcastCard para seguir o formato visual de /highlights
 
-## Causa Raiz
+## Diferenças identificadas
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+| Aspecto | Highlights | Podcast (atual) |
+|---|---|---|
+| Wrapper | `Card` com `p-3 lg:p-4` | `Link` sem Card |
+| Ordem | Texto à esquerda, thumbnail à direita | Thumbnail à esquerda, texto à direita |
+| Badge/categoria | `Badge` com nome do espaço no topo | Tags `#tag` misturadas no rodapé |
+| Título | `line-clamp-2`, `font-medium text-sm` | `line-clamp-1` mobile / `line-clamp-2` desktop, `font-semibold` |
+| Descrição | Não exibe | Exibe `line-clamp-2` |
+| Metadata | Likes · Comments · Tempo · Read time | Likes · Comments · Espaço · Tempo relativo |
+| Extras podcast | — | Duração sobre a cover, progress bar, ícone listened |
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+## Plano (1 arquivo: `src/components/podcast/PodcastCard.tsx`)
 
-## Correcao
+Reescrever o PodcastCard para seguir a mesma estrutura do card de highlights, preservando dados específicos de podcast:
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+1. **Wrapper**: Trocar `Link` por `Card` dentro de um `Link` (ou usar `Card` com `onClick` + `useNavigate`, como highlights faz)
+2. **Layout**: Texto à esquerda, thumbnail à direita — mesma ordem de highlights
+3. **Badge**: Espaço do podcast (`podcast.spaces?.name`) como `Badge` no topo do bloco de texto, antes do título
+4. **Título**: `font-medium text-sm line-clamp-2 lg:text-[15px]` — mesmo estilo de highlights
+5. **Sem descrição**: Remover `podcast.description` do card (highlights não mostra)
+6. **Metadata**: Mesmo layout de highlights — likes, comments, duração (no lugar de read time), tempo relativo
+7. **Thumbnail**: Mover para a direita, manter `w-20 h-20 lg:w-24 lg:h-24 rounded-xl lg:rounded-2xl`. Manter badge de duração e ícone de listened sobre a imagem
+8. **Progress bar**: Manter na base do card (funcionalidade específica de podcast)
+9. **Tags**: Remover do card para manter consistência (ou opcionalmente exibir 1 tag como badge secundário)
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
-```
-
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
-
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
-
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+Resultado: card visualmente idêntico ao de highlights, com duração e progress bar como únicas diferenças funcionais.
 
