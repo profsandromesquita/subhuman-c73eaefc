@@ -30,9 +30,9 @@ export function PodcastCard({ podcast, isListened, progressPercent = 0, likesCou
   };
 
   return (
-    <Link to={`/podcasts/${podcast.slug}`} className="block">
-      <Card className="relative p-3 lg:p-4 cursor-pointer hover:bg-white/5 border-border/60 hover:border-border transition-all duration-200 overflow-hidden">
-        <div className="flex gap-3">
+    <Link to={`/podcasts/${podcast.slug}`} className="block lg:h-full">
+      <Card className="relative p-3 lg:p-4 lg:h-full cursor-pointer hover:bg-white/5 border-border/60 hover:border-border transition-all duration-200 overflow-hidden">
+        <div className="flex gap-3 lg:h-full">
           {/* Text content — left side */}
           <div className="flex-1 min-w-0 flex flex-col justify-between">
             <div>
