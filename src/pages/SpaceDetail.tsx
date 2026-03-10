@@ -111,7 +111,7 @@ export default function SpaceDetail() {
             {updates.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">Nenhuma publicação ainda</div>
             ) : (
-              <div className="space-y-3 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:space-y-0">
+              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
                 {updates.map((update, i) => (
                   <motion.div key={update.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, MAX_STAGGER_ITEMS) * STAGGER_DELAY }}>
                     <button
