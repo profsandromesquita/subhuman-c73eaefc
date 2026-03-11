@@ -332,7 +332,7 @@ async function fetchConstitutionChunks(db: any): Promise<RAGChunk[]> {
 function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): string {
   let ctx = "";
   if (constitutionChunks.length) {
-    ctx += "=== IDENTIDADE E DIRETRIZES ===\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
+    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
   }
   const nonConst = chunks.filter(c => c.layer !== "constituicao");
   if (nonConst.length) {
