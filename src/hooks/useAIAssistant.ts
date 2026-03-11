@@ -134,16 +134,28 @@ export function useAIAssistant(): UseAIAssistantReturn {
         response = await makeRequest(accessToken);
       }
 
-      // Handle 429 - daily limit reached
+      // Handle 429 - check if it's a daily limit or generic rate limit
       if (response.status === 429) {
         const errorData = await response.json().catch(() => ({}));
-        setLimitReached(true);
-        setLimitInfo({
-          tier: errorData.tier || "freemium",
-          daily_limit: errorData.daily_limit || 0,
-          used_today: errorData.used_today || 0,
-        });
-        // Remove the user message that wasn't processed
+        const isDailyLimit = errorData?.error === "Limite diário atingido"
+          && typeof errorData?.daily_limit === "number"
+          && typeof errorData?.used_today === "number";
+
+        if (isDailyLimit) {
+          setLimitReached(true);
+          setLimitInfo({
+            tier: errorData.tier || "freemium",
+            daily_limit: errorData.daily_limit,
+            used_today: errorData.used_today,
+          });
+          // Remove the user message that wasn't processed
+          setMessages((prev) => prev.slice(0, -1));
+          setIsLoading(false);
+          return;
+        }
+
+        // Generic 429 — transient error, don't block input
+        toast.error(errorData?.message || errorData?.error || "Instabilidade temporária. Tente novamente em alguns segundos.");
         setMessages((prev) => prev.slice(0, -1));
         setIsLoading(false);
         return;
