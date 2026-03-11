@@ -533,7 +533,7 @@ serve(async (req) => {
     sysMsg += buildPodcastContext(podcasts);
     sysMsg += buildPlatformContext(recentPosts, channelPosts);
     sysMsg += ANTI_HALLUCINATION;
-    sysMsg += "\n\nResponda em português brasileiro. Priorize a base RAG. Seja didático. Chame o usuário pelo nome.";
+    sysMsg += "\n\nResponda em português brasileiro. Siga estritamente as regras definidas em [INSTRUÇÕES DO ASSISTENTE] e [INSTRUÇÕES ADICIONAIS].";
 
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
