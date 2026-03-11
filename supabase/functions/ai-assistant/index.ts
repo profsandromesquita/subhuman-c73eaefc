@@ -507,7 +507,7 @@ serve(async (req) => {
     // Tarefa 7: Check if RAG returned relevant results
     const nonConstitutionChunks = ragChunks.filter(c => c.layer !== "constituicao");
     const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
-      nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
+      nonConstitutionChunks.some(c => (c.rank ?? 0) >= scoreThreshold);
 
     console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, normalized: "${normalizedUserQuery.substring(0, 60)}", searchQuery: "${searchQuery}"`);
 
