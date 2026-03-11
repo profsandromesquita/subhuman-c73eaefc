@@ -371,7 +371,7 @@ function buildPodcastContext(podcasts: Podcast[]): string {
 function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): string {
   let ctx = "";
   if (posts.length) {
-    ctx += "\n=== ARTIGOS RECENTES ===\n" + posts.slice(0, 5).map(p => {
+    ctx += "\n[ARTIGOS RECENTES]\n" + posts.slice(0, 5).map(p => {
       const d = new Date(p.published_at).toLocaleDateString("pt-BR");
       const spaceSlug = p.spaces?.slug || "geral";
       return `[${p.spaces?.name}] [${p.title}](/spaces/${spaceSlug}/post/${p.slug || p.id}) - ${d}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 100)}`;
