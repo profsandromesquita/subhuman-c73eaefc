@@ -571,17 +571,24 @@ serve(async (req) => {
     sysMsg += ANTI_HALLUCINATION;
     sysMsg += "\n\nResponda em português brasileiro. Siga estritamente as regras definidas em [INSTRUÇÕES DO ASSISTENTE] e [INSTRUÇÕES ADICIONAIS].";
 
+    // Token budgeting: truncate system message
+    const maxSysMsgChars = (ragCfg.max_system_chars as number) ?? 30000;
+    if (sysMsg.length > maxSysMsgChars) {
+      console.log(`[TOKEN BUDGET] sysMsg truncated: ${sysMsg.length} → ${maxSysMsgChars} chars`);
+      sysMsg = sysMsg.substring(0, maxSysMsgChars);
+    }
+
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
     // deno-lint-ignore no-explicit-any
-    const body: Record<string, any> = { model, messages: [{ role: "system", content: sysMsg }, ...messages], stream: true };
+    const body: Record<string, any> = { model, messages: [{ role: "system", content: sysMsg }, ...trimmedMessages], stream: true };
     if (!isOpenAI) {
       body.temperature = Number(config.temperature) || 0.7;
-      body.top_p = Number(config.top_p) || 0.9; // Tarefa 1: top_p
+      body.top_p = Number(config.top_p) || 0.9;
     }
     body[isOpenAI ? "max_completion_tokens" : "max_tokens"] = config.max_tokens || 2048;
 
-    console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${messages.length} msgs, ${JSON.stringify(messages).length} chars (~${Math.round(JSON.stringify(messages).length/4)} tokens)`);
+    console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${trimmedMessages.length} msgs (original: ${messages.length}), ${JSON.stringify(trimmedMessages).length} chars (~${Math.round(JSON.stringify(trimmedMessages).length/4)} tokens)`);
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
