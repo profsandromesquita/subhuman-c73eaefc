@@ -33,7 +33,6 @@ const CAPABILITIES = [{
 }];
 export default function AIAssistant() {
   const navigate = useNavigate();
-  const { canUseAI } = useUserAccess();
   const {
     messages,
     isLoading,
@@ -41,7 +40,9 @@ export default function AIAssistant() {
     clearMessages,
     showClearConfirm,
     requestClearMessages,
-    cancelClearMessages
+    cancelClearMessages,
+    limitReached,
+    limitInfo,
   } = useAIAssistant();
   const [input, setInput] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
