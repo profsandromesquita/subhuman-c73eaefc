@@ -466,7 +466,16 @@ serve(async (req) => {
     }
 
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
-    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number };
+    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number; max_history_messages?: number; max_system_chars?: number; max_chunk_chars?: number };
+
+    // Token budgeting: trim history
+    const maxHistoryMessages = (ragCfg.max_history_messages as number) ?? 20;
+    const trimmedMessages = messages.length > maxHistoryMessages
+      ? messages.slice(-maxHistoryMessages)
+      : messages;
+    if (messages.length > maxHistoryMessages) {
+      console.log(`[TOKEN BUDGET] History trimmed: ${messages.length} → ${trimmedMessages.length} messages`);
+    }
 
     // Tarefa 3: Check if constitution is relevant
     const needsConstitution = isConstitutionRelevant(userQuery);
