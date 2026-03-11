@@ -486,13 +486,22 @@ serve(async (req) => {
       }
     }
 
+    // Filtro de score mínimo — descarta chunks irrelevantes ANTES do reranking
+    const scoreThreshold = ragCfg.rag_score_threshold ?? 0.05;
+    const filteredChunks = finalRawChunks.filter(c =>
+      (c.rank ?? 0) >= scoreThreshold || c.layer === 'constituicao'
+    );
+    if (filteredChunks.length < finalRawChunks.length) {
+      console.log(`Score filter: ${finalRawChunks.length} → ${filteredChunks.length} chunks (threshold: ${scoreThreshold})`);
+    }
+
     // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
-    let ragChunks = finalRawChunks;
-    const shouldRerank = ragCfg.rag_rerank_enabled !== false && finalRawChunks.length > 3;
+    let ragChunks = filteredChunks;
+    const shouldRerank = ragCfg.rag_rerank_enabled !== false && filteredChunks.length > 3;
     if (shouldRerank) {
-      ragChunks = await rerankChunks(userQuery, finalRawChunks, API_KEY);
+      ragChunks = await rerankChunks(userQuery, filteredChunks, API_KEY);
     } else {
-      ragChunks = finalRawChunks.slice(0, 5);
+      ragChunks = filteredChunks.slice(0, 5);
     }
 
     // Tarefa 7: Check if RAG returned relevant results
