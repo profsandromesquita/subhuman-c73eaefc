@@ -53,6 +53,7 @@ import {
   useGenerateChunks,
   useDeleteRAGDocument,
   useFixDocumentMetadata,
+  useUpdateDocumentPriority,
 } from "@/hooks/useRAGDocuments";
 import { useDeleteAllChunks } from "@/hooks/useRAGChunks";
 import { formatDistanceToNow } from "date-fns";
