@@ -402,7 +402,7 @@ const ANTI_HALLUCINATION = `\n[REGRAS DE SEGURANÇA]
 4. NÃO invente nomes, datas ou especificações`;
 
 // Bug Fix 3: RAG_FALLBACK harmonizado — não instrui a negar existência de docs
-const RAG_FALLBACK = `\n=== AVISO DE BUSCA ===
+const RAG_FALLBACK = `\n[AVISO DE BUSCA]
 A busca automática na base de conhecimento não retornou resultados específicos para esta consulta.
 IMPORTANTE: Isso pode ser uma limitação técnica da busca, NÃO necessariamente ausência do dado.
 INSTRUÇÕES:
