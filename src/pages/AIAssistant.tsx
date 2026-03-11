@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Robot, PaperPlaneRight, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users, PlusCircle, Lock } from "@phosphor-icons/react";
+import { Robot, PaperPlaneRight, Copy, Check, Sparkle, ChatsCircle, Lightbulb, BookOpen, FileText, Users, PlusCircle } from "@phosphor-icons/react";
 import { Logo } from "@/components/Logo";
 import ReactMarkdown from "react-markdown";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAIAssistant } from "@/hooks/useAIAssistant";
-import { useUserAccess } from "@/hooks/useUserAccess";
+import { AILimitMessage } from "@/components/AILimitMessage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
