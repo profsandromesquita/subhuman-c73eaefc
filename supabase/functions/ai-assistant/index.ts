@@ -336,7 +336,7 @@ function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): st
   }
   const nonConst = chunks.filter(c => c.layer !== "constituicao");
   if (nonConst.length) {
-    ctx += "=== CONHECIMENTO RELEVANTE ===\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
+    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
   }
   return ctx;
 }
