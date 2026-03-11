@@ -361,7 +361,7 @@ function buildUserContext(profile: UserProfile | null): string {
 
 function buildPodcastContext(podcasts: Podcast[]): string {
   if (!podcasts.length) return "";
-  return "\n=== PODCASTS RECENTES ===\n" + podcasts.map(p => {
+  return "\n[PODCASTS RECENTES]\n" + podcasts.map(p => {
     const date = new Date(p.published_at).toLocaleDateString("pt-BR");
     const desc = p.description ? ` - ${p.description.substring(0, 100)}` : "";
     return `🎙️ [${p.title}](/podcasts/${p.slug}) ${date}${desc}`;
