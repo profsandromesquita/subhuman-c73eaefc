@@ -110,6 +110,8 @@ export default function RAGDocuments() {
   const deleteMutation = useDeleteRAGDocument();
   const deleteChunksMutation = useDeleteAllChunks();
   const fixMetadataMutation = useFixDocumentMetadata();
+  const updatePriorityMutation = useUpdateDocumentPriority();
+  const [editingPriority, setEditingPriority] = useState<{ id: string; value: number } | null>(null);
 
   const filteredDocuments = documents?.filter((doc) => {
     if (layerFilter !== "all" && doc.layer !== layerFilter) return false;
