@@ -79,7 +79,7 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     canLike: true,
     canListenPodcast: true,
     canUseAI: true,
-    aiDailyLimit: 2,
+    aiDailyLimit: 3,
     canPostInChannels: true,
     canViewMemberCards: true,
     canAccessFreeEvents: true,
