@@ -1,33 +1,39 @@
 
 
-# Boost Multiplicativo na Ordenação do `search_rag_chunks_lexical`
+# Plano: Corrigir Build Quebrado
 
-## Mudança
+## Causa Raiz
 
-Alterar a cláusula `ORDER BY` da função SQL `search_rag_chunks_lexical` para usar prioridade como boost multiplicativo no score FTS, em vez de critério de ordenação independente.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-### Antes (ORDER BY atual)
-```sql
-ORDER BY 
-  CASE WHEN d.layer = 'constituicao' THEN 0 WHEN d.layer = 'nucleo' THEN 1 ELSE 2 END,
-  c.priority DESC,
-  rank DESC
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+
+## Correcao
+
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
-### Depois
-```sql
-ORDER BY 
-  CASE WHEN d.layer = 'constituicao' THEN 0 WHEN d.layer = 'nucleo' THEN 1 ELSE 2 END,
-  (rank * (c.priority / 70.0)) DESC
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
 ```
 
-## Implementação
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-Uma única migração SQL com `CREATE OR REPLACE FUNCTION` que recria a função `search_rag_chunks_lexical` com a nova cláusula ORDER BY. Todo o resto da função permanece idêntico.
+## Risco
 
-## Impacto
-
-- Constituição e Núcleo continuam sempre no topo (layer sort mantido)
-- Prioridade vira multiplicador do score FTS em vez de critério dominante
-- Nenhuma alteração na Edge Function ou no código frontend
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
