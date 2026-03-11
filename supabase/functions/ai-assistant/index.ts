@@ -387,7 +387,7 @@ function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): str
 }
 
 // Tarefa 4: Compactado
-const PLATFORM_STRUCTURE = `=== ESTRUTURA SUBHUMANO ===
+const PLATFORM_STRUCTURE = `[ESTRUTURA DA PLATAFORMA]
 1. ESPAÇOS (/spaces): Artigos e tutoriais dos administradores
 2. CANAIS (/channels): Fóruns da comunidade
 3. PODCASTS (/podcasts): Episódios de áudio sobre IA
