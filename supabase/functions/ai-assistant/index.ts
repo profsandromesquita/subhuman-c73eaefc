@@ -432,12 +432,28 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Token inválido" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const db = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // ============ DAILY LIMIT CHECK ============
+    const { data: limitCheck, error: limitError } = await db.rpc('check_ai_daily_limit', { p_user_id: user.id });
+    if (limitError) {
+      console.error("Limit check error:", limitError);
+    } else if (limitCheck?.[0] && !limitCheck[0].allowed) {
+      const lc = limitCheck[0];
+      console.log(`AI limit reached: user=${user.id} tier=${lc.tier} used=${lc.used_today}/${lc.daily_limit}`);
+      return new Response(JSON.stringify({
+        error: "Limite diário atingido",
+        tier: lc.tier,
+        daily_limit: lc.daily_limit,
+        used_today: lc.used_today,
+        message: `Você atingiu o limite de ${lc.daily_limit} consultas por dia do plano ${lc.tier}. Faça upgrade para aumentar seu limite.`
+      }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { messages } = await req.json();
     if (!messages?.length) {
       return new Response(JSON.stringify({ error: "Mensagens inválidas" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
-    const db = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: config } = await db.from("ai_assistant_config").select("*").eq("is_active", true).single();
     if (!config) {
       return new Response(JSON.stringify({ error: "Assistente não configurado" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -1817,6 +1817,15 @@ export type Database = {
         Args: { _channel_id: string; _user_id: string }
         Returns: boolean
       }
+      check_ai_daily_limit: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+          daily_limit: number
+          tier: string
+          used_today: number
+        }[]
+      }
       generate_slug: { Args: { title: string }; Returns: string }
       get_unread_notifications_count: {
         Args: { p_user_id: string }
