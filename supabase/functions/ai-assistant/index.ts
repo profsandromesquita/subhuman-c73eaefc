@@ -329,14 +329,15 @@ async function fetchConstitutionChunks(db: any): Promise<RAGChunk[]> {
 }
 
 // ============ CONTEXT BUILDERS (Tarefa 4 - Otimizado) ============
-function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): string {
+function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[], maxChunkChars = 2000): string {
+  const truncate = (text: string) => text.length > maxChunkChars ? text.substring(0, maxChunkChars) + "..." : text;
   let ctx = "";
   if (constitutionChunks.length) {
-    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
+    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => truncate(c.content)).join("\n\n") + "\n\n";
   }
   const nonConst = chunks.filter(c => c.layer !== "constituicao");
   if (nonConst.length) {
-    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
+    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${truncate(c.content)}`).join("\n\n") + "\n\n";
   }
   return ctx;
 }
@@ -465,7 +466,16 @@ serve(async (req) => {
     }
 
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
-    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number };
+    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number; max_history_messages?: number; max_system_chars?: number; max_chunk_chars?: number };
+
+    // Token budgeting: trim history
+    const maxHistoryMessages = (ragCfg.max_history_messages as number) ?? 20;
+    const trimmedMessages = messages.length > maxHistoryMessages
+      ? messages.slice(-maxHistoryMessages)
+      : messages;
+    if (messages.length > maxHistoryMessages) {
+      console.log(`[TOKEN BUDGET] History trimmed: ${messages.length} → ${trimmedMessages.length} messages`);
+    }
 
     // Tarefa 3: Check if constitution is relevant
     const needsConstitution = isConstitutionRelevant(userQuery);
@@ -547,7 +557,8 @@ serve(async (req) => {
     sysMsg += buildUserContext(userProfile);
     if (config.system_prompt) sysMsg += "\n[INSTRUÇÕES DO ASSISTENTE]\n" + config.system_prompt + "\n";
     if (config.system_instruction) sysMsg += "[INSTRUÇÕES ADICIONAIS]\n" + config.system_instruction + "\n";
-    sysMsg += buildRAGContext(ragChunks, constitutionChunks);
+    const maxChunkChars = (ragCfg.max_chunk_chars as number) ?? 2000;
+    sysMsg += buildRAGContext(ragChunks, constitutionChunks, maxChunkChars);
     
     // Tarefa 7: Add fallback warning if no relevant RAG
     if (!hasRelevantRAG && !needsConstitution) {
@@ -560,17 +571,24 @@ serve(async (req) => {
     sysMsg += ANTI_HALLUCINATION;
     sysMsg += "\n\nResponda em português brasileiro. Siga estritamente as regras definidas em [INSTRUÇÕES DO ASSISTENTE] e [INSTRUÇÕES ADICIONAIS].";
 
+    // Token budgeting: truncate system message
+    const maxSysMsgChars = (ragCfg.max_system_chars as number) ?? 30000;
+    if (sysMsg.length > maxSysMsgChars) {
+      console.log(`[TOKEN BUDGET] sysMsg truncated: ${sysMsg.length} → ${maxSysMsgChars} chars`);
+      sysMsg = sysMsg.substring(0, maxSysMsgChars);
+    }
+
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
     // deno-lint-ignore no-explicit-any
-    const body: Record<string, any> = { model, messages: [{ role: "system", content: sysMsg }, ...messages], stream: true };
+    const body: Record<string, any> = { model, messages: [{ role: "system", content: sysMsg }, ...trimmedMessages], stream: true };
     if (!isOpenAI) {
       body.temperature = Number(config.temperature) || 0.7;
-      body.top_p = Number(config.top_p) || 0.9; // Tarefa 1: top_p
+      body.top_p = Number(config.top_p) || 0.9;
     }
     body[isOpenAI ? "max_completion_tokens" : "max_tokens"] = config.max_tokens || 2048;
 
-    console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${messages.length} msgs, ${JSON.stringify(messages).length} chars (~${Math.round(JSON.stringify(messages).length/4)} tokens)`);
+    console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${trimmedMessages.length} msgs (original: ${messages.length}), ${JSON.stringify(trimmedMessages).length} chars (~${Math.round(JSON.stringify(trimmedMessages).length/4)} tokens)`);
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
