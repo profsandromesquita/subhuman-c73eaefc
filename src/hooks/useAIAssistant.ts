@@ -10,6 +10,12 @@ export interface Message {
   content: string;
 }
 
+export interface LimitInfo {
+  tier: string;
+  daily_limit: number;
+  used_today: number;
+}
+
 export interface UseAIAssistantReturn {
   messages: Message[];
   isLoading: boolean;
@@ -19,6 +25,9 @@ export interface UseAIAssistantReturn {
   showClearConfirm: boolean;
   requestClearMessages: () => void;
   cancelClearMessages: () => void;
+  limitReached: boolean;
+  limitInfo: LimitInfo | null;
+  resetLimit: () => void;
 }
 
 function loadMessages(): Message[] {
@@ -46,11 +55,18 @@ export function useAIAssistant(): UseAIAssistantReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
+  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
 
   // Persist messages on change
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  const resetLimit = useCallback(() => {
+    setLimitReached(false);
+    setLimitInfo(null);
+  }, []);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -118,13 +134,26 @@ export function useAIAssistant(): UseAIAssistantReturn {
         response = await makeRequest(accessToken);
       }
 
+      // Handle 429 - daily limit reached
+      if (response.status === 429) {
+        const errorData = await response.json().catch(() => ({}));
+        setLimitReached(true);
+        setLimitInfo({
+          tier: errorData.tier || "freemium",
+          daily_limit: errorData.daily_limit || 0,
+          used_today: errorData.used_today || 0,
+        });
+        // Remove the user message that wasn't processed
+        setMessages((prev) => prev.slice(0, -1));
+        setIsLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMsg = errorData.error || "Erro ao processar sua mensagem";
         
-        if (response.status === 429) {
-          toast.error("Limite de requisições excedido. Aguarde alguns segundos.");
-        } else if (response.status === 402) {
+        if (response.status === 402) {
           toast.error("Créditos de IA insuficientes.");
         } else if (response.status === 401) {
           toast.error("Sua sessão expirou. Faça login novamente.");
@@ -214,9 +243,10 @@ export function useAIAssistant(): UseAIAssistantReturn {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setShowClearConfirm(false);
+    resetLimit();
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
     toast.success("Nova conversa iniciada");
-  }, []);
+  }, [resetLimit]);
 
   const requestClearMessages = useCallback(() => {
     setShowClearConfirm(true);
@@ -235,5 +265,8 @@ export function useAIAssistant(): UseAIAssistantReturn {
     showClearConfirm,
     requestClearMessages,
     cancelClearMessages,
+    limitReached,
+    limitInfo,
+    resetLimit,
   };
 }
