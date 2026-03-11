@@ -350,7 +350,7 @@ function buildChannelsContext(channels: Channel[]): string {
 function buildUserContext(profile: UserProfile | null): string {
   if (!profile?.full_name) return "";
   const firstName = profile.full_name.split(" ")[0];
-  let ctx = `\n=== USUÁRIO ===\nNome: ${firstName}`;
+  let ctx = `\n[PERFIL DO USUÁRIO]\nNome: ${firstName}`;
   if (profile.city && profile.state) ctx += ` | ${profile.city}/${profile.state}`;
   if (profile.job_title) ctx += ` | ${profile.job_title}`;
   if (profile.ai_experience_level) ctx += ` | Nível IA: ${profile.ai_experience_level}`;
