@@ -344,7 +344,7 @@ function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): st
 function buildChannelsContext(channels: Channel[]): string {
   if (!channels.length) return "";
   const labels: Record<string, string> = { open: "aberto", subscribers: "assinantes", premium: "premium" };
-  return "\n=== CANAIS ===\n" + channels.map(c => `- ${c.name} (${labels[c.access_type] || c.access_type})`).join("\n") + "\nNÃO invente Discord/LinkedIn.\n";
+  return "\n[CANAIS DA PLATAFORMA]\n" + channels.map(c => `- ${c.name} (${labels[c.access_type] || c.access_type})`).join("\n") + "\nNÃO invente Discord/LinkedIn.\n";
 }
 
 function buildUserContext(profile: UserProfile | null): string {
