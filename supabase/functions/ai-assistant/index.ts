@@ -520,8 +520,8 @@ serve(async (req) => {
     const now = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
     let sysMsg = `Data: ${now}\n\n${PLATFORM_STRUCTURE}\n`;
     sysMsg += buildUserContext(userProfile);
-    if (config.system_prompt) sysMsg += "\n" + config.system_prompt + "\n";
-    if (config.system_instruction) sysMsg += config.system_instruction + "\n";
+    if (config.system_prompt) sysMsg += "\n[INSTRUÇÕES DO ASSISTENTE]\n" + config.system_prompt + "\n";
+    if (config.system_instruction) sysMsg += "[INSTRUÇÕES ADICIONAIS]\n" + config.system_instruction + "\n";
     sysMsg += buildRAGContext(ragChunks, constitutionChunks);
     
     // Tarefa 7: Add fallback warning if no relevant RAG
