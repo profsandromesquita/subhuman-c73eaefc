@@ -322,6 +322,40 @@ function parseFrontmatter(content: string): {
   return { metadata, body, hasFrontmatter: true };
 }
 
+export function useUpdateDocumentPriority() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, priority }: { id: string; priority: number }) => {
+      const clampedPriority = Math.max(0, Math.min(100, priority));
+
+      const { error: docError } = await supabase
+        .from("rag_documents")
+        .update({ priority: clampedPriority, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (docError) throw docError;
+
+      const { error: chunkError } = await supabase
+        .from("rag_chunks")
+        .update({ priority: clampedPriority })
+        .eq("document_id", id);
+
+      if (chunkError) throw chunkError;
+
+      return clampedPriority;
+    },
+    onSuccess: (newPriority) => {
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+      queryClient.invalidateQueries({ queryKey: ["rag-chunks"] });
+      toast.success(`Prioridade atualizada para ${newPriority}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
 export function useDeleteRAGDocument() {
   const queryClient = useQueryClient();
 

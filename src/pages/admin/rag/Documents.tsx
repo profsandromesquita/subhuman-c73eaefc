@@ -289,7 +289,66 @@ export default function RAGDocuments() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="font-mono">{doc.priority}</span>
+                        <Popover
+                          open={editingPriority?.id === doc.id}
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setEditingPriority({ id: doc.id, value: doc.priority });
+                            } else {
+                              setEditingPriority(null);
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              className="font-mono px-2 py-1 rounded hover:bg-muted transition-colors cursor-pointer"
+                              title="Clique para editar"
+                            >
+                              {doc.priority}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-48 p-3" align="center">
+                            <div className="space-y-2">
+                              <label className="text-xs text-muted-foreground">Prioridade (0-100)</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={editingPriority?.value ?? doc.priority}
+                                onChange={(e) =>
+                                  setEditingPriority((prev) =>
+                                    prev ? { ...prev, value: Number(e.target.value) } : null
+                                  )
+                                }
+                                className="font-mono"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingPriority) {
+                                    updatePriorityMutation.mutate(
+                                      { id: doc.id, priority: editingPriority.value },
+                                      { onSuccess: () => setEditingPriority(null) }
+                                    );
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                disabled={updatePriorityMutation.isPending}
+                                onClick={() => {
+                                  if (editingPriority) {
+                                    updatePriorityMutation.mutate(
+                                      { id: doc.id, priority: editingPriority.value },
+                                      { onSuccess: () => setEditingPriority(null) }
+                                    );
+                                  }
+                                }}
+                              >
+                                {updatePriorityMutation.isPending ? "Salvando..." : "Salvar"}
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
