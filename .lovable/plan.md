@@ -1,32 +1,39 @@
 
 
-# Edição de Prioridade dos Documentos RAG
+# Plano: Corrigir Build Quebrado
 
-## Viabilidade
+## Causa Raiz
 
-Sim, alterar a prioridade surte efeito imediato. As funções SQL `search_rag_chunks_lexical` e `search_rag_chunks` ordenam por `priority DESC` em tempo de consulta. A prioridade também é herdada pelos chunks. Basta atualizar o valor no banco e, opcionalmente, propagar para os chunks existentes.
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-## Mudanças
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-### 1. Hook `useUpdateDocumentPriority` — `src/hooks/useRAGDocuments.ts`
-Nova mutation que:
-- Atualiza `rag_documents.priority` via Supabase client
-- Atualiza `rag_chunks.priority` para todos os chunks do documento (propagação)
-- Invalida queries relevantes
+## Correcao
 
-### 2. UI inline na tabela — `src/pages/admin/rag/Documents.tsx`
-Substituir o `<span>` estático da coluna "Prioridade" por um componente clicável:
-- Ao clicar no valor, abre um pequeno `Popover` com um `Input` numérico (0-100) e botão "Salvar"
-- Ao salvar, chama a mutation que atualiza documento + chunks
-- Feedback via toast
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
 
-### Fluxo do usuário
-1. Admin vê a coluna "Prioridade" com o valor atual (ex: 50)
-2. Clica no valor → abre popover inline com input numérico
-3. Digita novo valor (ex: 80) → clica "Salvar"
-4. Documento e seus chunks são atualizados → efeito imediato nas próximas consultas do assistente
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
+```
 
-### Arquivos alterados
-- `src/hooks/useRAGDocuments.ts` — adicionar `useUpdateDocumentPriority`
-- `src/pages/admin/rag/Documents.tsx` — substituir span por popover editável
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
+
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+
+## Risco
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 
