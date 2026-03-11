@@ -1,39 +1,34 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Fallback para links absolutos da plataforma no `markdownComponents.a`
 
-## Causa Raiz
+## Arquivo: `src/pages/AIAssistant.tsx` (linhas 123-138)
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Adicionar, antes do `if (href?.startsWith('/'))`, uma verificação que detecta URLs absolutas de domínios da plataforma, extrai o pathname e usa `navigate()`.
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+```tsx
+a: ({ href, children }: any) => {
+  // Fallback: converter URLs absolutas da plataforma em paths relativos
+  const platformPattern = /^https?:\/\/(www\.)?(subhumano\.com|subhumano\.ia\.br)(\/.*)?$/i;
+  const match = href?.match(platformPattern);
+  const resolvedHref = match ? (match[3] || '/') : href;
 
-## Correcao
-
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
-
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
+  if (resolvedHref?.startsWith('/')) {
+    return (
+      <button onClick={e => { e.preventDefault(); navigate(resolvedHref); }}
+        className="underline text-primary hover:text-primary/80 cursor-pointer">
+        {children}
+      </button>
+    );
+  }
+  return (
+    <a href={resolvedHref} target="_blank" rel="noopener noreferrer"
+      className="underline text-primary hover:text-primary/80">
+      {children}
+    </a>
+  );
 }
 ```
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
-
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
-
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+Nenhum outro arquivo ou componente é alterado.
 
