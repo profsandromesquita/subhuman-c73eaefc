@@ -329,14 +329,15 @@ async function fetchConstitutionChunks(db: any): Promise<RAGChunk[]> {
 }
 
 // ============ CONTEXT BUILDERS (Tarefa 4 - Otimizado) ============
-function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): string {
+function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[], maxChunkChars = 2000): string {
+  const truncate = (text: string) => text.length > maxChunkChars ? text.substring(0, maxChunkChars) + "..." : text;
   let ctx = "";
   if (constitutionChunks.length) {
-    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
+    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => truncate(c.content)).join("\n\n") + "\n\n";
   }
   const nonConst = chunks.filter(c => c.layer !== "constituicao");
   if (nonConst.length) {
-    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
+    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${truncate(c.content)}`).join("\n\n") + "\n\n";
   }
   return ctx;
 }
