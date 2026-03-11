@@ -1,86 +1,39 @@
 
 
-# Filtro de Score Mínimo nos Chunks RAG
+# Plano: Corrigir Build Quebrado
 
-Inserir um filtro entre o fallback por tags (linha 487) e o reranking (linha 490), descartando chunks com rank abaixo de um threshold configurável.
+## Causa Raiz
 
-## Mudanças (arquivo único: `supabase/functions/ai-assistant/index.ts`)
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-### 1. Extrair `rag_score_threshold` do ragCfg (linha 452)
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-**Antes:**
-```ts
-const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean };
+## Correcao
+
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
-**Depois:**
-```ts
-const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number };
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
 ```
 
-### 2. Adicionar filtro por score após fallback por tags (entre linhas 487 e 489)
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
 
-**Antes:**
-```ts
-    // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
-    let ragChunks = finalRawChunks;
-    const shouldRerank = ragCfg.rag_rerank_enabled !== false && finalRawChunks.length > 3;
-```
+## Risco
 
-**Depois:**
-```ts
-    // Filtro de score mínimo — descarta chunks irrelevantes ANTES do reranking
-    const scoreThreshold = ragCfg.rag_score_threshold ?? 0.05;
-    const filteredChunks = finalRawChunks.filter(c =>
-      (c.rank ?? 0) >= scoreThreshold || c.layer === 'constituicao'
-    );
-    if (filteredChunks.length < finalRawChunks.length) {
-      console.log(`Score filter: ${finalRawChunks.length} → ${filteredChunks.length} chunks (threshold: ${scoreThreshold})`);
-    }
-
-    // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
-    let ragChunks = filteredChunks;
-    const shouldRerank = ragCfg.rag_rerank_enabled !== false && filteredChunks.length > 3;
-```
-
-### 3. Atualizar reranking e slice para usar `filteredChunks` (linhas 492-496)
-
-**Antes:**
-```ts
-    if (shouldRerank) {
-      ragChunks = await rerankChunks(userQuery, finalRawChunks, API_KEY);
-    } else {
-      ragChunks = finalRawChunks.slice(0, 5);
-    }
-```
-
-**Depois:**
-```ts
-    if (shouldRerank) {
-      ragChunks = await rerankChunks(userQuery, filteredChunks, API_KEY);
-    } else {
-      ragChunks = filteredChunks.slice(0, 5);
-    }
-```
-
-### 4. Atualizar `hasRelevantRAG` para usar o mesmo threshold (linhas 500-501)
-
-**Antes:**
-```ts
-    const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
-      nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
-```
-
-**Depois:**
-```ts
-    const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
-      nonConstitutionChunks.some(c => (c.rank ?? 0) >= scoreThreshold);
-```
-
-## Resumo
-
-- 4 edições pontuais no mesmo arquivo
-- Nenhuma query SQL alterada
-- Nenhuma lógica de reranking ou buildRAGContext alterada
-- O threshold é configurável via campo `metadata.rag_score_threshold` da tabela `ai_assistant_config` (default 0.05)
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 

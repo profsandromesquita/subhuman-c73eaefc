@@ -449,7 +449,7 @@ serve(async (req) => {
     }
 
     const userQuery = [...messages].reverse().find((m: { role: string }) => m.role === "user")?.content || "";
-    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean };
+    const ragCfg = (config.metadata || {}) as { rag_top_k?: number; rag_enabled?: boolean; rag_rerank_enabled?: boolean; rag_score_threshold?: number };
 
     // Tarefa 3: Check if constitution is relevant
     const needsConstitution = isConstitutionRelevant(userQuery);
@@ -486,19 +486,28 @@ serve(async (req) => {
       }
     }
 
+    // Filtro de score mínimo — descarta chunks irrelevantes ANTES do reranking
+    const scoreThreshold = ragCfg.rag_score_threshold ?? 0.05;
+    const filteredChunks = finalRawChunks.filter(c =>
+      (c.rank ?? 0) >= scoreThreshold || c.layer === 'constituicao'
+    );
+    if (filteredChunks.length < finalRawChunks.length) {
+      console.log(`Score filter: ${finalRawChunks.length} → ${filteredChunks.length} chunks (threshold: ${scoreThreshold})`);
+    }
+
     // Tarefa 2: Semantic reranking (usa userQuery original para contexto, não keywords)
-    let ragChunks = finalRawChunks;
-    const shouldRerank = ragCfg.rag_rerank_enabled !== false && finalRawChunks.length > 3;
+    let ragChunks = filteredChunks;
+    const shouldRerank = ragCfg.rag_rerank_enabled !== false && filteredChunks.length > 3;
     if (shouldRerank) {
-      ragChunks = await rerankChunks(userQuery, finalRawChunks, API_KEY);
+      ragChunks = await rerankChunks(userQuery, filteredChunks, API_KEY);
     } else {
-      ragChunks = finalRawChunks.slice(0, 5);
+      ragChunks = filteredChunks.slice(0, 5);
     }
 
     // Tarefa 7: Check if RAG returned relevant results
     const nonConstitutionChunks = ragChunks.filter(c => c.layer !== "constituicao");
     const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
-      nonConstitutionChunks.some(c => (c.rank ?? 0) >= 0.01);
+      nonConstitutionChunks.some(c => (c.rank ?? 0) >= scoreThreshold);
 
     console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, normalized: "${normalizedUserQuery.substring(0, 60)}", searchQuery: "${searchQuery}"`);
 
