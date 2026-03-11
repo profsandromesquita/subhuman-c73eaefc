@@ -332,11 +332,11 @@ async function fetchConstitutionChunks(db: any): Promise<RAGChunk[]> {
 function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): string {
   let ctx = "";
   if (constitutionChunks.length) {
-    ctx += "=== IDENTIDADE E DIRETRIZES ===\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
+    ctx += "[IDENTIDADE E DIRETRIZES]\n" + constitutionChunks.map(c => c.content).join("\n\n") + "\n\n";
   }
   const nonConst = chunks.filter(c => c.layer !== "constituicao");
   if (nonConst.length) {
-    ctx += "=== CONHECIMENTO RELEVANTE ===\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
+    ctx += "[BASE DE CONHECIMENTO]\n" + nonConst.map(c => `[${c.document_title}]\n${c.content}`).join("\n\n") + "\n\n";
   }
   return ctx;
 }
@@ -344,13 +344,13 @@ function buildRAGContext(chunks: RAGChunk[], constitutionChunks: RAGChunk[]): st
 function buildChannelsContext(channels: Channel[]): string {
   if (!channels.length) return "";
   const labels: Record<string, string> = { open: "aberto", subscribers: "assinantes", premium: "premium" };
-  return "\n=== CANAIS ===\n" + channels.map(c => `- ${c.name} (${labels[c.access_type] || c.access_type})`).join("\n") + "\nNÃO invente Discord/LinkedIn.\n";
+  return "\n[CANAIS DA PLATAFORMA]\n" + channels.map(c => `- ${c.name} (${labels[c.access_type] || c.access_type})`).join("\n") + "\nNÃO invente Discord/LinkedIn.\n";
 }
 
 function buildUserContext(profile: UserProfile | null): string {
   if (!profile?.full_name) return "";
   const firstName = profile.full_name.split(" ")[0];
-  let ctx = `\n=== USUÁRIO ===\nNome: ${firstName}`;
+  let ctx = `\n[PERFIL DO USUÁRIO]\nNome: ${firstName}`;
   if (profile.city && profile.state) ctx += ` | ${profile.city}/${profile.state}`;
   if (profile.job_title) ctx += ` | ${profile.job_title}`;
   if (profile.ai_experience_level) ctx += ` | Nível IA: ${profile.ai_experience_level}`;
@@ -361,7 +361,7 @@ function buildUserContext(profile: UserProfile | null): string {
 
 function buildPodcastContext(podcasts: Podcast[]): string {
   if (!podcasts.length) return "";
-  return "\n=== PODCASTS RECENTES ===\n" + podcasts.map(p => {
+  return "\n[PODCASTS RECENTES]\n" + podcasts.map(p => {
     const date = new Date(p.published_at).toLocaleDateString("pt-BR");
     const desc = p.description ? ` - ${p.description.substring(0, 100)}` : "";
     return `🎙️ [${p.title}](/podcasts/${p.slug}) ${date}${desc}`;
@@ -371,14 +371,14 @@ function buildPodcastContext(podcasts: Podcast[]): string {
 function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): string {
   let ctx = "";
   if (posts.length) {
-    ctx += "\n=== ARTIGOS RECENTES ===\n" + posts.slice(0, 5).map(p => {
+    ctx += "\n[ARTIGOS RECENTES]\n" + posts.slice(0, 5).map(p => {
       const d = new Date(p.published_at).toLocaleDateString("pt-BR");
       const spaceSlug = p.spaces?.slug || "geral";
       return `[${p.spaces?.name}] [${p.title}](/spaces/${spaceSlug}/post/${p.slug || p.id}) - ${d}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 100)}`;
     }).join("\n\n") + "\n";
   }
   if (chPosts.length) {
-    ctx += "\n=== DISCUSSÕES RECENTES ===\n" + chPosts.slice(0, 5).map(p => {
+    ctx += "\n[DISCUSSÕES RECENTES]\n" + chPosts.slice(0, 5).map(p => {
       const d = new Date(p.created_at).toLocaleDateString("pt-BR");
       return `[${p.channels?.name}] @${p.author_name} ${d}: ${p.content?.replace(/<[^>]*>/g, '').substring(0, 80)}`;
     }).join("\n") + "\n";
@@ -387,7 +387,7 @@ function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): str
 }
 
 // Tarefa 4: Compactado
-const PLATFORM_STRUCTURE = `=== ESTRUTURA SUBHUMANO ===
+const PLATFORM_STRUCTURE = `[ESTRUTURA DA PLATAFORMA]
 1. ESPAÇOS (/spaces): Artigos e tutoriais dos administradores
 2. CANAIS (/channels): Fóruns da comunidade
 3. PODCASTS (/podcasts): Episódios de áudio sobre IA
@@ -395,14 +395,14 @@ const PLATFORM_STRUCTURE = `=== ESTRUTURA SUBHUMANO ===
 Links: Artigos → /spaces/{slug}/post/{slug} | Podcasts → /podcasts/{slug}
 "fóruns/dúvidas" → CANAIS | "artigos/tutoriais" → ESPAÇOS | "áudio" → PODCASTS`;
 
-const ANTI_HALLUCINATION = `\n=== REGRAS ===
+const ANTI_HALLUCINATION = `\n[REGRAS DE SEGURANÇA]
 1. NÃO invente Discord/LinkedIn/Telegram
 2. Use APENAS links que aparecem no contexto
 3. Se não souber: "Não encontrei na base de conhecimento"
 4. NÃO invente nomes, datas ou especificações`;
 
 // Bug Fix 3: RAG_FALLBACK harmonizado — não instrui a negar existência de docs
-const RAG_FALLBACK = `\n=== AVISO DE BUSCA ===
+const RAG_FALLBACK = `\n[AVISO DE BUSCA]
 A busca automática na base de conhecimento não retornou resultados específicos para esta consulta.
 IMPORTANTE: Isso pode ser uma limitação técnica da busca, NÃO necessariamente ausência do dado.
 INSTRUÇÕES:
@@ -520,8 +520,8 @@ serve(async (req) => {
     const now = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" });
     let sysMsg = `Data: ${now}\n\n${PLATFORM_STRUCTURE}\n`;
     sysMsg += buildUserContext(userProfile);
-    if (config.system_prompt) sysMsg += "\n" + config.system_prompt + "\n";
-    if (config.system_instruction) sysMsg += config.system_instruction + "\n";
+    if (config.system_prompt) sysMsg += "\n[INSTRUÇÕES DO ASSISTENTE]\n" + config.system_prompt + "\n";
+    if (config.system_instruction) sysMsg += "[INSTRUÇÕES ADICIONAIS]\n" + config.system_instruction + "\n";
     sysMsg += buildRAGContext(ragChunks, constitutionChunks);
     
     // Tarefa 7: Add fallback warning if no relevant RAG
@@ -533,7 +533,7 @@ serve(async (req) => {
     sysMsg += buildPodcastContext(podcasts);
     sysMsg += buildPlatformContext(recentPosts, channelPosts);
     sysMsg += ANTI_HALLUCINATION;
-    sysMsg += "\n\nResponda em português brasileiro. Priorize a base RAG. Seja didático. Chame o usuário pelo nome.";
+    sysMsg += "\n\nResponda em português brasileiro. Siga estritamente as regras definidas em [INSTRUÇÕES DO ASSISTENTE] e [INSTRUÇÕES ADICIONAIS].";
 
     const model = config.model || "google/gemini-3-flash-preview";
     const isOpenAI = model.startsWith("openai/");
