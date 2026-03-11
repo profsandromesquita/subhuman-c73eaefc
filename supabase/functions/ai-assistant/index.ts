@@ -557,7 +557,8 @@ serve(async (req) => {
     sysMsg += buildUserContext(userProfile);
     if (config.system_prompt) sysMsg += "\n[INSTRUÇÕES DO ASSISTENTE]\n" + config.system_prompt + "\n";
     if (config.system_instruction) sysMsg += "[INSTRUÇÕES ADICIONAIS]\n" + config.system_instruction + "\n";
-    sysMsg += buildRAGContext(ragChunks, constitutionChunks);
+    const maxChunkChars = (ragCfg.max_chunk_chars as number) ?? 2000;
+    sysMsg += buildRAGContext(ragChunks, constitutionChunks, maxChunkChars);
     
     // Tarefa 7: Add fallback warning if no relevant RAG
     if (!hasRelevantRAG && !needsConstitution) {
