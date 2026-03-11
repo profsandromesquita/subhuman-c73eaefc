@@ -395,7 +395,7 @@ const PLATFORM_STRUCTURE = `[ESTRUTURA DA PLATAFORMA]
 Links: Artigos → /spaces/{slug}/post/{slug} | Podcasts → /podcasts/{slug}
 "fóruns/dúvidas" → CANAIS | "artigos/tutoriais" → ESPAÇOS | "áudio" → PODCASTS`;
 
-const ANTI_HALLUCINATION = `\n=== REGRAS ===
+const ANTI_HALLUCINATION = `\n[REGRAS DE SEGURANÇA]
 1. NÃO invente Discord/LinkedIn/Telegram
 2. Use APENAS links que aparecem no contexto
 3. Se não souber: "Não encontrei na base de conhecimento"
