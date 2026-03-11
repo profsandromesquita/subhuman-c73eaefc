@@ -1,21 +1,39 @@
 
 
-# Debug: Token Budget do System Message
+# Plano: Corrigir Build Quebrado
 
-## Mudança única
+## Causa Raiz
 
-Inserir um `console.log` na **linha 572** (antes do `fetch` na linha 573) do `supabase/functions/ai-assistant/index.ts`:
+O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
 
-```ts
-// Linha 571 (existente):
-body[isOpenAI ? "max_completion_tokens" : "max_tokens"] = config.max_tokens || 2048;
+Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
 
-// NOVO LOG (inserir aqui):
-console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${messages.length} msgs, ${JSON.stringify(messages).length} chars (~${Math.round(JSON.stringify(messages).length/4)} tokens)`);
+## Correcao
 
-// Linha 573 (existente):
-const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "resend": "npm:resend@4.0.0"
+  },
+  "nodeModulesDir": "auto"
+}
 ```
 
-Nenhuma outra alteração.
+E atualizar o import no `index.ts` de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "resend";
+```
+
+Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+
+## Risco
+
+Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
 

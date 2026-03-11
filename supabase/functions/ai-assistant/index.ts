@@ -570,6 +570,8 @@ serve(async (req) => {
     }
     body[isOpenAI ? "max_completion_tokens" : "max_tokens"] = config.max_tokens || 2048;
 
+    console.log(`[TOKEN DEBUG] sysMsg: ${sysMsg.length} chars (~${Math.round(sysMsg.length/4)} tokens) | history: ${messages.length} msgs, ${JSON.stringify(messages).length} chars (~${Math.round(JSON.stringify(messages).length/4)} tokens)`);
+
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
