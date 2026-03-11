@@ -378,7 +378,7 @@ function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): str
     }).join("\n\n") + "\n";
   }
   if (chPosts.length) {
-    ctx += "\n=== DISCUSSÕES RECENTES ===\n" + chPosts.slice(0, 5).map(p => {
+    ctx += "\n[DISCUSSÕES RECENTES]\n" + chPosts.slice(0, 5).map(p => {
       const d = new Date(p.created_at).toLocaleDateString("pt-BR");
       return `[${p.channels?.name}] @${p.author_name} ${d}: ${p.content?.replace(/<[^>]*>/g, '').substring(0, 80)}`;
     }).join("\n") + "\n";
