@@ -71,6 +71,8 @@ interface FormData {
   max_participants: string;
   checkout_url: string;
   access_url: string;
+  youtube_url: string;
+  meet_url: string;
   ticto_offer_id: string;
   sessions: SessionInput[];
 }
@@ -86,6 +88,8 @@ const emptyForm: FormData = {
   max_participants: "",
   checkout_url: "",
   access_url: "",
+  youtube_url: "",
+  meet_url: "",
   ticto_offer_id: "",
   sessions: [],
 };
