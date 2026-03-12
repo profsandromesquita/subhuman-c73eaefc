@@ -81,7 +81,7 @@ export function LandingEvents() {
               <img
                 src={nextEvent.cover_url}
                 alt={nextEvent.title}
-                className="w-full h-48 sm:h-56 object-cover"
+                className="w-full h-[268px] sm:h-[314px] object-cover"
               />
             )}
 
