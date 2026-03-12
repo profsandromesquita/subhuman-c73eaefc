@@ -18,14 +18,9 @@ export function LandingEvents() {
       navigate('/plans');
       return;
     }
-    if (!user) {
-      sessionStorage.setItem('workshop_intent', 'true');
-      navigate('/login', { state: { from: '/' } });
-      return;
-    }
     const url = new URL(checkoutUrl);
-    if (user.email) url.searchParams.set('email', user.email);
-    if (user.id) url.searchParams.set('src', user.id);
+    if (user?.email) url.searchParams.set('email', user.email);
+    if (user?.id) url.searchParams.set('src', user.id);
     url.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
     window.location.href = url.toString();
   };
