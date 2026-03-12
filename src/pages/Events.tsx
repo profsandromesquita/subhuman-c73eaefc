@@ -155,12 +155,6 @@ function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; 
             </Button>
           )
         )}
-        {canBeGuestOnPodcast && meetUrl && (
-          <Button className="rounded-lg border-amber-500/50 text-amber-500 hover:bg-amber-500/10" variant="outline" size="sm" onClick={wrap(() => window.open(meetUrl, "_blank"))}>
-            <Microphone className="w-4 h-4 mr-1.5" />
-            Convidado
-          </Button>
-        )}
       </div>
     );
   }
