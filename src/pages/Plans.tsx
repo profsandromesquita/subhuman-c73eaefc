@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, ArrowLeft, Gift, Ticket, GraduationCap, CalendarDots, Monitor, MapPin } from "@phosphor-icons/react";
+import { Check, ArrowLeft, Gift, Ticket, GraduationCap, CalendarDots, Monitor, MapPin, SealCheck, Crown } from "@phosphor-icons/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -13,7 +13,21 @@ import { useEvents } from "@/hooks/useEvents";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const subscriptionPlans = [
+interface PlanFeature {
+  label: string;
+  icon?: ReactNode;
+}
+
+const subscriptionPlans: {
+  id: string;
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  badge?: string;
+  checkoutUrl: string;
+  features: PlanFeature[];
+}[] = [
   {
     id: "monthly",
     name: "Mensal",
@@ -22,10 +36,13 @@ const subscriptionPlans = [
     description: "Ideal para experimentar",
     checkoutUrl: "https://checkout.ticto.app/O1F2F1BB4",
     features: [
-      "Acesso a todos os 5 espaços",
-      "Atualizações diárias",
-      "Acesso aos canais da comunidade",
-      "Notificações personalizadas",
+      { label: "Atualizações diárias" },
+      { label: "Notificações personalizadas" },
+      { label: "Acesso a todos os 5 espaços" },
+      { label: "Acesso ao Podcast" },
+      { label: "10 perguntas por dia para a nossa IA especialista" },
+      { label: "Acesso aos canais da comunidade" },
+      { label: "Incluso Cursos, workshops e palestras online ao vivo ou gravado" },
     ],
   },
   {
@@ -33,29 +50,32 @@ const subscriptionPlans = [
     name: "Anual",
     price: "R$ 239,90",
     period: "/ano",
-    description: "Economize 33%",
-    badge: "Mais popular",
+    description: "Economize 33% (2 meses grátis)",
+    badge: "MAIS POPULAR",
     checkoutUrl: "https://payment.ticto.app/O40A9D8E6",
     features: [
-      "Tudo do plano mensal",
-      "2 meses grátis",
-      "Acesso antecipado a novidades",
-      "Badge exclusivo no perfil",
+      { label: "Tudo do plano mensal" },
+      { label: "20 perguntas por dia para a nossa IA especialista" },
+      { label: "Incluso Mentorias Coletiva Online" },
+      { label: "Participação como convidado no Podcast" },
+      { label: "Badge exclusivo azul no perfil", icon: <SealCheck className="inline-block text-blue-500" weight="fill" style={{ width: 16, height: 16 }} /> },
     ],
   },
   {
     id: "lifetime",
     name: "Vitalício",
-    price: "R$ 1.000",
+    price: "R$ 1.000,00",
     period: "",
     description: "Pague uma vez, acesse para sempre",
-    badge: "Melhor custo-benefício",
+    badge: "MELHOR CUSTO-BENEFÍCIO",
     checkoutUrl: "https://checkout.ticto.app/OF16846C3",
     features: [
-      "Tudo do plano anual",
-      "Acesso vitalício garantido",
-      "Todas as futuras atualizações",
-      "Suporte prioritário",
+      { label: "Tudo do plano anual" },
+      { label: "25 perguntas por dia para a nossa IA especialista" },
+      { label: "Incluso Mentorias Coletiva Presencial e Individual Online" },
+      { label: "Participação como convidado ou entrevistador no Podcast" },
+      { label: "Badge exclusivo dourado no perfil", icon: <Crown className="inline-block text-amber-500" weight="fill" style={{ width: 16, height: 16 }} /> },
+      { label: "Suporte prioritário" },
     ],
   },
 ];
