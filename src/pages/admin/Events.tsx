@@ -138,11 +138,12 @@ export default function AdminEvents() {
       modality: event.modality,
       price: event.price?.toString() || "",
       is_free: event.is_free,
-      
       location: event.location || "",
       max_participants: event.max_participants?.toString() || "",
       checkout_url: event.checkout_url || "",
       access_url: event.access_url || "",
+      youtube_url: (event as any).youtube_url || "",
+      meet_url: (event as any).meet_url || "",
       ticto_offer_id: event.ticto_offer_id || "",
       sessions: event.sessions.map((s) => ({
         starts_at: utcToLocalInput(s.starts_at),
