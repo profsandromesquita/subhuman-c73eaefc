@@ -1,39 +1,68 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Permissões de Podcast (Live) + Campos youtube_url e meet_url
 
-## Causa Raiz
+## Contexto
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+O usuário quer tratar eventos do tipo `live` como "podcasts" e controlar 3 níveis de acesso:
+1. **Assistir** (YouTube) -- todos os tiers autenticados
+2. **Participar** (Meet como ouvinte) -- a partir do monthly
+3. **Convidado/Entrevistador** (Meet como guest) -- yearly+ 
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+Os flags `canAccessFreeEvents` e `canAccessAllOnlineEvents` existem no `TIER_PERMISSIONS` mas nunca são usados no `canAccessEvent`. Serão removidos e substituídos por novas permissões de podcast.
 
-## Correcao
+## Mudanças
 
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
+### 1. Migração: Adicionar `youtube_url` e `meet_url` na tabela `events`
 
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
+```sql
+ALTER TABLE public.events ADD COLUMN youtube_url text;
+ALTER TABLE public.events ADD COLUMN meet_url text;
 ```
 
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
+### 2. Admin Events (`src/pages/admin/Events.tsx`)
 
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
+Adicionar campos "URL do YouTube" e "URL do Google Meet" no formulário, após o campo `access_url`. Adicionar ao `formData`, ao `resetForm`, ao `handleSubmit` e ao `openEditDialog`.
 
-## Risco
+### 3. `useUserAccess.ts` -- Substituir permissões
 
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+Remover `canAccessFreeEvents` e `canAccessAllOnlineEvents` da interface e do `TIER_PERMISSIONS`.
+
+Adicionar 3 novas permissões:
+
+| Permissão | freemium | coupon | student | trial | monthly | yearly | lifetime | admin |
+|---|---|---|---|---|---|---|---|---|
+| `canWatchPodcast` | true | true | true | true | true | true | true | true |
+| `canJoinPodcast` | false | false | false | false | true | true | true | true |
+| `canBeGuestOnPodcast` | false | false | false | false | false | true | true | true |
+
+Atualizar `canAccessEvent` para incluir `live` nos tipos permitidos:
+
+- **Monthly**: tipos `['palestra', 'workshop', 'curso', 'live']`, modalidades `['online_ao_vivo', 'online_gravado']`
+- **Yearly**: tipos `['palestra', 'workshop', 'curso', 'mentoria_grupo', 'live']`, modalidades `['online_gravado', 'online_ao_vivo', 'hibrido']`
+- **Lifetime/Admin**: sem mudança (já têm acesso total)
+
+### 4. `src/pages/Events.tsx` -- Botões de podcast no EventCard
+
+Para eventos com `event_type === 'live'`, renderizar botões condicionais:
+
+- **Assistir** (ícone YoutubeLogo): visível se `canWatchPodcast` e `youtube_url` existir. Abre `youtube_url`.
+- **Participar** (ícone VideoCamera): visível se `canJoinPodcast` e `meet_url` existir. Abre `meet_url`. Se não tem permissão, mostra botão desabilitado com cadeado.
+- **Convidado** (ícone Microphone): visível se `canBeGuestOnPodcast` e `meet_url` existir. Visualmente diferenciado.
+
+Para eventos não-live, manter lógica atual sem alteração.
+
+### 5. `useAdminEvents.ts`
+
+Adicionar `youtube_url` e `meet_url` ao tipo `EventInput` e ao fluxo de create/update.
+
+### Arquivos alterados
+
+1. **Migração SQL** -- 2 colunas novas
+2. `src/hooks/useUserAccess.ts` -- permissões
+3. `src/pages/Events.tsx` -- botões condicionais
+4. `src/pages/admin/Events.tsx` -- formulário admin
+5. `src/hooks/useAdminEvents.ts` -- tipo e mutations
+
+Nenhuma mudança em checkout, pagamento, cupons ou navegação.
 
