@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 import { useEvents, useUserEventPurchases, type EventFilters, type Event } from "@/hooks/useEvents";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { useAuth } from "@/hooks/useAuth";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy, YoutubeLogo, Microphone } from "@phosphor-icons/react";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy, YoutubeLogo } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -73,7 +73,7 @@ function formatSessionDates(sessions: Event["sessions"]): string {
 }
 
 function useEventActions(event: Event, isPurchased: boolean) {
-  const { canAccessEvent, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast } = useUserAccess();
+  const { canAccessEvent, canWatchPodcast, canJoinPodcast } = useUserAccess();
   const { user } = useAuth();
   const now = new Date().toISOString();
   const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
@@ -110,11 +110,11 @@ function useEventActions(event: Event, isPurchased: boolean) {
     return `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`;
   };
 
-  return { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast, handleCheckout, handleAccess, getPriceLabel, now };
+  return { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, getPriceLabel, now };
 }
 
 function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; isPurchased: boolean; stopPropagation?: boolean }) {
-  const { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast, handleCheckout, handleAccess, now } = useEventActions(event, isPurchased);
+  const { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, now } = useEventActions(event, isPurchased);
 
   const wrap = (fn: (e?: React.MouseEvent) => void) => (e: React.MouseEvent) => {
     if (stopPropagation) e.stopPropagation();
@@ -154,12 +154,6 @@ function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; 
               Participar
             </Button>
           )
-        )}
-        {canBeGuestOnPodcast && meetUrl && (
-          <Button className="rounded-lg border-amber-500/50 text-amber-500 hover:bg-amber-500/10" variant="outline" size="sm" onClick={wrap(() => window.open(meetUrl, "_blank"))}>
-            <Microphone className="w-4 h-4 mr-1.5" />
-            Convidado
-          </Button>
         )}
       </div>
     );
