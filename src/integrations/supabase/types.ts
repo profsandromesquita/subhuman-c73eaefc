@@ -645,12 +645,14 @@ export type Database = {
           is_published: boolean
           location: string | null
           max_participants: number | null
+          meet_url: string | null
           modality: string
           price: number | null
           slug: string
           ticto_offer_id: string | null
           title: string
           updated_at: string
+          youtube_url: string | null
         }
         Insert: {
           access_url?: string | null
@@ -666,12 +668,14 @@ export type Database = {
           is_published?: boolean
           location?: string | null
           max_participants?: number | null
+          meet_url?: string | null
           modality?: string
           price?: number | null
           slug?: string
           ticto_offer_id?: string | null
           title: string
           updated_at?: string
+          youtube_url?: string | null
         }
         Update: {
           access_url?: string | null
@@ -687,12 +691,14 @@ export type Database = {
           is_published?: boolean
           location?: string | null
           max_participants?: number | null
+          meet_url?: string | null
           modality?: string
           price?: number | null
           slug?: string
           ticto_offer_id?: string | null
           title?: string
           updated_at?: string
+          youtube_url?: string | null
         }
         Relationships: []
       }

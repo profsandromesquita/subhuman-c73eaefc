@@ -71,6 +71,8 @@ interface FormData {
   max_participants: string;
   checkout_url: string;
   access_url: string;
+  youtube_url: string;
+  meet_url: string;
   ticto_offer_id: string;
   sessions: SessionInput[];
 }
@@ -86,6 +88,8 @@ const emptyForm: FormData = {
   max_participants: "",
   checkout_url: "",
   access_url: "",
+  youtube_url: "",
+  meet_url: "",
   ticto_offer_id: "",
   sessions: [],
 };
@@ -134,11 +138,12 @@ export default function AdminEvents() {
       modality: event.modality,
       price: event.price?.toString() || "",
       is_free: event.is_free,
-      
       location: event.location || "",
       max_participants: event.max_participants?.toString() || "",
       checkout_url: event.checkout_url || "",
       access_url: event.access_url || "",
+      youtube_url: (event as any).youtube_url || "",
+      meet_url: (event as any).meet_url || "",
       ticto_offer_id: event.ticto_offer_id || "",
       sessions: event.sessions.map((s) => ({
         starts_at: utcToLocalInput(s.starts_at),
@@ -235,6 +240,8 @@ export default function AdminEvents() {
       max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
       checkout_url: formData.checkout_url.trim() || null,
       access_url: formData.access_url.trim() || null,
+      youtube_url: formData.youtube_url.trim() || null,
+      meet_url: formData.meet_url.trim() || null,
       ticto_offer_id: formData.ticto_offer_id.trim() || null,
       is_published: publish,
       cover_url: coverUrl,
@@ -552,6 +559,27 @@ export default function AdminEvents() {
                 placeholder="https://members.ticto.app/..."
               />
               <p className="text-xs text-muted-foreground">Link para quem já tem acesso ao evento</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">URL do YouTube</label>
+                <Input
+                  value={formData.youtube_url}
+                  onChange={(e) => setFormData((p) => ({ ...p, youtube_url: e.target.value }))}
+                  placeholder="https://youtube.com/..."
+                />
+                <p className="text-xs text-muted-foreground">Transmissão do podcast/live</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">URL do Google Meet</label>
+                <Input
+                  value={formData.meet_url}
+                  onChange={(e) => setFormData((p) => ({ ...p, meet_url: e.target.value }))}
+                  placeholder="https://meet.google.com/..."
+                />
+                <p className="text-xs text-muted-foreground">Sala para participantes</p>
+              </div>
             </div>
 
             <div className="space-y-3">

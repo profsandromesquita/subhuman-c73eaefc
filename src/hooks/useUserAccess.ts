@@ -19,8 +19,9 @@ export interface UserAccess {
   canPostInChannels: boolean;
   canViewMemberCards: boolean;
   canAccessEvent: (eventId: string, eventType?: string, modality?: string) => boolean;
-  canAccessFreeEvents: boolean;
-  canAccessAllOnlineEvents: boolean;
+  canWatchPodcast: boolean;
+  canJoinPodcast: boolean;
+  canBeGuestOnPodcast: boolean;
   hasPremiumBadge: 'blue' | 'gold' | null;
   hasAccessToPremiumChannel: boolean;
   loading: boolean;
@@ -37,8 +38,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 1,
     canPostInChannels: false,
     canViewMemberCards: false,
-    canAccessFreeEvents: false,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: false,
+    canBeGuestOnPodcast: false,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: false,
   },
@@ -52,8 +54,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 2,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: false,
+    canBeGuestOnPodcast: false,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: false,
   },
@@ -67,8 +70,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 1,
     canPostInChannels: false,
     canViewMemberCards: false,
-    canAccessFreeEvents: false,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: false,
+    canBeGuestOnPodcast: false,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: false,
   },
@@ -82,8 +86,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 3,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: false,
+    canBeGuestOnPodcast: false,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: false,
   },
@@ -97,8 +102,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 10,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: true,
+    canBeGuestOnPodcast: false,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: false,
   },
@@ -112,8 +118,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 20,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: false,
+    canWatchPodcast: true,
+    canJoinPodcast: true,
+    canBeGuestOnPodcast: true,
     hasPremiumBadge: 'blue',
     hasAccessToPremiumChannel: true,
   },
@@ -127,8 +134,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 25,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: true,
+    canWatchPodcast: true,
+    canJoinPodcast: true,
+    canBeGuestOnPodcast: true,
     hasPremiumBadge: 'gold',
     hasAccessToPremiumChannel: true,
   },
@@ -142,8 +150,9 @@ const TIER_PERMISSIONS: Record<AccessTier, Omit<UserAccess, 'tier' | 'canAccessE
     aiDailyLimit: 999,
     canPostInChannels: true,
     canViewMemberCards: true,
-    canAccessFreeEvents: true,
-    canAccessAllOnlineEvents: true,
+    canWatchPodcast: true,
+    canJoinPodcast: true,
+    canBeGuestOnPodcast: true,
     hasPremiumBadge: null,
     hasAccessToPremiumChannel: true,
   },
@@ -214,16 +223,16 @@ export function useUserAccess(): UserAccess {
       // No tier-based access for these
       if (['freemium', 'coupon', 'student', 'trial'].includes(tier)) return false;
 
-      // Monthly: palestra, workshop, curso — only online_gravado
+      // Monthly: palestra, workshop, curso, live — online_ao_vivo, online_gravado
       if (tier === 'monthly') {
-        const allowedTypes = ['palestra', 'workshop', 'curso'];
-        const allowedModalities = ['online_gravado'];
+        const allowedTypes = ['palestra', 'workshop', 'curso', 'live'];
+        const allowedModalities = ['online_ao_vivo', 'online_gravado'];
         return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
       }
 
-      // Yearly: + mentoria_grupo, + online_ao_vivo, hibrido
+      // Yearly: + mentoria_grupo, + hibrido
       if (tier === 'yearly') {
-        const allowedTypes = ['palestra', 'workshop', 'curso', 'mentoria_grupo'];
+        const allowedTypes = ['palestra', 'workshop', 'curso', 'mentoria_grupo', 'live'];
         const allowedModalities = ['online_gravado', 'online_ao_vivo', 'hibrido'];
         return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
       }
