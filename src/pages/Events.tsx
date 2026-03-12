@@ -110,7 +110,7 @@ function useEventActions(event: Event, isPurchased: boolean) {
     return `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`;
   };
 
-  return { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast, handleCheckout, handleAccess, getPriceLabel, now };
+  return { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, getPriceLabel, now };
 }
 
 function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; isPurchased: boolean; stopPropagation?: boolean }) {
