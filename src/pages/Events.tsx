@@ -73,7 +73,7 @@ function formatSessionDates(sessions: Event["sessions"]): string {
 }
 
 function useEventActions(event: Event, isPurchased: boolean) {
-  const { canAccessEvent, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast } = useUserAccess();
+  const { canAccessEvent, canWatchPodcast, canJoinPodcast } = useUserAccess();
   const { user } = useAuth();
   const now = new Date().toISOString();
   const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
