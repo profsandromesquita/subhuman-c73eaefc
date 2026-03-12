@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 import { useEvents, useUserEventPurchases, type EventFilters, type Event } from "@/hooks/useEvents";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { useAuth } from "@/hooks/useAuth";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy } from "@phosphor-icons/react";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy, YoutubeLogo, Microphone } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
