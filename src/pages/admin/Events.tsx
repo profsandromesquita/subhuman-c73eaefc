@@ -561,6 +561,27 @@ export default function AdminEvents() {
               <p className="text-xs text-muted-foreground">Link para quem já tem acesso ao evento</p>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">URL do YouTube</label>
+                <Input
+                  value={formData.youtube_url}
+                  onChange={(e) => setFormData((p) => ({ ...p, youtube_url: e.target.value }))}
+                  placeholder="https://youtube.com/..."
+                />
+                <p className="text-xs text-muted-foreground">Transmissão do podcast/live</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">URL do Google Meet</label>
+                <Input
+                  value={formData.meet_url}
+                  onChange={(e) => setFormData((p) => ({ ...p, meet_url: e.target.value }))}
+                  placeholder="https://meet.google.com/..."
+                />
+                <p className="text-xs text-muted-foreground">Sala para participantes</p>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Sessões</label>

@@ -73,11 +73,15 @@ function formatSessionDates(sessions: Event["sessions"]): string {
 }
 
 function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean }) {
-  const { canAccessEvent, tier } = useUserAccess();
+  const { canAccessEvent, tier, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast } = useUserAccess();
   const { user } = useAuth();
   const now = new Date().toISOString();
   const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
   const hasAccess = canAccessEvent(event.id, event.event_type, event.modality);
+
+  const youtubeUrl = (event as any).youtube_url as string | null;
+  const meetUrl = (event as any).meet_url as string | null;
+  const isLive = event.event_type === 'live';
 
   const handleCheckout = () => {
     if (!event.checkout_url) return;
@@ -93,20 +97,94 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
       window.open(accessUrl, "_blank");
       return;
     }
-    // Fallback to first future session URL
     const futureSession = event.sessions.find((s) => s.ends_at > now);
     if (futureSession?.session_url) {
       window.open(futureSession.session_url, "_blank");
     }
   };
 
+  const getLivePodcastButtons = () => {
+    return (
+      <div className="flex gap-2">
+        {/* Assistir (YouTube) - all tiers */}
+        {canWatchPodcast && youtubeUrl && (
+          <Button
+            className="flex-1 rounded-lg"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(youtubeUrl, "_blank")}
+          >
+            <YoutubeLogo className="w-4 h-4 mr-1.5" />
+            Assistir
+          </Button>
+        )}
+
+        {/* Participar (Meet) - monthly+ */}
+        {meetUrl && (
+          canJoinPodcast ? (
+            <Button
+              className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 text-foreground"
+              size="sm"
+              onClick={() => window.open(meetUrl, "_blank")}
+            >
+              <VideoCamera className="w-4 h-4 mr-1.5" />
+              Participar
+            </Button>
+          ) : (
+            <Button
+              disabled
+              variant="outline"
+              className="flex-1 rounded-lg opacity-50"
+              size="sm"
+            >
+              <Lock className="w-3.5 h-3.5 mr-1.5" />
+              Participar
+            </Button>
+          )
+        )}
+
+        {/* Convidado (Meet as guest) - yearly+ */}
+        {canBeGuestOnPodcast && meetUrl && (
+          <Button
+            className="rounded-lg border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(meetUrl, "_blank")}
+          >
+            <Microphone className="w-4 h-4 mr-1.5" />
+            Convidado
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   const getActionButtons = () => {
     if (isPast) {
+      // For past live events, still show YouTube button if available
+      if (isLive && canWatchPodcast && youtubeUrl) {
+        return (
+          <Button
+            variant="outline"
+            className="w-full rounded-lg"
+            size="sm"
+            onClick={() => window.open(youtubeUrl, "_blank")}
+          >
+            <YoutubeLogo className="w-4 h-4 mr-1.5" />
+            Assistir gravação
+          </Button>
+        );
+      }
       return (
         <Button disabled className="w-full rounded-lg opacity-50" size="sm">
           Encerrado
         </Button>
       );
+    }
+
+    // Live events get special podcast buttons
+    if (isLive) {
+      return getLivePodcastButtons();
     }
 
     const accessUrl = (event as any).access_url;

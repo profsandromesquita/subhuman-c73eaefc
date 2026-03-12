@@ -223,16 +223,16 @@ export function useUserAccess(): UserAccess {
       // No tier-based access for these
       if (['freemium', 'coupon', 'student', 'trial'].includes(tier)) return false;
 
-      // Monthly: palestra, workshop, curso — only online_gravado
+      // Monthly: palestra, workshop, curso, live — online_ao_vivo, online_gravado
       if (tier === 'monthly') {
-        const allowedTypes = ['palestra', 'workshop', 'curso'];
-        const allowedModalities = ['online_gravado'];
+        const allowedTypes = ['palestra', 'workshop', 'curso', 'live'];
+        const allowedModalities = ['online_ao_vivo', 'online_gravado'];
         return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
       }
 
-      // Yearly: + mentoria_grupo, + online_ao_vivo, hibrido
+      // Yearly: + mentoria_grupo, + hibrido
       if (tier === 'yearly') {
-        const allowedTypes = ['palestra', 'workshop', 'curso', 'mentoria_grupo'];
+        const allowedTypes = ['palestra', 'workshop', 'curso', 'mentoria_grupo', 'live'];
         const allowedModalities = ['online_gravado', 'online_ao_vivo', 'hibrido'];
         return !!eventType && !!modality && allowedTypes.includes(eventType) && allowedModalities.includes(modality);
       }
