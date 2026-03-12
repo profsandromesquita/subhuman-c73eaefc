@@ -19,8 +19,9 @@ export interface UserAccess {
   canPostInChannels: boolean;
   canViewMemberCards: boolean;
   canAccessEvent: (eventId: string, eventType?: string, modality?: string) => boolean;
-  canAccessFreeEvents: boolean;
-  canAccessAllOnlineEvents: boolean;
+  canWatchPodcast: boolean;
+  canJoinPodcast: boolean;
+  canBeGuestOnPodcast: boolean;
   hasPremiumBadge: 'blue' | 'gold' | null;
   hasAccessToPremiumChannel: boolean;
   loading: boolean;
