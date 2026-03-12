@@ -1,39 +1,14 @@
 
 
-# Plano: Corrigir Build Quebrado
+# Remover botão "Convidado" dos cards de evento live
 
-## Causa Raiz
+## Mudança
 
-O erro de build principal e a edge function `send-user-notification` que importa `npm:resend@4.0.0` sem ter um `deno.json` configurado. O Deno precisa de um arquivo `deno.json` com `nodeModulesDir: "auto"` para resolver dependencias npm.
+Remover o bloco que renderiza o botão "Convidado" (linhas 158-163) no componente `ActionButtons` em `src/pages/Events.tsx`. O botão "Participar" já cobre a necessidade de acesso ao Meet.
 
-Os erros de TypeScript em `Events.tsx` (linhas 360, 376, 377) parecem ser de uma versao cached — o codigo atual esta sintaticamente correto. Provavelmente serao resolvidos quando o build rodar novamente apos corrigir o erro da edge function.
+Também remover a referência a `canBeGuestOnPodcast` da desestruturação em `useEventActions` e `ActionButtons`, e a importação do ícone `Microphone` (se não for usado em outro lugar).
 
-## Correcao
-
-### Unico passo: Criar `supabase/functions/send-user-notification/deno.json`
-
-```json
-{
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
-    "resend": "npm:resend@4.0.0"
-  },
-  "nodeModulesDir": "auto"
-}
-```
-
-E atualizar o import no `index.ts` de:
-```typescript
-import { Resend } from "npm:resend@4.0.0";
-```
-Para:
-```typescript
-import { Resend } from "resend";
-```
-
-Isso segue o mesmo padrao ja usado em `send-push-notification/deno.json`.
-
-## Risco
-
-Nenhum. Apenas adiciona configuracao de dependencia que estava faltando.
+### Arquivo: `src/pages/Events.tsx`
+- Remover linhas 158-163 (bloco do botão Convidado)
+- Limpar referências não utilizadas de `canBeGuestOnPodcast` e `Microphone`
 
