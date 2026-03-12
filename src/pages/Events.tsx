@@ -114,7 +114,7 @@ function useEventActions(event: Event, isPurchased: boolean) {
 }
 
 function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; isPurchased: boolean; stopPropagation?: boolean }) {
-  const { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, canBeGuestOnPodcast, handleCheckout, handleAccess, now } = useEventActions(event, isPurchased);
+  const { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, now } = useEventActions(event, isPurchased);
 
   const wrap = (fn: (e?: React.MouseEvent) => void) => (e: React.MouseEvent) => {
     if (stopPropagation) e.stopPropagation();
