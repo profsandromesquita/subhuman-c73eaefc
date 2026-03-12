@@ -240,6 +240,8 @@ export default function AdminEvents() {
       max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
       checkout_url: formData.checkout_url.trim() || null,
       access_url: formData.access_url.trim() || null,
+      youtube_url: formData.youtube_url.trim() || null,
+      meet_url: formData.meet_url.trim() || null,
       ticto_offer_id: formData.ticto_offer_id.trim() || null,
       is_published: publish,
       cover_url: coverUrl,
