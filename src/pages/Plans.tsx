@@ -364,11 +364,14 @@ export default function Plans() {
                       <ul className="space-y-2">
                         {plan.features.map((feature) => (
                           <li
-                            key={feature}
+                            key={feature.label}
                             className="flex items-center gap-2 text-sm text-muted-foreground"
                           >
-                            <Check className="w-4 h-4 text-foreground" weight="bold" />
-                            {feature}
+                            <Check className="w-4 h-4 text-foreground flex-shrink-0" weight="bold" />
+                            <span className="flex items-center gap-1.5">
+                              {feature.label}
+                              {feature.icon}
+                            </span>
                           </li>
                         ))}
                       </ul>
