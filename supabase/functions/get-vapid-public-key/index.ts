@@ -10,10 +10,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLICKEY');
 
     if (!vapidPublicKey) {
-      console.error('VAPID_PUBLIC_KEY não está configurada nos secrets');
+      console.error('VAPID_PUBLICKEY não está configurada nos secrets');
       return new Response(
         JSON.stringify({ 
           error: 'VAPID key não configurada',
