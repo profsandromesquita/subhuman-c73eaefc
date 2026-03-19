@@ -35,7 +35,7 @@ function useCountUp(target: number, shouldStart: boolean, duration = COUNTUP_DUR
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    if (!shouldStart || hasAnimated.current || target === 0) return;
+    if (!shouldStart || hasAnimated.current) return;
     hasAnimated.current = true;
 
     const start = performance.now();
