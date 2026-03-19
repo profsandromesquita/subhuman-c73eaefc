@@ -172,7 +172,10 @@ export function LiveStatsSection() {
     return () => clearTimeout(timeout);
   }, [inView, displayStats !== null]);
 
-  if (!displayStats) return null;
+  const allZero = displayStats && Object.entries(displayStats)
+    .filter(([k]) => k !== 'updated_at' && k !== 'id')
+    .every(([, v]) => v === 0);
+  if (!displayStats || allZero) return null;
 
   return (
     <section ref={sectionRef} className="py-12 sm:py-20 px-5 sm:px-6">
