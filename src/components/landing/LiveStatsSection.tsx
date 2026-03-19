@@ -35,7 +35,7 @@ function useCountUp(target: number, shouldStart: boolean, duration = COUNTUP_DUR
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    if (!shouldStart || hasAnimated.current || target === 0) return;
+    if (!shouldStart || hasAnimated.current) return;
     hasAnimated.current = true;
 
     const start = performance.now();
@@ -172,7 +172,10 @@ export function LiveStatsSection() {
     return () => clearTimeout(timeout);
   }, [inView, displayStats !== null]);
 
-  if (!displayStats) return null;
+  const allZero = displayStats && Object.entries(displayStats)
+    .filter(([k]) => k !== 'updated_at' && k !== 'id')
+    .every(([, v]) => v === 0);
+  if (!displayStats || allZero) return null;
 
   return (
     <section ref={sectionRef} className="py-12 sm:py-20 px-5 sm:px-6">
