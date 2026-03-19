@@ -12,6 +12,7 @@ import { LandingMethod } from "@/components/landing/LandingMethod";
 import { LandingAuthor } from "@/components/landing/LandingAuthor";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
 import { LandingCTA } from "@/components/landing/LandingCTA";
+import { LiveStatsSection } from "@/components/landing/LiveStatsSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { GradientOrbs } from "@/components/landing/GradientOrbs";
 import { StickyBottomCTA } from "@/components/landing/StickyBottomCTA";
@@ -57,6 +58,7 @@ export default function Landing() {
         <LandingEvents />
         <LandingMethod />
         <LandingAuthor />
+        <LiveStatsSection />
         <LandingFAQ />
         <div id="landing-cta-final">
           <LandingCTA />

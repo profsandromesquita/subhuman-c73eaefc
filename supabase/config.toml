@@ -29,3 +29,7 @@ project_id = "akkbfzfjappludgsrwsw"
     verify_jwt = false
   [functions.verify-play-purchase]
     verify_jwt = false
+  [functions.refresh-platform-stats]
+    verify_jwt = false
+  [functions.get-platform-stats]
+    verify_jwt = false
