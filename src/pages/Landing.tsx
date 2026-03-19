@@ -58,6 +58,7 @@ export default function Landing() {
         <LandingEvents />
         <LandingMethod />
         <LandingAuthor />
+        <LiveStatsSection />
         <LandingFAQ />
         <div id="landing-cta-final">
           <LandingCTA />
