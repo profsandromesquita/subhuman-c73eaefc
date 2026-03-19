@@ -895,6 +895,42 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_stats: {
+        Row: {
+          id: string
+          total_articles: number
+          total_comments: number
+          total_likes: number
+          total_members: number
+          total_podcasts: number
+          total_posts: number
+          total_saves: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          total_articles?: number
+          total_comments?: number
+          total_likes?: number
+          total_members?: number
+          total_podcasts?: number
+          total_posts?: number
+          total_saves?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          total_articles?: number
+          total_comments?: number
+          total_likes?: number
+          total_members?: number
+          total_podcasts?: number
+          total_posts?: number
+          total_saves?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       podcast_comment_likes: {
         Row: {
           comment_id: string
