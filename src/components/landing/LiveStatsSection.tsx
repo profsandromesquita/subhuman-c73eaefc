@@ -35,7 +35,7 @@ function useCountUp(target: number, shouldStart: boolean, duration = COUNTUP_DUR
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    if (!shouldStart || hasAnimated.current) return;
+    if (!shouldStart || hasAnimated.current || target === 0) return;
     hasAnimated.current = true;
 
     const start = performance.now();
@@ -62,13 +62,13 @@ function formatNumber(n: number): string {
 }
 
 const statConfig = [
-  { key: "total_likes" as const, label: "Curtidas", icon: Heart, engagement: true },
-  { key: "total_comments" as const, label: "Comentários", icon: ChatCircle, engagement: true },
-  { key: "total_saves" as const, label: "Salvamentos", icon: BookmarkSimple, engagement: false },
-  { key: "total_members" as const, label: "Membros", icon: Users, engagement: false },
-  { key: "total_articles" as const, label: "Artigos", icon: Article, engagement: false },
-  { key: "total_podcasts" as const, label: "Podcasts", icon: Microphone, engagement: false },
-  { key: "total_posts" as const, label: "Posts", icon: ChatsCircle, engagement: false },
+  { key: "total_likes" as const, label: "Curtidas", icon: Heart },
+  { key: "total_comments" as const, label: "Comentários", icon: ChatCircle },
+  { key: "total_saves" as const, label: "Salvamentos", icon: BookmarkSimple },
+  { key: "total_members" as const, label: "Membros", icon: Users },
+  { key: "total_articles" as const, label: "Artigos", icon: Article },
+  { key: "total_podcasts" as const, label: "Podcasts", icon: Microphone },
+  { key: "total_posts" as const, label: "Posts", icon: ChatsCircle },
 ];
 
 function StatCard({
@@ -121,16 +121,28 @@ export function LiveStatsSection() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  // Update display stats when real stats change (after initial load)
+  // Update display stats when real stats change
   useEffect(() => {
     if (!stats) return;
     setDisplayStats(stats);
   }, [stats]);
 
-  // IntersectionObserver
+  // IntersectionObserver — uses a callback ref pattern to avoid
+  // the bug where sectionRef.current is null on first render.
+  // The observer is created whenever the DOM node becomes available.
   useEffect(() => {
+    if (inView) return; // already triggered, nothing to do
+
     const el = sectionRef.current;
-    if (!el) return;
+    if (!el) return; // will re-run when component re-renders and ref attaches
+
+    // Immediate check: if element is already in viewport, set inView right away
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setInView(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -142,7 +154,7 @@ export function LiveStatsSection() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  });
 
   // Micro-increments for engagement stats
   useEffect(() => {
@@ -172,37 +184,41 @@ export function LiveStatsSection() {
     return () => clearTimeout(timeout);
   }, [inView, displayStats !== null]);
 
-  const allZero = displayStats && Object.entries(displayStats)
+  // Determine if we have real (non-zero) data to show
+  const hasRealData = displayStats && Object.entries(displayStats)
     .filter(([k]) => k !== 'updated_at' && k !== 'id')
-    .every(([, v]) => v === 0);
-  if (!displayStats || allZero) return null;
+    .some(([, v]) => typeof v === 'number' && v > 0);
 
+  // ALWAYS render the section element so the ref exists and the observer can attach.
+  // Hide content visually until we have real data.
   return (
     <section ref={sectionRef} className="py-12 sm:py-20 px-5 sm:px-6">
-      <div className="max-w-4xl mx-auto">
-        <ScrollReveal>
-          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-2">
-            A comunidade em números
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground text-center mb-8 sm:mb-12">
-            Acontecendo agora, em tempo real
-          </p>
-        </ScrollReveal>
+      {hasRealData && displayStats ? (
+        <div className="max-w-4xl mx-auto">
+          <ScrollReveal>
+            <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-center mb-2">
+              A comunidade em números
+            </h2>
+            <p className="text-sm sm:text-base text-muted-foreground text-center mb-8 sm:mb-12">
+              Acontecendo agora, em tempo real
+            </p>
+          </ScrollReveal>
 
-        <ScrollReveal delay={0.1}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4">
-            {statConfig.map((s) => (
-              <StatCard
-                key={s.key}
-                label={s.label}
-                value={displayStats[s.key]}
-                icon={s.icon}
-                inView={inView}
-              />
-            ))}
-          </div>
-        </ScrollReveal>
-      </div>
+          <ScrollReveal delay={0.1}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4">
+              {statConfig.map((s) => (
+                <StatCard
+                  key={s.key}
+                  label={s.label}
+                  value={displayStats[s.key]}
+                  icon={s.icon}
+                  inView={inView}
+                />
+              ))}
+            </div>
+          </ScrollReveal>
+        </div>
+      ) : null}
     </section>
   );
 }
