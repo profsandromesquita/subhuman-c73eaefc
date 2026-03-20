@@ -347,7 +347,7 @@ export default function ChannelPostDetail() {
 
   return (
     <AppLayout>
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-32">
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-44">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
