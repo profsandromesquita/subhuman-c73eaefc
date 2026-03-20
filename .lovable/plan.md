@@ -1,92 +1,43 @@
 
-Diagnóstico concluído com auditoria de ponta a ponta (backend + frontend + runtime).  
-Causa raiz real identificada e candidatos esgotados abaixo.
 
-## 1) Auditoria de TODOS os candidatos
+# Fix: Layout do input de comentário na página de post do canal
 
-### Candidato A — Banco com dados zerados
-- **Status:** Eliminado.
-- **Evidência:** `platform_stats` está com valores reais (`likes 1232`, `comments 137`, etc).
+## Problema
 
-### Candidato B — Função `get-platform-stats` retornando zero
-- **Status:** Eliminado.
-- **Evidência:** chamada direta da função retorna valores reais (HTTP 200 com números corretos).
+O input de comentário (linha 526) usa `fixed bottom-20` — posicionado a 80px do fundo. O container scrollável (linha 350) usa `pb-32` (128px). A combinação faz o conteúdo rolar por baixo do input em telas menores, e o `bottom-20` não considera a BottomNav que pode ter altura variável nem o safe-area em iOS.
 
-### Candidato C — RLS bloqueando leitura pública
-- **Status:** Eliminado.
-- **Evidência:** policy em `platform_stats` permite `SELECT` público (`using true`), e requests anônimos retornam os números corretos.
+## Correção
 
-### Candidato D — Cache/CDN servindo payload antigo zerado
-- **Status:** Eliminado.
-- **Evidência:** múltiplas respostas recentes mostram payload não-zero, inclusive no polling.
+**Arquivo:** `src/pages/ChannelPostDetail.tsx`
 
-### Candidato E — Cron/refresh falhando
-- **Status:** Não é causa do bug visual atual.
-- **Evidência:** mesmo com resposta real e atualizada, UI segue exibindo `0`; portanto o gargalo está no frontend de renderização.
+### 1. Input fixo — alinhar com bottom nav (linha 526)
 
-### Candidato F — Frontend não recebendo dados
-- **Status:** Eliminado.
-- **Evidência:** rede no browser mostra `get-platform-stats` com números reais, enquanto tela permanece em `0`.
+Trocar:
+```
+className="fixed bottom-20 left-0 right-0 bg-background border-t p-4"
+```
+Por:
+```
+className="fixed bottom-[4.5rem] left-0 right-0 bg-background border-t p-4 pb-safe z-40"
+```
 
-### Candidato G — Bug de renderização/estado do componente (principal)
-- **Status:** **Confirmado (causa raiz).**
-- **Evidência técnica no `LiveStatsSection.tsx`:
-  1. O componente retorna `null` enquanto `displayStats` ainda está `null`.
-  2. O `useEffect` do `IntersectionObserver` roda com dependência `[]` apenas na montagem inicial.
-  3. Na montagem inicial, `sectionRef.current` é `null` (porque o componente retornou `null`).
-  4. O observer nunca é registrado depois.
-  5. `inView` nunca vira `true`.
-  6. `useCountUp(..., inView)` nunca inicia e os cards ficam em `0` permanentemente.
+`bottom-[4.5rem]` (72px) alinha melhor com a BottomNav padrão, `pb-safe` cobre iOS, `z-40` garante sobreposição.
 
-Resultado: backend correto, UI travada em zero por falha de ciclo de vida do observer.
+### 2. Container scrollável — aumentar padding inferior (linha 350)
 
----
+Trocar:
+```
+className="max-w-lg mx-auto px-4 pt-4 pb-32"
+```
+Por:
+```
+className="max-w-lg mx-auto px-4 pt-4 pb-44"
+```
 
-## 2) Plano de correção (sem alterar backend)
+`pb-44` (176px) dá espaço suficiente para input (~64px) + BottomNav (~72px) + respiro.
 
-### Fase 1 — Corrigir ciclo de vida do IntersectionObserver (fix principal)
-**Arquivo:** `src/components/landing/LiveStatsSection.tsx`
+### Escopo
 
-- Reescrever o efeito do observer para depender da presença de dados/render:
-  - depender de `displayStats` e `inView`
-  - só observar quando `displayStats` existir e `sectionRef.current` existir
-  - desconectar corretamente no cleanup
+- Apenas `src/pages/ChannelPostDetail.tsx`, linhas 350 e 526.
+- Sem mudanças em lógica, outros componentes ou outras páginas.
 
-Objetivo: garantir que o observer seja criado **depois** que a seção existir no DOM.
-
----
-
-### Fase 2 — Hardening para evitar novo “zero eterno”
-**Mesmo arquivo**
-
-Adicionar fallback defensivo:
-- se por qualquer motivo o observer não disparar, detectar visibilidade inicial via `getBoundingClientRect` após render e setar `inView=true` quando já estiver em viewport.
-- isso evita regressão silenciosa em cenários de timing/render.
-
----
-
-### Fase 3 — Ajuste de consistência visual (sem mudar UX)
-**Mesmo arquivo**
-
-- Manter count-up, micro-incrementos e polling atuais.
-- Preservar regra de não renderizar quando tudo for zero real.
-- Garantir que “dados reais recebidos + seção visível” nunca resulte em `0` estático.
-
----
-
-## 3) Validação obrigatória após implementação
-
-1. **Runtime de rede:** `get-platform-stats` retorna não-zero.
-2. **UI ao entrar na seção:** números animam de 0 → valor real.
-3. **Persistência:** após 60s (poll), números atualizam sem voltar para zero.
-4. **Preview e publicado:** mesmo comportamento nos dois ambientes.
-5. **Regressão:** recarregar página diretamente na landing e rolar até a seção — não pode travar em zero.
-
----
-
-## 4) Escopo de mudança
-
-- **Somente frontend:** `src/components/landing/LiveStatsSection.tsx`
-- **Sem mudanças** em checkout, pagamentos, backend functions, cron, tabela, RLS ou navegação.
-
-Se você aprovar, a implementação será cirúrgica nesse componente com foco direto no bug de lifecycle do observer.
