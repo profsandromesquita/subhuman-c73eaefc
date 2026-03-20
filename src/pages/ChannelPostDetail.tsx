@@ -523,7 +523,7 @@ export default function ChannelPostDetail() {
             </div>
 
             {/* Comment Input */}
-            <div className="fixed bottom-20 left-0 right-0 bg-background border-t p-4">
+            <div className="fixed bottom-[4.5rem] left-0 right-0 bg-background border-t p-4 pb-safe z-40">
               <div className="max-w-lg mx-auto">
                 <MentionCommentInput
                   onSubmit={handleSubmitComment}
