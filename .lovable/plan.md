@@ -1,31 +1,37 @@
 
 
-# Fix: Input de comentário flutuando acima do rodapé no desktop
+# Plano: Migrar auth-email-hook de Lovable Email API para Resend API
 
-## Problema
+## Arquivo: `supabase/functions/auth-email-hook/index.ts`
 
-O input de comentário usa `fixed bottom-[4.5rem]` em todas as resoluções. No mobile isso compensa a BottomNav (h-16 = 4rem). No **desktop**, a BottomNav está oculta (`lg:hidden`), então o `bottom-[4.5rem]` cria um vazio de 72px entre o input e o rodapé da página — exatamente o que as imagens mostram.
+### Mudanças
 
-## Correção
+**Linha 3 — Import**: Remover `sendLovableEmail` do import. Manter `parseEmailWebhookPayload` (usado no `verifyWebhookRequest`).
 
-**Arquivo:** `src/pages/ChannelPostDetail.tsx`, linha 526
-
-Trocar:
-```
-className="fixed bottom-[4.5rem] left-0 right-0 bg-background border-t p-4 pb-safe z-40"
-```
-Por:
-```
-className="fixed bottom-[4.5rem] lg:bottom-0 left-0 right-0 bg-background border-t p-4 pb-safe z-40"
+```diff
+- import { sendLovableEmail, parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js'
++ import { parseEmailWebhookPayload } from 'npm:@lovable.dev/email-js'
 ```
 
-`lg:bottom-0` posiciona o input rente ao rodapé no desktop (onde não há BottomNav). No mobile, `bottom-[4.5rem]` continua compensando a BottomNav.
+**Linhas 37-41 — Configuração**: Remover `SENDER_DOMAIN` e `FROM_DOMAIN` (não mais necessários).
 
-Além disso, no desktop o input deve respeitar a sidebar (`lg:ml-56`):
+**Linhas 236-270 — Bloco de envio**: Substituir toda a seção que usa `sendLovableEmail` + `callbackUrl` por chamada direta à Resend API:
 
-```
-className="fixed bottom-[4.5rem] lg:bottom-0 left-0 right-0 lg:left-56 bg-background border-t p-4 pb-safe z-40"
-```
+- Remover verificação de `callbackUrl` (linhas 239-246)
+- Remover chamada `sendLovableEmail` (linhas 248-262)
+- Adicionar: leitura de `RESEND` dos secrets
+- Adicionar: `fetch('https://api.resend.com/emails', ...)` com `from: 'Subhumano <noreply@subhumano.ia.br>'`
+- Manter tratamento de erro e logs no mesmo padrão
 
-Escopo: apenas linha 526 de `src/pages/ChannelPostDetail.tsx`.
+### O que NÃO muda
+
+- Webhook verification (`verifyWebhookRequest` + `LOVABLE_API_KEY`) — intacto
+- Preview handler — intacto
+- Templates React Email — intactos
+- Renderização HTML/text — intacta
+- `EMAIL_SUBJECTS`, `EMAIL_TEMPLATES`, `SAMPLE_DATA` — intactos
+
+### Deploy
+
+Após a edição, deploy via `deploy_edge_functions(['auth-email-hook'])`.
 
