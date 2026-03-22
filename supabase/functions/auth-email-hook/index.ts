@@ -231,36 +231,46 @@ async function handleWebhook(req: Request): Promise<Response> {
     plainText: true,
   })
 
-  // Send email via Lovable Email API
-  // The callback URL is provided in the payload by Lovable, ensuring correct routing
-  // for both production and local development
-  const callbackUrl = payload.data.callback_url
-  if (!callbackUrl) {
-    console.error('No callback_url in payload', { run_id })
-    return new Response(JSON.stringify({ error: 'Missing callback_url in payload' }), {
-      status: 400,
+  // Send email via Resend API
+  const resendApiKey = Deno.env.get('RESEND')
+  if (!resendApiKey) {
+    console.error('RESEND secret not configured', { run_id })
+    return new Response(JSON.stringify({ error: 'RESEND secret not configured' }), {
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
-  let result: { message_id?: string }
+  let result: { id?: string }
   try {
-    result = await sendLovableEmail(
-      {
-        run_id,
-        to: payload.data.email,
-        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-        sender_domain: SENDER_DOMAIN,
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${SITE_NAME} <noreply@${ROOT_DOMAIN}>`,
+        to: [payload.data.email],
         subject: EMAIL_SUBJECTS[emailType] || 'Notification',
         html,
         text,
-        purpose: 'transactional',
-      },
-      { apiKey, sendUrl: callbackUrl }
-    )
+      }),
+    })
+
+    if (!resendResponse.ok) {
+      const errorText = await resendResponse.text()
+      console.error('Resend API error', { status: resendResponse.status, error: errorText, run_id })
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    result = await resendResponse.json()
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to send email'
-    console.error('Email API error', { error: message, run_id })
+    console.error('Resend fetch error', { error: message, run_id })
     return new Response(JSON.stringify({ error: 'Failed to send email' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
