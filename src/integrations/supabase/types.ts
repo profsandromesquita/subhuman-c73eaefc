@@ -721,7 +721,7 @@ export type Database = {
           meet_url?: string | null
           modality?: string
           price?: number | null
-          slug?: string
+          slug: string
           ticto_offer_id?: string | null
           title: string
           updated_at?: string
