@@ -50,6 +50,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const Events = lazy(() => import("./pages/Events"));
+const EventDetail = lazy(() => import("./pages/EventDetail"));
 const Messages = lazy(() => import("./pages/Messages"));
 const ConversationDetail = lazy(() => import("./pages/ConversationDetail"));
 
