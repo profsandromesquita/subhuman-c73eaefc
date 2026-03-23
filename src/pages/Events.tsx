@@ -1,16 +1,13 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
 import { useEvents, useUserEventPurchases, type EventFilters, type Event } from "@/hooks/useEvents";
-import { useUserAccess } from "@/hooks/useUserAccess";
-import { useAuth } from "@/hooks/useAuth";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, Lock, ArrowSquareOut, ShoppingCart, Trophy, YoutubeLogo } from "@phosphor-icons/react";
+import { EventActionButtons, useEventActions } from "@/components/events/EventActionButtons";
+import { typeLabels, modalityLabels, formatSessionDates } from "@/lib/constants/events";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 const periodOptions = [
   { value: "all", label: "Todos" },
@@ -37,160 +34,8 @@ const typeOptions = [
   { value: "aula_ao_vivo", label: "Aula ao Vivo" },
 ];
 
-const typeLabels: Record<string, string> = {
-  workshop: "Workshop",
-  palestra: "Palestra",
-  live: "Live",
-  aula_ao_vivo: "Aula ao Vivo",
-  mentoria: "Mentoria",
-  mentoria_grupo: "Mentoria em Grupo",
-  mentoria_individual: "Mentoria Individual",
-  curso: "Curso",
-};
-
-const modalityLabels: Record<string, string> = {
-  online: "Online",
-  online_gravado: "Online Gravado",
-  online_ao_vivo: "Online ao Vivo",
-  presencial: "Presencial",
-  hibrido: "Híbrido",
-};
-
-function formatSessionDates(sessions: Event["sessions"]): string {
-  if (!sessions.length) return "Sem datas definidas";
-
-  const dates = sessions.map((s) => {
-    const start = new Date(s.starts_at);
-    return format(start, "d 'de' MMM", { locale: ptBR });
-  });
-
-  const firstSession = new Date(sessions[0].starts_at);
-  const lastSession = new Date(sessions[sessions.length - 1].ends_at);
-  const timeRange = `${format(firstSession, "HH'h'mm")}–${format(lastSession, "HH'h'mm")}`;
-
-  if (dates.length === 1) return `${dates[0]}, ${timeRange}`;
-  return `${dates.join(" e ")}, ${timeRange}`;
-}
-
-function useEventActions(event: Event, isPurchased: boolean) {
-  const { canAccessEvent, canWatchPodcast, canJoinPodcast } = useUserAccess();
-  const { user } = useAuth();
-  const now = new Date().toISOString();
-  const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
-  const hasAccess = canAccessEvent(event.id, event.event_type, event.modality);
-  const youtubeUrl = (event as any).youtube_url as string | null;
-  const meetUrl = (event as any).meet_url as string | null;
-  const isLive = event.event_type === 'live';
-
-  const handleCheckout = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!event.checkout_url) return;
-    const url = new URL(event.checkout_url);
-    if (user?.id) url.searchParams.set("src", user.id);
-    if (user?.email) url.searchParams.set("email", user.email);
-    window.open(url.toString(), "_blank");
-  };
-
-  const handleAccess = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const accessUrl = (event as any).access_url;
-    if (accessUrl) {
-      window.open(accessUrl, "_blank");
-      return;
-    }
-    const futureSession = event.sessions.find((s) => s.ends_at > now);
-    if (futureSession?.session_url) {
-      window.open(futureSession.session_url, "_blank");
-    }
-  };
-
-  const getPriceLabel = () => {
-    if (event.is_free) return "Gratuito";
-    if (hasAccess && !isPurchased) return "Incluso no plano";
-    return `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`;
-  };
-
-  return { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, getPriceLabel, now };
-}
-
-function ActionButtons({ event, isPurchased, stopPropagation }: { event: Event; isPurchased: boolean; stopPropagation?: boolean }) {
-  const { isPast, hasAccess, youtubeUrl, meetUrl, isLive, canWatchPodcast, canJoinPodcast, handleCheckout, handleAccess, now } = useEventActions(event, isPurchased);
-
-  const wrap = (fn: (e?: React.MouseEvent) => void) => (e: React.MouseEvent) => {
-    if (stopPropagation) e.stopPropagation();
-    fn(e);
-  };
-
-  if (isPast) {
-    if (isLive && canWatchPodcast && youtubeUrl) {
-      return (
-        <Button variant="outline" className="w-full rounded-lg" size="sm" onClick={wrap(() => window.open(youtubeUrl, "_blank"))}>
-          <YoutubeLogo className="w-4 h-4 mr-1.5" />
-          Assistir gravação
-        </Button>
-      );
-    }
-    return <Button disabled className="w-full rounded-lg opacity-50" size="sm">Encerrado</Button>;
-  }
-
-  if (isLive) {
-    return (
-      <div className="flex gap-2">
-        {canWatchPodcast && youtubeUrl && (
-          <Button className="flex-1 rounded-lg" variant="outline" size="sm" onClick={wrap(() => window.open(youtubeUrl, "_blank"))}>
-            <YoutubeLogo className="w-4 h-4 mr-1.5" />
-            Assistir
-          </Button>
-        )}
-        {meetUrl && (
-          canJoinPodcast ? (
-            <Button className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 text-foreground" size="sm" onClick={wrap(() => window.open(meetUrl, "_blank"))}>
-              <VideoCamera className="w-4 h-4 mr-1.5" />
-              Participar
-            </Button>
-          ) : (
-            <Button disabled variant="outline" className="flex-1 rounded-lg opacity-50" size="sm">
-              <Lock className="w-3.5 h-3.5 mr-1.5" />
-              Participar
-            </Button>
-          )
-        )}
-      </div>
-    );
-  }
-
-  const accessUrl = (event as any).access_url;
-  const futureSession = event.sessions.find((s) => s.ends_at > now);
-  const hasDestination = !!accessUrl || !!futureSession?.session_url;
-
-  if (hasAccess) {
-    return (
-      <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" size="sm" onClick={wrap(handleAccess)} disabled={!hasDestination}>
-        <ArrowSquareOut className="w-4 h-4 mr-1.5" />
-        {hasDestination ? "Acessar" : "Em breve"}
-      </Button>
-    );
-  }
-
-  return (
-    <div className="flex gap-2">
-      <Button disabled variant="outline" className="flex-1 rounded-lg opacity-50" size="sm">
-        <Lock className="w-3.5 h-3.5 mr-1.5" />
-        Acessar
-      </Button>
-      {event.checkout_url ? (
-        <Button className="flex-1 rounded-lg" size="sm" onClick={wrap(handleCheckout)}>
-          <ShoppingCart className="w-4 h-4 mr-1.5" />
-          {event.is_free ? "Inscrever-se" : `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`}
-        </Button>
-      ) : (
-        <Button disabled className="flex-1 rounded-lg opacity-50" size="sm">Em breve</Button>
-      )}
-    </div>
-  );
-}
-
-function EventCard({ event, isPurchased, onOpenDetail }: { event: Event; isPurchased: boolean; onOpenDetail: () => void }) {
+function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean }) {
+  const navigate = useNavigate();
   const { getPriceLabel } = useEventActions(event, isPurchased);
   const now = new Date().toISOString();
   const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
@@ -198,7 +43,7 @@ function EventCard({ event, isPurchased, onOpenDetail }: { event: Event; isPurch
   return (
     <div
       className="bg-card rounded-xl overflow-hidden h-full flex flex-col cursor-pointer hover:ring-1 hover:ring-border transition-all"
-      onClick={onOpenDetail}
+      onClick={() => navigate(`/events/${event.slug}`)}
     >
       {event.cover_url ? (
         <img src={event.cover_url} alt={event.title} className="w-full h-40 object-cover lg:h-52" />
@@ -237,81 +82,10 @@ function EventCard({ event, isPurchased, onOpenDetail }: { event: Event; isPurch
           <div className="flex items-center justify-between">
             <span className="font-semibold text-foreground text-sm">{getPriceLabel()}</span>
           </div>
-          <ActionButtons event={event} isPurchased={isPurchased} stopPropagation />
+          <EventActionButtons event={event} isPurchased={isPurchased} stopPropagation />
         </div>
       </div>
     </div>
-  );
-}
-
-function EventDetailModal({ event, isPurchased, open, onClose }: { event: Event | null; isPurchased: boolean; open: boolean; onClose: () => void }) {
-  if (!event) return null;
-
-  const now = new Date().toISOString();
-  const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
-
-  const getPriceLabel = () => {
-    if (event.is_free) return "Gratuito";
-    return event.price ? `R$ ${Number(event.price).toFixed(2).replace(".", ",")}` : "";
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-card border-border max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {event.cover_url && (
-          <img src={event.cover_url} alt={event.title} className="w-full h-48 sm:h-64 object-cover rounded-t-lg" />
-        )}
-        <div className="p-5 space-y-4">
-          <DialogHeader className="space-y-3">
-            <div className="flex gap-2 flex-wrap">
-              <Badge variant="secondary" className="text-xs">{typeLabels[event.event_type] || event.event_type}</Badge>
-              <Badge variant="outline" className="text-xs">{modalityLabels[event.modality] || event.modality}</Badge>
-              {isPast && <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">Encerrado</Badge>}
-            </div>
-            <DialogTitle className="text-xl font-bold leading-tight">{event.title}</DialogTitle>
-          </DialogHeader>
-
-          {event.description && (
-            <DialogDescription asChild>
-              <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{event.description}</p>
-            </DialogDescription>
-          )}
-
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {event.sessions.map((session) => (
-              <div key={session.id} className="flex items-center gap-2">
-                <CalendarBlank className="w-4 h-4 flex-shrink-0" />
-                <span>
-                  {format(new Date(session.starts_at), "d 'de' MMMM, HH'h'mm", { locale: ptBR })}
-                  {" – "}
-                  {format(new Date(session.ends_at), "HH'h'mm")}
-                </span>
-              </div>
-            ))}
-            {event.location && (
-              <div className="flex items-center gap-2">
-                {event.modality?.startsWith("online") ? <VideoCamera className="w-4 h-4 flex-shrink-0" /> : <MapPin className="w-4 h-4 flex-shrink-0" />}
-                <span>{event.location}</span>
-              </div>
-            )}
-            {event.max_participants && (
-              <div className="flex items-center gap-2">
-                <UsersIcon className="w-4 h-4 flex-shrink-0" />
-                <span>Máx. {event.max_participants} participantes</span>
-              </div>
-            )}
-          </div>
-
-          {getPriceLabel() && (
-            <div className="flex items-center">
-              <span className="font-semibold text-foreground">{getPriceLabel()}</span>
-            </div>
-          )}
-
-          <ActionButtons event={event} isPurchased={isPurchased} />
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -321,7 +95,6 @@ export default function Events() {
     modality: "all",
     eventType: "all",
   });
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const { data: events, isLoading } = useEvents(filters);
   const { data: purchases } = useUserEventPurchases();
@@ -392,10 +165,10 @@ export default function Events() {
           ) : (
             <>
               {futureEvents.map((event) => (
-                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} onOpenDetail={() => setSelectedEvent(event)} />
+                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} />
               ))}
               {pastEvents.map((event) => (
-                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} onOpenDetail={() => setSelectedEvent(event)} />
+                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} />
               ))}
               {futureEvents.length === 0 && pastEvents.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -410,13 +183,6 @@ export default function Events() {
           )}
         </div>
       </div>
-
-      <EventDetailModal
-        event={selectedEvent}
-        isPurchased={selectedEvent ? purchasedIds.has(selectedEvent.id) : false}
-        open={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-      />
     </AppLayout>
   );
 }
