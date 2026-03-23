@@ -130,6 +130,7 @@ const App = () => (
               <Route path="/search" element={<SubscriptionGuard><Search /></SubscriptionGuard>} />
               <Route path="/ai-assistant" element={<SubscriptionGuard><AIAssistant /></SubscriptionGuard>} />
               <Route path="/events" element={<SubscriptionGuard><Events /></SubscriptionGuard>} />
+              <Route path="/events/:eventSlug" element={<SubscriptionGuard><EventDetail /></SubscriptionGuard>} />
               <Route path="/messages" element={<SubscriptionGuard><Messages /></SubscriptionGuard>} />
               <Route path="/messages/:recipientId" element={<SubscriptionGuard><ConversationDetail /></SubscriptionGuard>} />
 
