@@ -1,103 +1,67 @@
 
 
-# Plano: Fase 1 — Mudanças no banco de dados para Eventos
+# Plano: Fase 2 — Página de detalhe de evento + refatoração
 
-## Pré-requisitos confirmados
-- `generate_slug(title)` já existe
-- `set_slug_on_insert()` trigger function já existe (usada em `space_updates` e `podcasts`)
-- `update_updated_at_column()` trigger function já existe
-- `is_admin_or_moderator()` já existe
+## Verificação: SubscriptionGuard
 
-## Migration única com 3 operações sequenciais
+`SubscriptionGuard` apenas exige login (não bloqueia freemium). Pode ser usado normalmente na rota do EventDetail.
 
-### Operação 1: Corrigir slugs + UNIQUE constraint
+## Mudanças
 
-```sql
--- 1a. Preencher slugs vazios usando generate_slug()
-UPDATE public.events
-SET slug = public.generate_slug(title)
-WHERE slug IS NULL OR slug = '';
+### 1. Novo arquivo: `src/hooks/useEventDetail.ts`
 
--- 1b. Resolver slugs duplicados (adicionar sufixo -1, -2, etc.)
-WITH dupes AS (
-  SELECT id, slug, ROW_NUMBER() OVER (PARTITION BY slug ORDER BY created_at) as rn
-  FROM public.events
-)
-UPDATE public.events e
-SET slug = e.slug || '-' || (d.rn - 1)
-FROM dupes d
-WHERE e.id = d.id AND d.rn > 1;
+Hook `useEventBySlug(slug)` usando `useQuery`:
+- Busca evento por slug (`is_published=true`, `is_active=true`)
+- Busca sessions por `event_id`
+- Busca materials por `event_id`, ordenados por `sort_order`
+- Retorna `{ event, materials, isLoading, error }`
 
--- 1c. Alterar default de '' para NULL
-ALTER TABLE public.events ALTER COLUMN slug DROP DEFAULT;
+### 2. Novo arquivo: `src/lib/constants/events.ts`
 
--- 1d. Adicionar constraint UNIQUE + índice
-CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON public.events(slug);
+Extrair de `Events.tsx`:
+- `typeLabels`, `modalityLabels` (maps)
+- `formatSessionDates` (função)
 
--- 1e. Trigger para auto-gerar slug em novos eventos
-CREATE TRIGGER set_event_slug_on_insert
-  BEFORE INSERT ON public.events
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_slug_on_insert();
+### 3. Novo arquivo: `src/components/events/EventActionButtons.tsx`
+
+Extrair de `Events.tsx`:
+- `useEventActions` (hook interno)
+- `ActionButtons` (componente)
+
+Renomear export para `EventActionButtons`. Recebe `event`, `isPurchased`, `stopPropagation?`, `size?` (para permitir botões maiores na página de detalhe).
+
+### 4. Novo arquivo: `src/pages/EventDetail.tsx`
+
+Estrutura (baseada no padrão PodcastDetail):
+- `AppLayout` wrapper
+- Botão voltar → `/events`
+- Cover image full-width
+- Badges (tipo, modalidade, encerrado)
+- Título h1
+- Descrição (whitespace-pre-line)
+- Metadados (datas, local, capacidade, preço)
+- `EventActionButtons` (tamanho maior)
+- Seção "Materiais do Evento" — só renderiza se `materials.length > 0`
+  - Cards com ícone por tipo, título, descrição, thumbnail, link
+- Estados: loading (skeleton), erro, não encontrado
+
+### 5. Arquivo alterado: `src/App.tsx`
+
+Adicionar rota:
+```
+<Route path="/events/:eventSlug" element={<SubscriptionGuard><EventDetail /></SubscriptionGuard>} />
 ```
 
-### Operação 2: Criar tabela `event_materials`
+### 6. Arquivo alterado: `src/pages/Events.tsx`
 
-```sql
-CREATE TABLE public.event_materials (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
-  type text NOT NULL CHECK (type IN ('video', 'ebook', 'photo', 'slide')),
-  title text NOT NULL,
-  description text,
-  url text NOT NULL,
-  thumbnail_url text,
-  sort_order integer NOT NULL DEFAULT 0,
-  is_free boolean NOT NULL DEFAULT false,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_event_materials_event_id ON public.event_materials(event_id);
-CREATE INDEX idx_event_materials_type ON public.event_materials(event_id, type);
-
-CREATE TRIGGER update_event_materials_updated_at
-  BEFORE UPDATE ON public.event_materials
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
-```
-
-### Operação 3: RLS na `event_materials`
-
-```sql
-ALTER TABLE public.event_materials ENABLE ROW LEVEL SECURITY;
-
--- SELECT: autenticados veem materiais de eventos publicados+ativos
-CREATE POLICY "Authenticated users can view materials of published events"
-  ON public.event_materials FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.events
-    WHERE events.id = event_materials.event_id
-    AND events.is_published = true AND events.is_active = true
-  ));
-
--- INSERT/UPDATE/DELETE: apenas admins/moderators
-CREATE POLICY "Admins can insert event materials"
-  ON public.event_materials FOR INSERT TO authenticated
-  WITH CHECK (public.is_admin_or_moderator(auth.uid()));
-
-CREATE POLICY "Admins can update event materials"
-  ON public.event_materials FOR UPDATE TO authenticated
-  USING (public.is_admin_or_moderator(auth.uid()));
-
-CREATE POLICY "Admins can delete event materials"
-  ON public.event_materials FOR DELETE TO authenticated
-  USING (public.is_admin_or_moderator(auth.uid()));
-```
+- Importar `useNavigate`, constantes e `EventActionButtons` dos novos arquivos
+- Remover definições locais de `typeLabels`, `modalityLabels`, `formatSessionDates`, `useEventActions`, `ActionButtons`
+- `EventCard`: remover prop `onOpenDetail`, usar `navigate(`/events/${event.slug}`)`
+- Remover: `EventDetailModal`, estado `selectedEvent`, import de `Dialog`/`DialogContent`/etc.
+- Manter: filtros, listagem, layout, tudo o resto
 
 ## Escopo
 
-- **1 migration** com as 3 operações em sequência
-- **Zero alterações frontend** — nenhum arquivo `.tsx`, `.ts` ou hook modificado
-- Reutiliza funções existentes: `generate_slug`, `set_slug_on_insert`, `update_updated_at_column`, `is_admin_or_moderator`
+- **4 novos arquivos**, **2 alterados** (`App.tsx`, `Events.tsx`)
+- Zero mudanças em banco, migrations, RLS, edge functions
 
