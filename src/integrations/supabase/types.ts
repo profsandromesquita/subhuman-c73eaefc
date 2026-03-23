@@ -560,6 +560,56 @@ export type Database = {
           },
         ]
       }
+      event_materials: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_id: string
+          id: string
+          is_free: boolean
+          sort_order: number
+          thumbnail_url: string | null
+          title: string
+          type: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_id: string
+          id?: string
+          is_free?: boolean
+          sort_order?: number
+          thumbnail_url?: string | null
+          title: string
+          type: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_id?: string
+          id?: string
+          is_free?: boolean
+          sort_order?: number
+          thumbnail_url?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_materials_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_purchases: {
         Row: {
           event_id: string
@@ -671,7 +721,7 @@ export type Database = {
           meet_url?: string | null
           modality?: string
           price?: number | null
-          slug?: string
+          slug: string
           ticto_offer_id?: string | null
           title: string
           updated_at?: string
