@@ -83,7 +83,7 @@ export function useCreateEvent() {
 
   return useMutation({
     mutationFn: async (input: CreateEventInput) => {
-      const { sessions, ...eventData } = input;
+      const { sessions, materials, ...eventData } = input;
 
       const { data: event, error } = await supabase
         .from("events")
@@ -111,6 +111,24 @@ export function useCreateEvent() {
         if (sessError) throw sessError;
       }
 
+      if (materials.length > 0) {
+        const { error: matError } = await supabase
+          .from("event_materials")
+          .insert(
+            materials.map((m) => ({
+              event_id: event.id,
+              type: m.type,
+              title: m.title,
+              description: m.description || null,
+              url: m.url,
+              thumbnail_url: m.thumbnail_url || null,
+              sort_order: m.sort_order,
+              is_free: m.is_free,
+            }))
+          );
+        if (matError) throw matError;
+      }
+
       return event;
     },
     onSuccess: () => {
@@ -129,7 +147,7 @@ export function useUpdateEvent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, sessions, ...input }: CreateEventInput & { id: string }) => {
+    mutationFn: async ({ id, sessions, materials, ...input }: CreateEventInput & { id: string }) => {
       const { error } = await supabase
         .from("events")
         .update(input)
@@ -137,9 +155,8 @@ export function useUpdateEvent() {
 
       if (error) throw error;
 
-      // Replace sessions: delete old, insert new
+      // Replace sessions
       await supabase.from("event_sessions").delete().eq("event_id", id);
-
       if (sessions.length > 0) {
         const { error: sessError } = await supabase
           .from("event_sessions")
@@ -152,6 +169,26 @@ export function useUpdateEvent() {
             }))
           );
         if (sessError) throw sessError;
+      }
+
+      // Replace materials
+      await supabase.from("event_materials").delete().eq("event_id", id);
+      if (materials.length > 0) {
+        const { error: matError } = await supabase
+          .from("event_materials")
+          .insert(
+            materials.map((m) => ({
+              event_id: id,
+              type: m.type,
+              title: m.title,
+              description: m.description || null,
+              url: m.url,
+              thumbnail_url: m.thumbnail_url || null,
+              sort_order: m.sort_order,
+              is_free: m.is_free,
+            }))
+          );
+        if (matError) throw matError;
       }
     },
     onSuccess: () => {
