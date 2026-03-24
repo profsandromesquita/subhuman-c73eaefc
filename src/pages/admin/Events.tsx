@@ -36,6 +36,7 @@ import {
   useDeleteEvent,
   type AdminEvent,
   type SessionInput,
+  type MaterialInput,
 } from "@/hooks/useAdminEvents";
 import { Plus, Pencil, Trash, CalendarBlank, X, Image, UploadSimple } from "@phosphor-icons/react";
 import { format } from "date-fns";
@@ -60,6 +61,16 @@ const modalityOptions = [
   { value: "hibrido", label: "Híbrido" },
 ];
 
+interface MaterialFormItem {
+  type: string;
+  title: string;
+  description: string;
+  url: string;
+  thumbnail_url: string;
+  sort_order: number;
+  is_free: boolean;
+}
+
 interface FormData {
   title: string;
   description: string;
@@ -75,6 +86,7 @@ interface FormData {
   meet_url: string;
   ticto_offer_id: string;
   sessions: SessionInput[];
+  materials: MaterialFormItem[];
 }
 
 const emptyForm: FormData = {
@@ -92,6 +104,7 @@ const emptyForm: FormData = {
   meet_url: "",
   ticto_offer_id: "",
   sessions: [],
+  materials: [],
 };
 
 export default function AdminEvents() {
