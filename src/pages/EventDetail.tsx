@@ -1,13 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useEventBySlug, type EventMaterial } from "@/hooks/useEventDetail";
-import { useUserEventPurchases } from "@/hooks/useEvents";
-import { EventActionButtons } from "@/components/events/EventActionButtons";
-import { typeLabels, modalityLabels, formatSessionDates } from "@/lib/constants/events";
+import { typeLabels, modalityLabels } from "@/lib/constants/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, ArrowLeft, Play, BookOpen, Image, Presentation, ArrowSquareOut } from "@phosphor-icons/react";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, ArrowLeft, Play, BookOpen, Image, Presentation, ArrowSquareOut, YoutubeLogo } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -70,14 +68,17 @@ export default function EventDetail() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   const navigate = useNavigate();
   const { data, isLoading, error } = useEventBySlug(eventSlug);
-  const { data: purchases } = useUserEventPurchases();
 
   const event = data?.event;
   const materials = data?.materials || [];
-  const isPurchased = event ? new Set(purchases?.map((p) => p.event_id) || []).has(event.id) : false;
 
   const now = new Date().toISOString();
-  const isPast = event ? event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now) : false;
+  const hasSessions = event ? event.sessions.length > 0 : false;
+  const isPast = event ? hasSessions && event.sessions.every((s) => s.ends_at < now) : false;
+
+  const meetUrl = (event as any)?.meet_url as string | null;
+  const youtubeUrl = (event as any)?.youtube_url as string | null;
+  const accessUrl = (event as any)?.access_url as string | null;
 
   const getPriceLabel = () => {
     if (!event) return "";
@@ -85,6 +86,11 @@ export default function EventDetail() {
     if (event.price && Number(event.price) > 0) return `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`;
     return "Incluso no plano";
   };
+
+  const showMeetButton = !!meetUrl && !isPast;
+  const showYoutubeButton = !!youtubeUrl && isPast;
+  const showAccessButton = !!accessUrl;
+  const hasAnyButton = showMeetButton || showYoutubeButton || showAccessButton;
 
   return (
     <AppLayout>
@@ -181,9 +187,39 @@ export default function EventDetail() {
             {/* Price + Actions */}
             <div className="space-y-3">
               {getPriceLabel() && (
-                <span className="font-semibold text-foreground text-lg">{getPriceLabel()}</span>
+                <span className={`font-semibold text-lg ${event.is_free ? "text-green-500" : "text-foreground"}`}>{getPriceLabel()}</span>
               )}
-              <EventActionButtons event={event} isPurchased={isPurchased} size="default" />
+
+              {hasAnyButton ? (
+                <div className="flex flex-col gap-2">
+                  {showMeetButton && (
+                    <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" onClick={() => window.open(meetUrl!, "_blank")}>
+                      <VideoCamera className="w-4 h-4 mr-2" />
+                      Acessar ao Vivo
+                    </Button>
+                  )}
+                  {showYoutubeButton && (
+                    <Button variant="outline" className="w-full rounded-lg" onClick={() => window.open(youtubeUrl!, "_blank")}>
+                      <YoutubeLogo className="w-4 h-4 mr-2" />
+                      Assistir Gravação
+                    </Button>
+                  )}
+                  {showAccessButton && (
+                    <Button
+                      className={`w-full rounded-lg ${!showMeetButton && !showYoutubeButton ? "bg-green-600 hover:bg-green-700 text-foreground" : ""}`}
+                      variant={showMeetButton || showYoutubeButton ? "outline" : "default"}
+                      onClick={() => window.open(accessUrl!, "_blank")}
+                    >
+                      <ArrowSquareOut className="w-4 h-4 mr-2" />
+                      Acessar
+                    </Button>
+                  )}
+                </div>
+              ) : isPast ? (
+                <p className="text-sm text-muted-foreground">Este evento foi encerrado</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aguarde informações de acesso</p>
+              )}
             </div>
 
             {/* Materials */}
