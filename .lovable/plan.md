@@ -1,53 +1,49 @@
 
 
-# Plano: Correção de UX — Cards e página de detalhe de eventos
+# Plano: Fase 3 — CRUD de materiais no admin de eventos
 
-## Mudança 1: Cards da listagem (`src/pages/Events.tsx`)
+## Resumo
 
-**Remover do EventCard (linhas 81-86):**
-- `EventActionButtons` e o wrapper `div` com `space-y-3`
-- Import de `EventActionButtons` e `useEventActions` (linha 6)
-- A prop `isPurchased` do `EventCard` (não é mais necessária)
-- O hook `useUserEventPurchases` e `purchasedIds` (linhas 100-102) — só eram usados para alimentar os cards
+Adicionar seção "Materiais" no formulário do admin de eventos, seguindo o mesmo padrão das sessions (cards inline, add/remove, replace on save).
 
-**Substituir o rodapé do card por:**
-```text
-┌─────────────────────────────────┐
-│ [Badge status]     Preço texto  │
-└─────────────────────────────────┘
-```
+## Mudanças
 
-- Badge de status:
-  - Sessions futuras → badge verde "Em breve"
-  - Todas sessions passadas → badge cinza "Encerrado"
-  - Sem sessions → nada
-- Indicador de preço (texto, não botão):
-  - `is_free` → "Gratuito" (texto verde)
-  - `price > 0` → "R$ X,XX"
-  - Senão → "Incluso no plano"
+### 1. Hook `useAdminEvents.ts` — adicionar materials ao fluxo
 
-**Remover badge "Encerrado" duplicada** que já aparece na seção de badges (linha 59) — mover essa lógica para o rodapé apenas.
+- Adicionar `MaterialInput` interface (type, title, description, url, thumbnail_url, sort_order, is_free)
+- Adicionar `materials: MaterialInput[]` ao `CreateEventInput`
+- Em `useCreateEvent`: após inserir sessions, inserir materials na tabela `event_materials`
+- Em `useUpdateEvent`: após replace de sessions, fazer replace de materials (delete + insert)
 
-## Mudança 2: Página de detalhe (`src/pages/EventDetail.tsx`)
+### 2. Admin `Events.tsx` — FormData + UI
 
-**Substituir bloco "Price + Actions" (linhas 181-187)** por lógica contextual direta:
+**FormData:**
+- Adicionar campo `materials` ao interface e ao `emptyForm` (array vazio)
 
-1. Indicador de preço (manter como está)
-2. Botões contextuais (sem usar `EventActionButtons`):
-   - `meet_url` preenchido + NÃO encerrado → botão verde "Acessar ao Vivo" (ícone VideoCamera)
-   - `youtube_url` preenchido + encerrado → botão outline "Assistir Gravação" (ícone Play)
-   - `access_url` preenchido → botão "Acessar" (ícone ArrowSquareOut), verde se único, outline se há outros
-   - Nenhum URL + encerrado → texto "Este evento foi encerrado"
-   - Nenhum URL + não encerrado → texto "Aguarde informações de acesso"
-3. Botões empilhados verticalmente, `w-full`, tamanho `default`
+**openEditModal:**
+- Buscar materials do evento via `supabase.from("event_materials").select("*").eq("event_id", event.id).order("sort_order")`
+- Popular `formData.materials` com os dados carregados
 
-**Remover imports:** `EventActionButtons`, `useUserEventPurchases`, `isPurchased`
+**Helpers (mesmo padrão de sessions):**
+- `addMaterial()` — push novo material com defaults (type: 'video', sort_order: materials.length)
+- `removeMaterial(index)` — filter by index
+- `updateMaterial(index, field, value)` — map and update
 
-**Manter intacto:** MaterialCard, seção de materiais, skeleton, erro, metadata
+**handleSubmit:**
+- Passar `formData.materials` no payload (filtrar items sem title ou url)
+
+**UI — nova seção após sessions (antes dos botões de ação):**
+- Cabeçalho: "Materiais" + botão "+ Adicionar Material"
+- Cards com: Select tipo (video/ebook/photo/slide), Input título, Input URL, Textarea descrição, Input thumbnail_url, Input sort_order (number), Switch is_free
+- Botão X para remover (mesmo estilo das sessions)
+- Mensagem "Nenhum material adicionado" quando vazio
 
 ## Arquivos alterados
 
-- `src/pages/Events.tsx` — simplificar card
-- `src/pages/EventDetail.tsx` — botões contextuais inline
-- `src/components/events/EventActionButtons.tsx` — NÃO deletar, NÃO alterar
+- `src/hooks/useAdminEvents.ts` — MaterialInput + persistência
+- `src/pages/admin/Events.tsx` — FormData + UI de materiais
+
+## Escopo
+
+Zero mudanças em: banco, RLS, página pública, hook useEventDetail, Events.tsx público
 
