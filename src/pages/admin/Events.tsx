@@ -136,7 +136,7 @@ export default function AdminEvents() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (event: AdminEvent) => {
+  const openEditModal = async (event: AdminEvent) => {
     setSelectedEvent(event);
     const utcToLocalInput = (utcStr: string) => {
       const date = new Date(utcStr);
@@ -144,6 +144,14 @@ export default function AdminEvents() {
       const local = new Date(date.getTime() - offset * 60000);
       return local.toISOString().slice(0, 16);
     };
+
+    // Fetch materials for this event
+    const { data: materialsData } = await supabase
+      .from("event_materials")
+      .select("*")
+      .eq("event_id", event.id)
+      .order("sort_order", { ascending: true });
+
     setFormData({
       title: event.title,
       description: event.description || "",
@@ -162,6 +170,15 @@ export default function AdminEvents() {
         starts_at: utcToLocalInput(s.starts_at),
         ends_at: utcToLocalInput(s.ends_at),
         session_url: s.session_url || "",
+      })),
+      materials: (materialsData || []).map((m) => ({
+        type: m.type,
+        title: m.title,
+        description: m.description || "",
+        url: m.url,
+        thumbnail_url: m.thumbnail_url || "",
+        sort_order: m.sort_order,
+        is_free: m.is_free,
       })),
     });
     setCoverFile(null);
@@ -237,10 +254,44 @@ export default function AdminEvents() {
     }));
   };
 
+  const addMaterial = () => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: [
+        ...prev.materials,
+        {
+          type: "video",
+          title: "",
+          description: "",
+          url: "",
+          thumbnail_url: "",
+          sort_order: prev.materials.length,
+          is_free: false,
+        },
+      ],
+    }));
+  };
+
+  const removeMaterial = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: prev.materials.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateMaterial = (index: number, field: keyof MaterialFormItem, value: string | number | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: prev.materials.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
+    }));
+  };
+
   const handleSubmit = async (publish: boolean) => {
     if (!formData.title.trim()) return;
 
     const coverUrl = await uploadCover();
+
+    const validMaterials = formData.materials.filter((m) => m.title.trim() && m.url.trim());
 
     const payload = {
       title: formData.title.trim(),
@@ -259,6 +310,7 @@ export default function AdminEvents() {
       is_published: publish,
       cover_url: coverUrl,
       sessions: formData.sessions.filter((s) => s.starts_at && s.ends_at),
+      materials: validMaterials,
     };
 
     if (selectedEvent) {
