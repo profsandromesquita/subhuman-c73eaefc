@@ -47,6 +47,16 @@ export interface SessionInput {
   session_url?: string;
 }
 
+export interface MaterialInput {
+  type: string;
+  title: string;
+  description: string;
+  url: string;
+  thumbnail_url: string;
+  sort_order: number;
+  is_free: boolean;
+}
+
 export interface CreateEventInput {
   title: string;
   description?: string | null;
@@ -64,6 +74,7 @@ export interface CreateEventInput {
   ticto_offer_id?: string | null;
   is_published?: boolean;
   sessions: SessionInput[];
+  materials: MaterialInput[];
 }
 
 export function useCreateEvent() {
