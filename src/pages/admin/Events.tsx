@@ -705,6 +705,116 @@ export default function AdminEvents() {
               )}
             </div>
 
+            {/* Materials Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Materiais</label>
+                <Button variant="outline" size="sm" onClick={addMaterial}>
+                  <Plus className="w-3 h-3 mr-1" />
+                  Adicionar Material
+                </Button>
+              </div>
+
+              {formData.materials.map((material, idx) => (
+                <div key={idx} className="p-3 bg-secondary/50 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Material {idx + 1}
+                    </span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeMaterial(idx)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Tipo</label>
+                      <Select
+                        value={material.type}
+                        onValueChange={(v) => updateMaterial(idx, "type", v)}
+                      >
+                        <SelectTrigger className="text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="video">Vídeo</SelectItem>
+                          <SelectItem value="ebook">E-book</SelectItem>
+                          <SelectItem value="photo">Foto</SelectItem>
+                          <SelectItem value="slide">Slides/Apresentação</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Ordem</label>
+                      <Input
+                        type="number"
+                        value={material.sort_order}
+                        onChange={(e) => updateMaterial(idx, "sort_order", parseInt(e.target.value) || 0)}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Título *</label>
+                    <Input
+                      value={material.title}
+                      onChange={(e) => updateMaterial(idx, "title", e.target.value)}
+                      placeholder="Ex: Aula 1 - Introdução à IA"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">URL *</label>
+                    <Input
+                      value={material.url}
+                      onChange={(e) => updateMaterial(idx, "url", e.target.value)}
+                      placeholder="https://..."
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Descrição</label>
+                    <Textarea
+                      value={material.description}
+                      onChange={(e) => updateMaterial(idx, "description", e.target.value)}
+                      placeholder="Breve descrição do material"
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Thumbnail URL</label>
+                    <Input
+                      value={material.thumbnail_url}
+                      onChange={(e) => updateMaterial(idx, "thumbnail_url", e.target.value)}
+                      placeholder="URL da imagem de capa (opcional)"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={material.is_free}
+                      onCheckedChange={(v) => updateMaterial(idx, "is_free", v)}
+                    />
+                    <label className="text-xs text-muted-foreground">
+                      Disponível para todos (inclusive não-assinantes)
+                    </label>
+                  </div>
+                </div>
+              ))}
+
+              {formData.materials.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum material adicionado
+                </p>
+              )}
+            </div>
+
             {/* Actions */}
             <div className="flex gap-3 pt-2">
               <Button
