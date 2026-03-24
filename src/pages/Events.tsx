@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Logo } from "@/components/Logo";
-import { useEvents, useUserEventPurchases, type EventFilters, type Event } from "@/hooks/useEvents";
-import { EventActionButtons, useEventActions } from "@/components/events/EventActionButtons";
+import { useEvents, type EventFilters, type Event } from "@/hooks/useEvents";
 import { typeLabels, modalityLabels, formatSessionDates } from "@/lib/constants/events";
 import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -34,11 +33,17 @@ const typeOptions = [
   { value: "aula_ao_vivo", label: "Aula ao Vivo" },
 ];
 
-function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean }) {
+function EventCard({ event }: { event: Event }) {
   const navigate = useNavigate();
-  const { getPriceLabel } = useEventActions(event, isPurchased);
   const now = new Date().toISOString();
-  const isPast = event.sessions.length > 0 && event.sessions.every((s) => s.ends_at < now);
+  const hasSessions = event.sessions.length > 0;
+  const isPast = hasSessions && event.sessions.every((s) => s.ends_at < now);
+
+  const priceText = event.is_free
+    ? "Gratuito"
+    : event.price && Number(event.price) > 0
+      ? `R$ ${Number(event.price).toFixed(2).replace(".", ",")}`
+      : "Incluso no plano";
 
   return (
     <div
@@ -56,7 +61,6 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
         <div className="flex gap-2 flex-wrap lg:flex-nowrap lg:overflow-hidden">
           <Badge variant="secondary" className="text-xs">{typeLabels[event.event_type] || event.event_type}</Badge>
           <Badge variant="outline" className="text-xs">{modalityLabels[event.modality] || event.modality}</Badge>
-          {isPast && <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">Encerrado</Badge>}
         </div>
         <h3 className="font-semibold text-foreground leading-tight line-clamp-2">{event.title}</h3>
         {event.description && <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>}
@@ -78,11 +82,18 @@ function EventCard({ event, isPurchased }: { event: Event; isPurchased: boolean 
             </div>
           )}
         </div>
-        <div className="mt-auto space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-foreground text-sm">{getPriceLabel()}</span>
-          </div>
-          <EventActionButtons event={event} isPurchased={isPurchased} stopPropagation />
+        <div className="mt-auto flex items-center justify-between pt-3">
+          {hasSessions && (
+            isPast ? (
+              <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">Encerrado</Badge>
+            ) : (
+              <Badge className="text-xs bg-green-600/20 text-green-500 border-green-600/30 hover:bg-green-600/20">Em breve</Badge>
+            )
+          )}
+          {!hasSessions && <span />}
+          <span className={`text-sm font-semibold ${event.is_free ? "text-green-500" : "text-foreground"}`}>
+            {priceText}
+          </span>
         </div>
       </div>
     </div>
@@ -97,9 +108,6 @@ export default function Events() {
   });
 
   const { data: events, isLoading } = useEvents(filters);
-  const { data: purchases } = useUserEventPurchases();
-
-  const purchasedIds = new Set(purchases?.map((p) => p.event_id) || []);
 
   const { futureEvents, pastEvents } = useMemo(() => {
     if (!events) return { futureEvents: [], pastEvents: [] };
@@ -165,10 +173,10 @@ export default function Events() {
           ) : (
             <>
               {futureEvents.map((event) => (
-                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} />
+                <EventCard key={event.id} event={event} />
               ))}
               {pastEvents.map((event) => (
-                <EventCard key={event.id} event={event} isPurchased={purchasedIds.has(event.id)} />
+                <EventCard key={event.id} event={event} />
               ))}
               {futureEvents.length === 0 && pastEvents.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
