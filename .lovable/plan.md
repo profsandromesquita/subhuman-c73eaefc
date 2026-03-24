@@ -1,67 +1,53 @@
 
 
-# Plano: Fase 2 — Página de detalhe de evento + refatoração
+# Plano: Correção de UX — Cards e página de detalhe de eventos
 
-## Verificação: SubscriptionGuard
+## Mudança 1: Cards da listagem (`src/pages/Events.tsx`)
 
-`SubscriptionGuard` apenas exige login (não bloqueia freemium). Pode ser usado normalmente na rota do EventDetail.
+**Remover do EventCard (linhas 81-86):**
+- `EventActionButtons` e o wrapper `div` com `space-y-3`
+- Import de `EventActionButtons` e `useEventActions` (linha 6)
+- A prop `isPurchased` do `EventCard` (não é mais necessária)
+- O hook `useUserEventPurchases` e `purchasedIds` (linhas 100-102) — só eram usados para alimentar os cards
 
-## Mudanças
-
-### 1. Novo arquivo: `src/hooks/useEventDetail.ts`
-
-Hook `useEventBySlug(slug)` usando `useQuery`:
-- Busca evento por slug (`is_published=true`, `is_active=true`)
-- Busca sessions por `event_id`
-- Busca materials por `event_id`, ordenados por `sort_order`
-- Retorna `{ event, materials, isLoading, error }`
-
-### 2. Novo arquivo: `src/lib/constants/events.ts`
-
-Extrair de `Events.tsx`:
-- `typeLabels`, `modalityLabels` (maps)
-- `formatSessionDates` (função)
-
-### 3. Novo arquivo: `src/components/events/EventActionButtons.tsx`
-
-Extrair de `Events.tsx`:
-- `useEventActions` (hook interno)
-- `ActionButtons` (componente)
-
-Renomear export para `EventActionButtons`. Recebe `event`, `isPurchased`, `stopPropagation?`, `size?` (para permitir botões maiores na página de detalhe).
-
-### 4. Novo arquivo: `src/pages/EventDetail.tsx`
-
-Estrutura (baseada no padrão PodcastDetail):
-- `AppLayout` wrapper
-- Botão voltar → `/events`
-- Cover image full-width
-- Badges (tipo, modalidade, encerrado)
-- Título h1
-- Descrição (whitespace-pre-line)
-- Metadados (datas, local, capacidade, preço)
-- `EventActionButtons` (tamanho maior)
-- Seção "Materiais do Evento" — só renderiza se `materials.length > 0`
-  - Cards com ícone por tipo, título, descrição, thumbnail, link
-- Estados: loading (skeleton), erro, não encontrado
-
-### 5. Arquivo alterado: `src/App.tsx`
-
-Adicionar rota:
-```
-<Route path="/events/:eventSlug" element={<SubscriptionGuard><EventDetail /></SubscriptionGuard>} />
+**Substituir o rodapé do card por:**
+```text
+┌─────────────────────────────────┐
+│ [Badge status]     Preço texto  │
+└─────────────────────────────────┘
 ```
 
-### 6. Arquivo alterado: `src/pages/Events.tsx`
+- Badge de status:
+  - Sessions futuras → badge verde "Em breve"
+  - Todas sessions passadas → badge cinza "Encerrado"
+  - Sem sessions → nada
+- Indicador de preço (texto, não botão):
+  - `is_free` → "Gratuito" (texto verde)
+  - `price > 0` → "R$ X,XX"
+  - Senão → "Incluso no plano"
 
-- Importar `useNavigate`, constantes e `EventActionButtons` dos novos arquivos
-- Remover definições locais de `typeLabels`, `modalityLabels`, `formatSessionDates`, `useEventActions`, `ActionButtons`
-- `EventCard`: remover prop `onOpenDetail`, usar `navigate(`/events/${event.slug}`)`
-- Remover: `EventDetailModal`, estado `selectedEvent`, import de `Dialog`/`DialogContent`/etc.
-- Manter: filtros, listagem, layout, tudo o resto
+**Remover badge "Encerrado" duplicada** que já aparece na seção de badges (linha 59) — mover essa lógica para o rodapé apenas.
 
-## Escopo
+## Mudança 2: Página de detalhe (`src/pages/EventDetail.tsx`)
 
-- **4 novos arquivos**, **2 alterados** (`App.tsx`, `Events.tsx`)
-- Zero mudanças em banco, migrations, RLS, edge functions
+**Substituir bloco "Price + Actions" (linhas 181-187)** por lógica contextual direta:
+
+1. Indicador de preço (manter como está)
+2. Botões contextuais (sem usar `EventActionButtons`):
+   - `meet_url` preenchido + NÃO encerrado → botão verde "Acessar ao Vivo" (ícone VideoCamera)
+   - `youtube_url` preenchido + encerrado → botão outline "Assistir Gravação" (ícone Play)
+   - `access_url` preenchido → botão "Acessar" (ícone ArrowSquareOut), verde se único, outline se há outros
+   - Nenhum URL + encerrado → texto "Este evento foi encerrado"
+   - Nenhum URL + não encerrado → texto "Aguarde informações de acesso"
+3. Botões empilhados verticalmente, `w-full`, tamanho `default`
+
+**Remover imports:** `EventActionButtons`, `useUserEventPurchases`, `isPurchased`
+
+**Manter intacto:** MaterialCard, seção de materiais, skeleton, erro, metadata
+
+## Arquivos alterados
+
+- `src/pages/Events.tsx` — simplificar card
+- `src/pages/EventDetail.tsx` — botões contextuais inline
+- `src/components/events/EventActionButtons.tsx` — NÃO deletar, NÃO alterar
 
