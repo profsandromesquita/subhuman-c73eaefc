@@ -36,6 +36,7 @@ import {
   useDeleteEvent,
   type AdminEvent,
   type SessionInput,
+  type MaterialInput,
 } from "@/hooks/useAdminEvents";
 import { Plus, Pencil, Trash, CalendarBlank, X, Image, UploadSimple } from "@phosphor-icons/react";
 import { format } from "date-fns";
@@ -60,6 +61,16 @@ const modalityOptions = [
   { value: "hibrido", label: "Híbrido" },
 ];
 
+interface MaterialFormItem {
+  type: string;
+  title: string;
+  description: string;
+  url: string;
+  thumbnail_url: string;
+  sort_order: number;
+  is_free: boolean;
+}
+
 interface FormData {
   title: string;
   description: string;
@@ -75,6 +86,7 @@ interface FormData {
   meet_url: string;
   ticto_offer_id: string;
   sessions: SessionInput[];
+  materials: MaterialFormItem[];
 }
 
 const emptyForm: FormData = {
@@ -92,6 +104,7 @@ const emptyForm: FormData = {
   meet_url: "",
   ticto_offer_id: "",
   sessions: [],
+  materials: [],
 };
 
 export default function AdminEvents() {
@@ -123,7 +136,7 @@ export default function AdminEvents() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (event: AdminEvent) => {
+  const openEditModal = async (event: AdminEvent) => {
     setSelectedEvent(event);
     const utcToLocalInput = (utcStr: string) => {
       const date = new Date(utcStr);
@@ -131,6 +144,14 @@ export default function AdminEvents() {
       const local = new Date(date.getTime() - offset * 60000);
       return local.toISOString().slice(0, 16);
     };
+
+    // Fetch materials for this event
+    const { data: materialsData } = await supabase
+      .from("event_materials")
+      .select("*")
+      .eq("event_id", event.id)
+      .order("sort_order", { ascending: true });
+
     setFormData({
       title: event.title,
       description: event.description || "",
@@ -149,6 +170,15 @@ export default function AdminEvents() {
         starts_at: utcToLocalInput(s.starts_at),
         ends_at: utcToLocalInput(s.ends_at),
         session_url: s.session_url || "",
+      })),
+      materials: (materialsData || []).map((m) => ({
+        type: m.type,
+        title: m.title,
+        description: m.description || "",
+        url: m.url,
+        thumbnail_url: m.thumbnail_url || "",
+        sort_order: m.sort_order,
+        is_free: m.is_free,
       })),
     });
     setCoverFile(null);
@@ -224,10 +254,44 @@ export default function AdminEvents() {
     }));
   };
 
+  const addMaterial = () => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: [
+        ...prev.materials,
+        {
+          type: "video",
+          title: "",
+          description: "",
+          url: "",
+          thumbnail_url: "",
+          sort_order: prev.materials.length,
+          is_free: false,
+        },
+      ],
+    }));
+  };
+
+  const removeMaterial = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: prev.materials.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateMaterial = (index: number, field: keyof MaterialFormItem, value: string | number | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      materials: prev.materials.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
+    }));
+  };
+
   const handleSubmit = async (publish: boolean) => {
     if (!formData.title.trim()) return;
 
     const coverUrl = await uploadCover();
+
+    const validMaterials = formData.materials.filter((m) => m.title.trim() && m.url.trim());
 
     const payload = {
       title: formData.title.trim(),
@@ -246,6 +310,7 @@ export default function AdminEvents() {
       is_published: publish,
       cover_url: coverUrl,
       sessions: formData.sessions.filter((s) => s.starts_at && s.ends_at),
+      materials: validMaterials,
     };
 
     if (selectedEvent) {
@@ -636,6 +701,116 @@ export default function AdminEvents() {
               {formData.sessions.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhuma sessão adicionada
+                </p>
+              )}
+            </div>
+
+            {/* Materials Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Materiais</label>
+                <Button variant="outline" size="sm" onClick={addMaterial}>
+                  <Plus className="w-3 h-3 mr-1" />
+                  Adicionar Material
+                </Button>
+              </div>
+
+              {formData.materials.map((material, idx) => (
+                <div key={idx} className="p-3 bg-secondary/50 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Material {idx + 1}
+                    </span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeMaterial(idx)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Tipo</label>
+                      <Select
+                        value={material.type}
+                        onValueChange={(v) => updateMaterial(idx, "type", v)}
+                      >
+                        <SelectTrigger className="text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="video">Vídeo</SelectItem>
+                          <SelectItem value="ebook">E-book</SelectItem>
+                          <SelectItem value="photo">Foto</SelectItem>
+                          <SelectItem value="slide">Slides/Apresentação</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Ordem</label>
+                      <Input
+                        type="number"
+                        value={material.sort_order}
+                        onChange={(e) => updateMaterial(idx, "sort_order", parseInt(e.target.value) || 0)}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Título *</label>
+                    <Input
+                      value={material.title}
+                      onChange={(e) => updateMaterial(idx, "title", e.target.value)}
+                      placeholder="Ex: Aula 1 - Introdução à IA"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">URL *</label>
+                    <Input
+                      value={material.url}
+                      onChange={(e) => updateMaterial(idx, "url", e.target.value)}
+                      placeholder="https://..."
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Descrição</label>
+                    <Textarea
+                      value={material.description}
+                      onChange={(e) => updateMaterial(idx, "description", e.target.value)}
+                      placeholder="Breve descrição do material"
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Thumbnail URL</label>
+                    <Input
+                      value={material.thumbnail_url}
+                      onChange={(e) => updateMaterial(idx, "thumbnail_url", e.target.value)}
+                      placeholder="URL da imagem de capa (opcional)"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={material.is_free}
+                      onCheckedChange={(v) => updateMaterial(idx, "is_free", v)}
+                    />
+                    <label className="text-xs text-muted-foreground">
+                      Disponível para todos (inclusive não-assinantes)
+                    </label>
+                  </div>
+                </div>
+              ))}
+
+              {formData.materials.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum material adicionado
                 </p>
               )}
             </div>
