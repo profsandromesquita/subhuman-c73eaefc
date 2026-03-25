@@ -1,51 +1,31 @@
 
 
-# Plano: Fase 3B.1 — Header condensado + YouTube embed
+# Diagnosis: YouTube player not rendering
 
-## Arquivo: `src/pages/EventDetail.tsx`
+## Root cause
 
-### 1. Adicionar estado e utilitário
+**Not a code bug.** The only event with `youtube_url` filled has a YouTube **channel** URL (`https://www.youtube.com/@Prof.SandroMesquita`), not a video URL. The `extractYouTubeId` function correctly returns `null` for channel URLs.
 
-- `useState` para `isDescriptionExpanded` (default false)
-- Função `extractYouTubeId(url)` que extrai VIDEO_ID dos formatos: `watch?v=`, `youtu.be/`, `/embed/`, `/live/`
-- Derivar `youtubeId` de `youtubeUrl`
+## Fix: Minor cleanup only
 
-### 2. Reestruturar o bloco principal (linhas 130-236)
+### File: `src/pages/EventDetail.tsx`
 
-**Header condensado (substitui cover + badges + title + description + metadata + price/actions):**
+1. **Remove unnecessary type casts** on lines 96-97. The `Event` type (`Tables<"events">`) already includes `youtube_url`, `meet_url`, and `access_url` as `string | null`.
 
-- Badges em linha: tipo, modalidade, status (Encerrado se `isPast`, "Em breve" se `hasSessions && !isPast`)
-- Título h1 (manter)
-- Metadados compactos (sessions, local, capacidade) — manter como está
-- Indicador de preço inline (manter `getPriceLabel`)
-- Descrição colapsável: `line-clamp-3` quando colapsado, botão "Ver descrição completa" / "Recolher"
-- Botão "Entrar na Sala ao Vivo" — SOMENTE se `meetUrl && !isPast`
+Change:
+```ts
+const meetUrl = event?.meet_url as string | null;
+const youtubeUrl = event?.youtube_url as string | null;
+```
+To:
+```ts
+const meetUrl = event?.meet_url;
+const youtubeUrl = event?.youtube_url;
+```
 
-**Remover:**
-- Cover image grande como destaque (linhas 131-138)
-- Todos os botões de ação (Acessar ao Vivo, Assistir Gravação, Acessar) — linhas 193-222
-- Textos "Este evento foi encerrado" / "Aguarde informações de acesso"
+2. No other code changes needed. The `extractYouTubeId` function and rendering logic are correct.
 
-### 3. Player de vídeo (após header)
+## Action required (not code)
 
-- Se `youtubeId` existe → iframe embed 16:9 com título "Gravação do Evento"
-- Se `youtubeId` não existe mas `cover_url` existe → mostrar cover image como fallback visual
-- Se nenhum dos dois → nada
-
-### 4. Mensagem contextual (após vídeo/capa)
-
-- Somente se NÃO há `youtubeUrl` E `materials.length === 0`:
-  - Futuro → "O conteúdo será disponibilizado após o evento"
-  - Encerrado → "Conteúdo em preparação — será publicado em breve"
-
-### 5. Seção de materiais — NÃO alterar (linhas 226-234)
-
-### 6. Cleanup de imports
-
-- Remover `YoutubeLogo` (não mais usado como ícone de botão)
-- Manter demais imports
-
-## Arquivos alterados
-
-- `src/pages/EventDetail.tsx` — único arquivo
+Update the event's `youtube_url` in the admin panel to an actual video URL (e.g., `https://www.youtube.com/watch?v=VIDEO_ID`) instead of a channel URL. The player will then render correctly.
 
