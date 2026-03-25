@@ -1,49 +1,51 @@
 
 
-# Plano: Fase 3 — CRUD de materiais no admin de eventos
+# Plano: Fase 3B.1 — Header condensado + YouTube embed
 
-## Resumo
+## Arquivo: `src/pages/EventDetail.tsx`
 
-Adicionar seção "Materiais" no formulário do admin de eventos, seguindo o mesmo padrão das sessions (cards inline, add/remove, replace on save).
+### 1. Adicionar estado e utilitário
 
-## Mudanças
+- `useState` para `isDescriptionExpanded` (default false)
+- Função `extractYouTubeId(url)` que extrai VIDEO_ID dos formatos: `watch?v=`, `youtu.be/`, `/embed/`, `/live/`
+- Derivar `youtubeId` de `youtubeUrl`
 
-### 1. Hook `useAdminEvents.ts` — adicionar materials ao fluxo
+### 2. Reestruturar o bloco principal (linhas 130-236)
 
-- Adicionar `MaterialInput` interface (type, title, description, url, thumbnail_url, sort_order, is_free)
-- Adicionar `materials: MaterialInput[]` ao `CreateEventInput`
-- Em `useCreateEvent`: após inserir sessions, inserir materials na tabela `event_materials`
-- Em `useUpdateEvent`: após replace de sessions, fazer replace de materials (delete + insert)
+**Header condensado (substitui cover + badges + title + description + metadata + price/actions):**
 
-### 2. Admin `Events.tsx` — FormData + UI
+- Badges em linha: tipo, modalidade, status (Encerrado se `isPast`, "Em breve" se `hasSessions && !isPast`)
+- Título h1 (manter)
+- Metadados compactos (sessions, local, capacidade) — manter como está
+- Indicador de preço inline (manter `getPriceLabel`)
+- Descrição colapsável: `line-clamp-3` quando colapsado, botão "Ver descrição completa" / "Recolher"
+- Botão "Entrar na Sala ao Vivo" — SOMENTE se `meetUrl && !isPast`
 
-**FormData:**
-- Adicionar campo `materials` ao interface e ao `emptyForm` (array vazio)
+**Remover:**
+- Cover image grande como destaque (linhas 131-138)
+- Todos os botões de ação (Acessar ao Vivo, Assistir Gravação, Acessar) — linhas 193-222
+- Textos "Este evento foi encerrado" / "Aguarde informações de acesso"
 
-**openEditModal:**
-- Buscar materials do evento via `supabase.from("event_materials").select("*").eq("event_id", event.id).order("sort_order")`
-- Popular `formData.materials` com os dados carregados
+### 3. Player de vídeo (após header)
 
-**Helpers (mesmo padrão de sessions):**
-- `addMaterial()` — push novo material com defaults (type: 'video', sort_order: materials.length)
-- `removeMaterial(index)` — filter by index
-- `updateMaterial(index, field, value)` — map and update
+- Se `youtubeId` existe → iframe embed 16:9 com título "Gravação do Evento"
+- Se `youtubeId` não existe mas `cover_url` existe → mostrar cover image como fallback visual
+- Se nenhum dos dois → nada
 
-**handleSubmit:**
-- Passar `formData.materials` no payload (filtrar items sem title ou url)
+### 4. Mensagem contextual (após vídeo/capa)
 
-**UI — nova seção após sessions (antes dos botões de ação):**
-- Cabeçalho: "Materiais" + botão "+ Adicionar Material"
-- Cards com: Select tipo (video/ebook/photo/slide), Input título, Input URL, Textarea descrição, Input thumbnail_url, Input sort_order (number), Switch is_free
-- Botão X para remover (mesmo estilo das sessions)
-- Mensagem "Nenhum material adicionado" quando vazio
+- Somente se NÃO há `youtubeUrl` E `materials.length === 0`:
+  - Futuro → "O conteúdo será disponibilizado após o evento"
+  - Encerrado → "Conteúdo em preparação — será publicado em breve"
+
+### 5. Seção de materiais — NÃO alterar (linhas 226-234)
+
+### 6. Cleanup de imports
+
+- Remover `YoutubeLogo` (não mais usado como ícone de botão)
+- Manter demais imports
 
 ## Arquivos alterados
 
-- `src/hooks/useAdminEvents.ts` — MaterialInput + persistência
-- `src/pages/admin/Events.tsx` — FormData + UI de materiais
-
-## Escopo
-
-Zero mudanças em: banco, RLS, página pública, hook useEventDetail, Events.tsx público
+- `src/pages/EventDetail.tsx` — único arquivo
 
