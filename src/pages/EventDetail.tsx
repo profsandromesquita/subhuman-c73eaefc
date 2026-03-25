@@ -93,8 +93,8 @@ export default function EventDetail() {
   const hasSessions = event ? event.sessions.length > 0 : false;
   const isPast = event ? hasSessions && event.sessions.every((s) => s.ends_at < now) : false;
 
-  const meetUrl = event?.meet_url as string | null;
-  const youtubeUrl = event?.youtube_url as string | null;
+  const meetUrl = event?.meet_url;
+  const youtubeUrl = event?.youtube_url;
 
   const youtubeId = youtubeUrl ? extractYouTubeId(youtubeUrl) : null;
 
