@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { useEventBySlug, type EventMaterial } from "@/hooks/useEventDetail";
@@ -5,9 +6,25 @@ import { typeLabels, modalityLabels } from "@/lib/constants/events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, ArrowLeft, Play, BookOpen, Image, Presentation, ArrowSquareOut, YoutubeLogo } from "@phosphor-icons/react";
+import { CalendarBlank, MapPin, VideoCamera, Users as UsersIcon, ArrowLeft, Play, BookOpen, Image, Presentation, ArrowSquareOut } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("/")[0] || null;
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const segments = u.pathname.split("/").filter(Boolean);
+      if (["embed", "live"].includes(segments[0]) && segments[1]) return segments[1];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 const materialIcons: Record<string, React.ElementType> = {
   video: Play,
@@ -55,11 +72,10 @@ function MaterialCard({ material }: { material: EventMaterial }) {
 function EventDetailSkeleton() {
   return (
     <div className="space-y-4">
-      <Skeleton className="w-full h-48 rounded-xl" />
       <div className="flex gap-2"><Skeleton className="h-5 w-20" /><Skeleton className="h-5 w-24" /></div>
       <Skeleton className="h-8 w-3/4" />
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-10 w-full rounded-lg" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="w-full rounded-lg" style={{ aspectRatio: "16/9" }} />
     </div>
   );
 }
@@ -68,6 +84,7 @@ export default function EventDetail() {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   const navigate = useNavigate();
   const { data, isLoading, error } = useEventBySlug(eventSlug);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const event = data?.event;
   const materials = data?.materials || [];
@@ -76,9 +93,10 @@ export default function EventDetail() {
   const hasSessions = event ? event.sessions.length > 0 : false;
   const isPast = event ? hasSessions && event.sessions.every((s) => s.ends_at < now) : false;
 
-  const meetUrl = (event as any)?.meet_url as string | null;
-  const youtubeUrl = (event as any)?.youtube_url as string | null;
-  const accessUrl = (event as any)?.access_url as string | null;
+  const meetUrl = event?.meet_url as string | null;
+  const youtubeUrl = event?.youtube_url as string | null;
+
+  const youtubeId = youtubeUrl ? extractYouTubeId(youtubeUrl) : null;
 
   const getPriceLabel = () => {
     if (!event) return "";
@@ -88,9 +106,6 @@ export default function EventDetail() {
   };
 
   const showMeetButton = !!meetUrl && !isPast;
-  const showYoutubeButton = !!youtubeUrl && isPast;
-  const showAccessButton = !!accessUrl;
-  const hasAnyButton = showMeetButton || showYoutubeButton || showAccessButton;
 
   return (
     <AppLayout>
@@ -128,101 +143,106 @@ export default function EventDetail() {
 
         {event && !isLoading && (
           <>
-            {/* Cover */}
-            {event.cover_url ? (
-              <img src={event.cover_url} alt={event.title} className="w-full h-48 sm:h-64 lg:h-80 object-cover rounded-xl" />
-            ) : (
-              <div className="w-full h-48 sm:h-64 lg:h-80 bg-secondary rounded-xl flex items-center justify-center">
-                <CalendarBlank className="w-12 h-12 text-muted-foreground" />
-              </div>
-            )}
-
             {/* Badges */}
             <div className="flex gap-2 flex-wrap">
               <Badge variant="secondary" className="text-xs">{typeLabels[event.event_type] || event.event_type}</Badge>
               <Badge variant="outline" className="text-xs">{modalityLabels[event.modality] || event.modality}</Badge>
               {isPast && <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30">Encerrado</Badge>}
+              {hasSessions && !isPast && <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Em breve</Badge>}
             </div>
 
             {/* Title */}
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">{event.title}</h1>
 
-            {/* Description */}
-            {event.description && (
-              <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{event.description}</p>
-            )}
-
             {/* Metadata */}
-            <div className="space-y-2 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {event.sessions.map((session) => (
-                <div key={session.id} className="flex items-center gap-2">
+                <span key={session.id} className="flex items-center gap-1.5">
                   <CalendarBlank className="w-4 h-4 flex-shrink-0" />
-                  <span>
-                    {format(new Date(session.starts_at), "d 'de' MMMM, HH'h'mm", { locale: ptBR })}
-                    {" – "}
-                    {format(new Date(session.ends_at), "HH'h'mm")}
-                  </span>
-                </div>
+                  {format(new Date(session.starts_at), "d 'de' MMMM, HH'h'mm", { locale: ptBR })}
+                  {" – "}
+                  {format(new Date(session.ends_at), "HH'h'mm")}
+                </span>
               ))}
               {event.sessions.length === 0 && (
-                <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   <CalendarBlank className="w-4 h-4 flex-shrink-0" />
-                  <span>Sem datas definidas</span>
-                </div>
+                  Sem datas definidas
+                </span>
               )}
               {event.location && (
-                <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   {event.modality?.startsWith("online") ? <VideoCamera className="w-4 h-4 flex-shrink-0" /> : <MapPin className="w-4 h-4 flex-shrink-0" />}
-                  <span>{event.location}</span>
-                </div>
+                  {event.location}
+                </span>
               )}
               {event.max_participants && (
-                <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   <UsersIcon className="w-4 h-4 flex-shrink-0" />
-                  <span>Máx. {event.max_participants} participantes</span>
-                </div>
+                  Máx. {event.max_participants}
+                </span>
               )}
-            </div>
-
-            {/* Price + Actions */}
-            <div className="space-y-3">
               {getPriceLabel() && (
-                <span className={`font-semibold text-lg ${event.is_free ? "text-green-500" : "text-foreground"}`}>{getPriceLabel()}</span>
-              )}
-
-              {hasAnyButton ? (
-                <div className="flex flex-col gap-2">
-                  {showMeetButton && (
-                    <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" onClick={() => window.open(meetUrl!, "_blank")}>
-                      <VideoCamera className="w-4 h-4 mr-2" />
-                      Acessar ao Vivo
-                    </Button>
-                  )}
-                  {showYoutubeButton && (
-                    <Button variant="outline" className="w-full rounded-lg" onClick={() => window.open(youtubeUrl!, "_blank")}>
-                      <YoutubeLogo className="w-4 h-4 mr-2" />
-                      Assistir Gravação
-                    </Button>
-                  )}
-                  {showAccessButton && (
-                    <Button
-                      className={`w-full rounded-lg ${!showMeetButton && !showYoutubeButton ? "bg-green-600 hover:bg-green-700 text-foreground" : ""}`}
-                      variant={showMeetButton || showYoutubeButton ? "outline" : "default"}
-                      onClick={() => window.open(accessUrl!, "_blank")}
-                    >
-                      <ArrowSquareOut className="w-4 h-4 mr-2" />
-                      Acessar
-                    </Button>
-                  )}
-                </div>
-              ) : isPast ? (
-                <p className="text-sm text-muted-foreground">Este evento foi encerrado</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Aguarde informações de acesso</p>
+                <span className={`font-medium ${event.is_free ? "text-green-500" : "text-foreground"}`}>
+                  {getPriceLabel()}
+                </span>
               )}
             </div>
 
-            {/* Materials */}
+            {/* Collapsible description */}
+            {event.description && (
+              <div>
+                <p
+                  className={`text-sm text-muted-foreground whitespace-pre-line leading-relaxed ${!isDescriptionExpanded ? "line-clamp-3" : ""}`}
+                >
+                  {event.description}
+                </p>
+                <button
+                  onClick={() => setIsDescriptionExpanded((v) => !v)}
+                  className="text-xs text-primary hover:underline mt-1"
+                >
+                  {isDescriptionExpanded ? "Recolher" : "Ver descrição completa"}
+                </button>
+              </div>
+            )}
+
+            {/* Live button */}
+            {showMeetButton && (
+              <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" onClick={() => window.open(meetUrl!, "_blank")}>
+                <VideoCamera className="w-4 h-4 mr-2" />
+                Entrar na Sala ao Vivo
+              </Button>
+            )}
+
+            {/* Video player OR cover fallback */}
+            {youtubeId ? (
+              <div className="w-full">
+                <h2 className="text-lg font-semibold mb-3">Gravação do Evento</h2>
+                <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                    className="w-full h-full"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Gravação do evento"
+                  />
+                </div>
+              </div>
+            ) : event.cover_url ? (
+              <img src={event.cover_url} alt={event.title} className="w-full rounded-xl object-cover max-h-80" />
+            ) : null}
+
+            {/* Contextual message when no content */}
+            {!youtubeUrl && materials.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {isPast
+                  ? "Conteúdo em preparação — será publicado em breve"
+                  : "O conteúdo será disponibilizado após o evento"}
+              </p>
+            )}
+
+            {/* Materials (unchanged) */}
             {materials.length > 0 && (
               <div className="space-y-3 pt-2">
                 <h2 className="text-lg font-semibold text-foreground">Materiais do Evento</h2>
