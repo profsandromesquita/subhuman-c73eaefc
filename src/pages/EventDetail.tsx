@@ -43,6 +43,14 @@ const materialTypeLabels: Record<string, string> = {
 function MaterialCard({ material }: { material: EventMaterial }) {
   const Icon = materialIcons[material.type] || Play;
 
+  let thumbnailUrl = material.thumbnail_url;
+  if (!thumbnailUrl && material.type === "video" && material.url) {
+    const videoId = extractYouTubeId(material.url);
+    if (videoId) {
+      thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    }
+  }
+
   return (
     <a
       href={material.url}
@@ -50,8 +58,8 @@ function MaterialCard({ material }: { material: EventMaterial }) {
       rel="noopener noreferrer"
       className="flex items-start gap-3 p-3 rounded-xl bg-card hover:ring-1 hover:ring-border transition-all group"
     >
-      {material.thumbnail_url ? (
-        <img src={material.thumbnail_url} alt={material.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+      {thumbnailUrl ? (
+        <img src={thumbnailUrl} alt={material.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
       ) : (
         <div className="w-16 h-16 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
           <Icon className="w-6 h-6 text-muted-foreground" />
@@ -93,13 +101,6 @@ export default function EventDetail() {
   const hasSessions = event ? event.sessions.length > 0 : false;
   const isPast = event ? hasSessions && event.sessions.every((s) => s.ends_at < now) : false;
 
-  const meetUrl = event?.meet_url;
-  const youtubeUrl = event?.youtube_url
-    || materials.find((m) => m.type === "video")?.url
-    || null;
-
-  const youtubeId = youtubeUrl ? extractYouTubeId(youtubeUrl) : null;
-
   const getPriceLabel = () => {
     if (!event) return "";
     if (event.is_free) return "Gratuito";
@@ -107,7 +108,7 @@ export default function EventDetail() {
     return "Incluso no plano";
   };
 
-  const showMeetButton = !!meetUrl && !isPast;
+  const showMeetButton = !!event?.meet_url && !isPast;
 
   return (
     <AppLayout>
@@ -210,33 +211,23 @@ export default function EventDetail() {
 
             {/* Live button */}
             {showMeetButton && (
-              <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" onClick={() => window.open(meetUrl!, "_blank")}>
+              <Button className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-foreground" onClick={() => window.open(event.meet_url!, "_blank")}>
                 <VideoCamera className="w-4 h-4 mr-2" />
                 Entrar na Sala ao Vivo
               </Button>
             )}
 
-            {/* Video player OR cover fallback */}
-            {youtubeId ? (
-              <div className="w-full">
-                <h2 className="text-lg font-semibold mb-3">Gravação do Evento</h2>
-                <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "16/9" }}>
-                  <iframe
-                    src={`https://www.youtube.com/embed/${youtubeId}`}
-                    className="w-full h-full"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title="Gravação do evento"
-                  />
-                </div>
-              </div>
-            ) : event.cover_url ? (
+            {/* Cover image or placeholder */}
+            {event.cover_url ? (
               <img src={event.cover_url} alt={event.title} className="w-full rounded-xl object-cover max-h-80" />
-            ) : null}
+            ) : (
+              <div className="w-full rounded-xl bg-secondary flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
+                <CalendarBlank className="w-12 h-12 text-muted-foreground/50" />
+              </div>
+            )}
 
             {/* Contextual message when no content */}
-            {!youtubeUrl && materials.length === 0 && (
+            {materials.length === 0 && !event.cover_url && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 {isPast
                   ? "Conteúdo em preparação — será publicado em breve"
