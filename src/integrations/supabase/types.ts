@@ -1598,6 +1598,7 @@ export type Database = {
       }
       space_updates: {
         Row: {
+          audio_url: string | null
           author_id: string | null
           content: string | null
           created_at: string
@@ -1614,6 +1615,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_url?: string | null
           author_id?: string | null
           content?: string | null
           created_at?: string
@@ -1630,6 +1632,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_url?: string | null
           author_id?: string | null
           content?: string | null
           created_at?: string

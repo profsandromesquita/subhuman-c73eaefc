@@ -58,6 +58,35 @@ interface Space {
   name: string;
 }
 
+async function generateArticleAudio(postId: string, htmlContent: string): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts-generate`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: postId, html_content: htmlContent }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Audio generation failed:', await response.text());
+      return;
+    }
+
+    const { audio_url } = await response.json();
+    console.log('Audio generated:', audio_url);
+  } catch (err) {
+    console.error('Audio generation error:', err);
+  }
+}
+
 export default function SpaceContent() {
   const { user } = useAdminAuth();
   const { saveMediaToSpaceUpdate, deleteMediaFromSpaceUpdate, getMediaForSpaceUpdate } = useMediaUpload();
@@ -155,6 +184,11 @@ export default function SpaceContent() {
         toast.success(publish ? 'Conteúdo publicado!' : 'Rascunho salvo!');
       }
 
+      // Dispara geração de áudio em background após publicação
+      if (publish && updateId && formData.content) {
+        generateArticleAudio(updateId, formData.content);
+      }
+
       // Save media if any
       if (updateId && media.length > 0) {
         await saveMediaToSpaceUpdate(updateId, media);
@@ -197,6 +231,12 @@ export default function SpaceContent() {
 
       if (error) throw error;
       toast.success('Conteúdo publicado!');
+
+      // Dispara geração de áudio em background
+      if (update.content) {
+        generateArticleAudio(update.id, update.content);
+      }
+
       fetchData();
     } catch (error) {
       console.error('Error publishing:', error);
