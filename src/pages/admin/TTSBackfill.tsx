@@ -32,15 +32,16 @@ export default function TTSBackfill() {
     const accumulated: BackfillResult = { success: 0, failed: 0, errors: [] };
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sessão inválida');
-
       let remaining = 999;
       let batch = 0;
 
       while (remaining > 0) {
         batch++;
         setCurrentBatch(batch);
+
+        // Renova o token a cada iteração — evita expiração em processos longos
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Sessão inválida');
 
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts-backfill`,
@@ -123,7 +124,7 @@ export default function TTSBackfill() {
 
         {status === 'running' && result && (
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-            <p className="text-sm text-muted-foreground">⏳ Processando em lotes de 5 artigos...</p>
+            <p className="text-sm text-muted-foreground">⏳ Processando 1 artigo por vez...</p>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold text-green-500">{result.success}</p>
