@@ -1,31 +1,39 @@
 
 
-# Diagnosis: YouTube player not rendering
+# Plano: Fallback do player para primeiro material de vídeo
 
-## Root cause
+## Diagnóstico
 
-**Not a code bug.** The only event with `youtube_url` filled has a YouTube **channel** URL (`https://www.youtube.com/@Prof.SandroMesquita`), not a video URL. The `extractYouTubeId` function correctly returns `null` for channel URLs.
+O problema é simples: o campo `youtube_url` na tabela `events` está **NULL** para o evento "Crie seu site em 6h usando IA". A URL do YouTube (`https://www.youtube.com/watch?v=UvgB3hDrd1A`) foi cadastrada como **material** (na tabela `event_materials`), não no campo `youtube_url` do evento.
 
-## Fix: Minor cleanup only
+O player depende exclusivamente de `event.youtube_url` (linha 97), que está vazio — por isso mostra o fallback de imagem de capa.
 
-### File: `src/pages/EventDetail.tsx`
+## Correção
 
-1. **Remove unnecessary type casts** on lines 96-97. The `Event` type (`Tables<"events">`) already includes `youtube_url`, `meet_url`, and `access_url` as `string | null`.
+### Arquivo: `src/pages/EventDetail.tsx`
 
-Change:
-```ts
-const meetUrl = event?.meet_url as string | null;
-const youtubeUrl = event?.youtube_url as string | null;
-```
-To:
-```ts
+Alterar a derivação de `youtubeUrl` (linhas 96-99) para incluir fallback:
+
+```typescript
 const meetUrl = event?.meet_url;
-const youtubeUrl = event?.youtube_url;
+
+// Prioridade: youtube_url do evento → URL do primeiro material tipo "video"
+const youtubeUrl = event?.youtube_url 
+  || materials.find((m) => m.type === "video")?.url 
+  || null;
+
+const youtubeId = youtubeUrl ? extractYouTubeId(youtubeUrl) : null;
 ```
 
-2. No other code changes needed. The `extractYouTubeId` function and rendering logic are correct.
+Isso é tudo. A lógica de renderização do player (linha 218) já usa `youtubeId`, então vai funcionar automaticamente.
 
-## Action required (not code)
+### Comportamento resultante
 
-Update the event's `youtube_url` in the admin panel to an actual video URL (e.g., `https://www.youtube.com/watch?v=VIDEO_ID`) instead of a channel URL. The player will then render correctly.
+- Evento com `youtube_url` preenchido → usa esse (prioridade)
+- Evento sem `youtube_url` mas com material tipo "video" com URL do YouTube → player aparece com o primeiro vídeo
+- Evento sem nenhum dos dois → imagem de capa como fallback
+
+### Arquivo único alterado
+
+- `src/pages/EventDetail.tsx` — 1 linha alterada
 
