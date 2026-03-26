@@ -75,6 +75,7 @@ const RAGChunks = lazy(() => import("./pages/admin/rag/Chunks"));
 const RAGTest = lazy(() => import("./pages/admin/rag/Test"));
 const AdminEvents = lazy(() => import("./pages/admin/Events"));
 const ContentIntelligence = lazy(() => import("./pages/admin/ContentIntelligence"));
+const TTSBackfill = lazy(() => import("./pages/admin/TTSBackfill"));
 
 function ThemeInitializer() {
   useTheme();
@@ -155,6 +156,7 @@ const App = () => (
               <Route path="/admin/rag/documents" element={<AdminGuard><RAGDocuments /></AdminGuard>} />
               <Route path="/admin/rag/chunks" element={<AdminGuard><RAGChunks /></AdminGuard>} />
               <Route path="/admin/rag/test" element={<AdminGuard><RAGTest /></AdminGuard>} />
+              <Route path="/admin/tts-backfill" element={<AdminGuard requireAdmin><TTSBackfill /></AdminGuard>} />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />
