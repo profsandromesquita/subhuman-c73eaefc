@@ -24,6 +24,7 @@ interface Post {
   created_at: string;
   author_id: string | null;
   author: Author | null;
+  audio_url: string | null;
   space: {
     name: string;
     slug: string;
@@ -64,7 +65,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
         .from("space_updates")
         .select(`
           id, title, slug, content, thumbnail_url, media_type,
-          published_at, created_at, author_id,
+          published_at, created_at, author_id, audio_url,
           spaces!inner(name, slug)
         `)
         .eq("spaces.slug", spaceSlug)
