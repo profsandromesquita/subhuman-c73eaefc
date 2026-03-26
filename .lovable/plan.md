@@ -1,55 +1,27 @@
 
 
-# Plano: OpenAI TTS via Edge Function
+# Plano: Warm-up + Streaming no TTS
 
-## Resumo
+## 1. `src/components/article/ArticleTTSPlayer.tsx`
 
-Substituir Web Speech API por OpenAI TTS. 3 arquivos alterados + 1 Edge Function nova. Zero alterações em banco, PostContent, ou outros componentes.
+- Adicionar `import { supabase } from "@/integrations/supabase/client"`
+- Adicionar `useEffect` de warm-up após linha 18 (após `useIsMobile`): faz `setTimeout` de 1s, então envia `{ text: ' ' }` para a Edge Function com JWT. Falha silenciosa. Cleanup cancela o timer.
 
-## 1. Secret `OPENAI_API_KEY`
+## 2. `src/hooks/useArticleTTS.ts`
 
-Usar a ferramenta `add_secret` para solicitar ao usuário a chave da OpenAI antes de prosseguir.
+Substituir `generateAndPlayChunk` (linhas 90-155) pela versão com MediaSource:
 
-## 2. Edge Function `supabase/functions/tts-generate/index.ts`
-
-- Recebe `{ text: string }` via POST
-- Valida JWT via `Authorization` header + `supabase.auth.getUser()`
-- Chama `https://api.openai.com/v1/audio/speech` com model `tts-1-hd`, voice `nova`, format `mp3`
-- Trunca texto em 4000 chars (limite OpenAI: 4096)
-- Retorna stream de áudio `audio/mpeg` direto ao cliente
-- CORS headers padrão
-- Rejeita requests sem auth (401)
-
-Adicionar ao `supabase/config.toml`:
-```toml
-[functions.tts-generate]
-  verify_jwt = false
-```
-
-## 3. `src/hooks/useArticleTTS.ts` — reescrita completa
-
-- Remove toda dependência de `window.speechSynthesis`
-- `isSupported = true` (funciona em qualquer browser)
-- Recebe `blocks: string[]`, junta em texto único, divide em chunks de 4000 chars (quebra no último `. `)
-- Para cada chunk: chama Edge Function via `fetch` com JWT do Supabase, recebe blob MP3, cria `HTMLAudioElement`
-- `audio.onended` → gera próximo chunk (recursivo)
-- `play`: se pausado, resume audio; senão inicia pipeline
-- `pause`: `audio.pause()`
-- `stop`: cancela, revoga Object URLs, limpa refs
-- Cleanup no `useEffect` return
-
-## 4. `src/components/article/ArticleTTSPlayer.tsx` — 1 linha
-
-Linha 88: trocar `'Carregando...'` por `'Gerando áudio...'`
-
-## 5. `src/utils/htmlToSpeechText.ts` — sem alteração
-
-O guard de `<p>` dentro de `<li>` já existe (linhas 26-31).
+- Se `MediaSource` disponível e suporta `audio/mpeg` e `response.body` existe:
+  - Cria `MediaSource` → `URL.createObjectURL` → `new Audio(url)`
+  - No `sourceopen`: cria `SourceBuffer('audio/mpeg')`, lê stream via `reader.read()` loop
+  - Aguarda `updateend` antes de cada `appendBuffer`
+  - Chama `endOfStream()` quando `done`
+  - Inicia `audio.play()` assim que o sourceopen dispara (áudio começa com primeiros bytes)
+- Else (Safari iOS fallback): mantém lógica atual com `response.blob()`
+- Ambos os paths compartilham `onended` → próximo chunk e `onerror` → status error
 
 ## Arquivos alterados
 
-1. `supabase/functions/tts-generate/index.ts` — novo
-2. `supabase/config.toml` — adicionar bloco tts-generate
-3. `src/hooks/useArticleTTS.ts` — reescrita completa
-4. `src/components/article/ArticleTTSPlayer.tsx` — 1 linha (texto loading)
+1. `src/components/article/ArticleTTSPlayer.tsx` — import + useEffect warm-up
+2. `src/hooks/useArticleTTS.ts` — generateAndPlayChunk com MediaSource + fallback
 
