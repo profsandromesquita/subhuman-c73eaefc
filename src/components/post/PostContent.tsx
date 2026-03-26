@@ -146,7 +146,7 @@ export function PostContent({
     return () => el.removeEventListener('click', handleMentionClick);
   }, [handleMentionClick, content]);
 
-  // Inject copy buttons into code blocks
+  // Inject copy buttons into code blocks + syntax highlighting
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
@@ -160,12 +160,18 @@ export function PostContent({
 
       const preBlocks = el.querySelectorAll('pre');
       preBlocks.forEach((pre) => {
+        // Syntax highlighting
+        const codeEl = pre.querySelector('code');
+        if (codeEl && !codeEl.dataset.highlighted) {
+          hljs.highlightElement(codeEl);
+        }
+
         pre.style.position = 'relative';
         const container = document.createElement('div');
         container.className = 'code-copy-btn';
         pre.appendChild(container);
 
-        const codeText = pre.querySelector('code')?.textContent || pre.textContent || '';
+        const codeText = codeEl?.textContent || pre.textContent || '';
         const root = createRoot(container);
         root.render(<CodeBlockCopyButton code={codeText} />);
         roots.push(root);
