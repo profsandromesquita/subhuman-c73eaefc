@@ -1,19 +1,55 @@
 
 
-# Plano: Fix duplicação de listas + chunking maior no TTS
+# Plano: OpenAI TTS via Edge Function
 
-## 1. `src/utils/htmlToSpeechText.ts` — reescrita completa
+## Resumo
 
-- Função interna `extractBlocks`: ignora `<p>` filhos diretos de `<li>` (causa da duplicação no Tiptap)
-- `htmlToSpeechBlocks` agrupa blocos em chunks de até 3000 chars (menos utterances = menos cold starts = leitura mais fluida)
-- Mantém `htmlToSpeechText` como wrapper de compatibilidade
+Substituir Web Speech API por OpenAI TTS. 3 arquivos alterados + 1 Edge Function nova. Zero alterações em banco, PostContent, ou outros componentes.
 
-## 2. `src/hooks/useArticleTTS.ts` — 1 linha
+## 1. Secret `OPENAI_API_KEY`
 
-- Alterar `utterance.rate` de `0.92` para `1.0`
+Usar a ferramenta `add_secret` para solicitar ao usuário a chave da OpenAI antes de prosseguir.
+
+## 2. Edge Function `supabase/functions/tts-generate/index.ts`
+
+- Recebe `{ text: string }` via POST
+- Valida JWT via `Authorization` header + `supabase.auth.getUser()`
+- Chama `https://api.openai.com/v1/audio/speech` com model `tts-1-hd`, voice `nova`, format `mp3`
+- Trunca texto em 4000 chars (limite OpenAI: 4096)
+- Retorna stream de áudio `audio/mpeg` direto ao cliente
+- CORS headers padrão
+- Rejeita requests sem auth (401)
+
+Adicionar ao `supabase/config.toml`:
+```toml
+[functions.tts-generate]
+  verify_jwt = false
+```
+
+## 3. `src/hooks/useArticleTTS.ts` — reescrita completa
+
+- Remove toda dependência de `window.speechSynthesis`
+- `isSupported = true` (funciona em qualquer browser)
+- Recebe `blocks: string[]`, junta em texto único, divide em chunks de 4000 chars (quebra no último `. `)
+- Para cada chunk: chama Edge Function via `fetch` com JWT do Supabase, recebe blob MP3, cria `HTMLAudioElement`
+- `audio.onended` → gera próximo chunk (recursivo)
+- `play`: se pausado, resume audio; senão inicia pipeline
+- `pause`: `audio.pause()`
+- `stop`: cancela, revoga Object URLs, limpa refs
+- Cleanup no `useEffect` return
+
+## 4. `src/components/article/ArticleTTSPlayer.tsx` — 1 linha
+
+Linha 88: trocar `'Carregando...'` por `'Gerando áudio...'`
+
+## 5. `src/utils/htmlToSpeechText.ts` — sem alteração
+
+O guard de `<p>` dentro de `<li>` já existe (linhas 26-31).
 
 ## Arquivos alterados
 
-1. `src/utils/htmlToSpeechText.ts` — reescrita
-2. `src/hooks/useArticleTTS.ts` — linha do rate
+1. `supabase/functions/tts-generate/index.ts` — novo
+2. `supabase/config.toml` — adicionar bloco tts-generate
+3. `src/hooks/useArticleTTS.ts` — reescrita completa
+4. `src/components/article/ArticleTTSPlayer.tsx` — 1 linha (texto loading)
 
