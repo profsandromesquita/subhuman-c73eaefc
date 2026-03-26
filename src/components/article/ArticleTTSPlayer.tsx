@@ -4,7 +4,7 @@ import { Headphones, Pause, Play, X, WarningCircle } from "@phosphor-icons/react
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useArticleTTS } from "@/hooks/useArticleTTS";
-import { htmlToSpeechText } from "@/utils/htmlToSpeechText";
+import { htmlToSpeechBlocks } from "@/utils/htmlToSpeechText";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ArticleTTSPlayerProps {

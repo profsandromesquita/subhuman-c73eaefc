@@ -12,36 +12,17 @@ interface UseArticleTTSReturn {
   errorMessage: string | null;
 }
 
-function splitIntoChunks(text: string): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
-  const chunks: string[] = [];
-  let current = '';
-
-  for (const sentence of sentences) {
-    if ((current + sentence).length > 200 && current.length > 0) {
-      chunks.push(current.trim());
-      current = sentence;
-    } else {
-      current += sentence;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-
-  return chunks;
-}
-
-export function useArticleTTS(text: string): UseArticleTTSReturn {
+export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
   const [status, setStatus] = useState<TTSStatus>('idle');
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const chunksRef = useRef<string[]>([]);
-  const currentChunkRef = useRef(0);
+  const currentBlockRef = useRef(0);
   const isCancelledRef = useRef(false);
 
   const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
-  const getBestVoice = useCallback(() => {
+  const getBestVoice = useCallback((): SpeechSynthesisVoice | null => {
     const voices = window.speechSynthesis.getVoices();
     return (
       voices.find(v => v.name === 'Luciana') ||
@@ -53,33 +34,33 @@ export function useArticleTTS(text: string): UseArticleTTSReturn {
     );
   }, []);
 
-  const speakChunk = useCallback((chunkIndex: number) => {
+  const speakBlock = useCallback((index: number) => {
     if (isCancelledRef.current) return;
-    if (chunkIndex >= chunksRef.current.length) {
+    if (index >= blocks.length) {
       setStatus('idle');
       setProgress(0);
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(chunksRef.current[chunkIndex]);
+    const utterance = new SpeechSynthesisUtterance(blocks[index]);
     const voice = getBestVoice();
     if (voice) utterance.voice = voice;
 
     utterance.lang = 'pt-BR';
-    utterance.rate = 1.05;
+    utterance.rate = 0.92;
     utterance.pitch = 1;
     utterance.volume = 1;
 
     utterance.onstart = () => {
-      if (chunkIndex === 0) setStatus('playing');
+      if (index === 0) setStatus('playing');
     };
 
     utterance.onend = () => {
       if (isCancelledRef.current) return;
-      const nextIndex = chunkIndex + 1;
-      currentChunkRef.current = nextIndex;
-      setProgress(Math.round((nextIndex / chunksRef.current.length) * 100));
-      speakChunk(nextIndex);
+      const next = index + 1;
+      currentBlockRef.current = next;
+      setProgress(Math.round((next / blocks.length) * 100));
+      speakBlock(next);
     };
 
     utterance.onerror = (event) => {
@@ -89,13 +70,13 @@ export function useArticleTTS(text: string): UseArticleTTSReturn {
     };
 
     window.speechSynthesis.speak(utterance);
-  }, [getBestVoice]);
+  }, [blocks, getBestVoice]);
 
   const stop = useCallback(() => {
     if (!isSupported) return;
     isCancelledRef.current = true;
     window.speechSynthesis.cancel();
-    currentChunkRef.current = 0;
+    currentBlockRef.current = 0;
     setStatus('idle');
     setProgress(0);
   }, [isSupported]);
@@ -109,7 +90,7 @@ export function useArticleTTS(text: string): UseArticleTTSReturn {
 
   const play = useCallback(() => {
     if (!isSupported) { setStatus('unsupported'); return; }
-    if (!text) return;
+    if (!blocks.length) return;
 
     if (status === 'paused') {
       window.speechSynthesis.resume();
@@ -119,14 +100,11 @@ export function useArticleTTS(text: string): UseArticleTTSReturn {
 
     isCancelledRef.current = false;
     window.speechSynthesis.cancel();
-    chunksRef.current = splitIntoChunks(text);
-    currentChunkRef.current = 0;
+    currentBlockRef.current = 0;
     setStatus('loading');
     setProgress(0);
 
-    const startSpeaking = () => {
-      speakChunk(0);
-    };
+    const startSpeaking = () => speakBlock(0);
 
     if (window.speechSynthesis.getVoices().length > 0) {
       startSpeaking();
@@ -136,7 +114,7 @@ export function useArticleTTS(text: string): UseArticleTTSReturn {
         startSpeaking();
       };
     }
-  }, [text, status, isSupported, speakChunk]);
+  }, [blocks, status, isSupported, speakBlock]);
 
   const pause = useCallback(() => {
     if (!isSupported) return;
