@@ -1,43 +1,46 @@
 
 
-# Plano: 4 correções cirúrgicas no TTS
+# Plano: Fix NotAllowedError no TTS
 
-## 1. `supabase/functions/tts-generate/index.ts`
+## Problema
 
-### Correção 1 — Linha 5
-`tts-1-hd` → `tts-1`
+`audio.play()` é chamado após múltiplos `await` (getSession, fetch TTS), perdendo o contexto de gesto do usuário. Safari e Chrome bloqueiam com `NotAllowedError`.
 
-### Correção 2 — Linhas 45-52
-Substituir bloco `getClaims` por `getUser()` + `console.error`:
+## Correção 1 — Desbloquear AudioContext no clique (linhas 219-230)
+
+Na função `play()`, após as limpezas e antes de `await generateAndPlayChunk(0)`, inserir bloco síncrono que cria `AudioContext`, toca buffer silencioso e fecha após 500ms. Isso "desbloqueia" o áudio no contexto do gesto do usuário.
+
 ```typescript
-const { data: { user }, error: authError } = await supabase.auth.getUser();
-if (authError || !user) {
-  console.error('Auth failed:', authError?.message ?? 'no user');
-  return new Response(
-    JSON.stringify({ error: 'Unauthorized' }),
-    { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
-```
-Nota: `getUser()` usa o header Authorization já passado ao client — não precisa de `token` manual. A linha 45 (`const token = ...`) é removida.
-
-## 2. `src/hooks/useArticleTTS.ts`
-
-### Correção 3 — Linha 23
-`20000` → `30000`
-
-### Correção 4 — Linhas 224-225
-Substituir:
-```typescript
-const fullText = blocks.join(' ');
-chunksRef.current = splitIntoChunks(fullText);
-```
-Por:
-```typescript
-chunksRef.current = blocks;
+// Após setErrorMessage(null) e antes de await generateAndPlayChunk(0):
+try {
+  const AC = window.AudioContext || (window as any).webkitAudioContext;
+  if (AC) {
+    const ctx = new AC();
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+    setTimeout(() => ctx.close(), 500);
+  }
+} catch { /* falha silenciosa */ }
 ```
 
-## Arquivos alterados
-1. `supabase/functions/tts-generate/index.ts` — 2 edits (model + auth)
-2. `src/hooks/useArticleTTS.ts` — 2 edits (timeout + chunking)
+## Correção 2 — Não awaitar audio.play() (linhas 199-200)
+
+Em `generateAndPlayChunk`, substituir `await audio.play()` por `.catch()`:
+
+```typescript
+audio.play().catch(err => {
+  if (isCancelledRef.current) return;
+  console.error('audio.play() failed:', err);
+  setStatus('error');
+  setErrorMessage('Não foi possível reproduzir o áudio.');
+});
+if (chunkIndex === 0) setStatus('playing');
+```
+
+## Arquivo alterado
+
+`src/hooks/useArticleTTS.ts` — 2 edits (play + generateAndPlayChunk)
 
