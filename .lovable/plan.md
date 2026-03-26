@@ -1,31 +1,35 @@
 
 
-# Plano: 3 correções no ArticleTTSPlayer
+# Plano: Blocos semânticos para TTS + ajuste de naturalidade
 
-## Correção 1 — `src/hooks/useArticleTTS.ts`
-Reescrever completamente com abordagem de chunks por sentença (~200 chars cada). Inclui `splitIntoChunks`, `getBestVoice` (prioriza "Luciana" e vozes brasileiras), `speakChunk` recursivo, refs para chunks/currentChunk/isCancelled. Rate alterada para 1.05.
+## Resumo
 
-## Correção 2 — `src/utils/htmlToSpeechText.ts`
-Substituir linhas 17-21: em vez de sempre adicionar `. `, só adicionar ponto quando o texto do bloco não termina com pontuação (`[.!?]`).
+3 arquivos alterados. A mudança principal é trocar a estratégia de chunking por caractere para chunking por parágrafo/bloco HTML, preservando a estrutura natural do texto.
 
-## Correção 3 — `src/components/article/ArticleTTSPlayer.tsx` + `src/index.css`
+## 1. `src/utils/htmlToSpeechText.ts` — reescrita completa
 
-**ArticleTTSPlayer**: Adicionar `useEffect` que, quando `isActive && isMobile`, seta CSS variable `--tts-player-height: 72px` e classe `tts-player-active` no body. Cleanup no return.
+Adicionar nova função `htmlToSpeechBlocks(html): string[]` que extrai cada bloco semântico (`h1-h6`, `p`, `li`, `blockquote`) como item separado do array. Manter `htmlToSpeechText` como wrapper que junta os blocos (compatibilidade).
 
-**CommentInput** usa `fixed bottom-0`. O TTS player usa `fixed bottom-16`. Quando ambos estão visíveis, o CommentInput fica atrás do player.
+Fallback: se nenhum bloco estruturado for encontrado, divide o texto puro por sentenças.
 
-**index.css**: Adicionar regra que empurra o CommentInput para cima quando o player está ativo:
-```css
-body.tts-player-active .fixed.bottom-0 {
-  bottom: var(--tts-player-height, 72px);
-}
-```
+## 2. `src/hooks/useArticleTTS.ts` — reescrita completa
 
-Alternativa mais segura — usar seletor mais específico baseado no container do CommentInput (`fixed bottom-0 left-0 right-0` com `border-t`).
+- Assinatura muda de `useArticleTTS(text: string)` para `useArticleTTS(blocks: string[])`
+- Remove `splitIntoChunks` (não mais necessário)
+- `speakBlock` usa `blocks[index]` diretamente (prop, não ref)
+- Rate alterada de `1.05` para `0.92` para tom mais natural
+- Lógica de fila recursiva mantida (speakBlock → onend → speakBlock(next))
+- `play` usa `blocks.length` em vez de `text`
+
+## 3. `src/components/article/ArticleTTSPlayer.tsx` — 2 linhas
+
+- Import: trocar `htmlToSpeechText` por `htmlToSpeechBlocks`
+- useMemo: `htmlToSpeechBlocks(htmlContent)` em vez de `htmlToSpeechText(htmlContent)`
+- Hook call: passa array ao `useArticleTTS`
 
 ## Arquivos alterados
-1. `src/hooks/useArticleTTS.ts` — reescrita completa
-2. `src/utils/htmlToSpeechText.ts` — linhas 17-21
-3. `src/components/article/ArticleTTSPlayer.tsx` — adicionar useEffect + import
-4. `src/index.css` — adicionar 1 regra CSS
+
+1. `src/utils/htmlToSpeechText.ts` — reescrita
+2. `src/hooks/useArticleTTS.ts` — reescrita
+3. `src/components/article/ArticleTTSPlayer.tsx` — import + useMemo (2 linhas)
 
