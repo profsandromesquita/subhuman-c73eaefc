@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
-export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error' | 'unsupported';
+export type TTSStatus =
+  | 'idle'
+  | 'loading'
+  | 'playing'
+  | 'paused'
+  | 'error'
+  | 'unsupported';
 
 interface UseArticleTTSReturn {
   status: TTSStatus;
@@ -12,115 +19,171 @@ interface UseArticleTTSReturn {
   errorMessage: string | null;
 }
 
+const MAX_CHARS_PER_CHUNK = 4000;
+
+function splitIntoChunks(text: string): string[] {
+  if (text.length <= MAX_CHARS_PER_CHUNK) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= MAX_CHARS_PER_CHUNK) {
+      chunks.push(remaining.trim());
+      break;
+    }
+    let cutAt = remaining.lastIndexOf('. ', MAX_CHARS_PER_CHUNK);
+    if (cutAt === -1) cutAt = MAX_CHARS_PER_CHUNK;
+    else cutAt += 1;
+
+    chunks.push(remaining.slice(0, cutAt).trim());
+    remaining = remaining.slice(cutAt).trim();
+  }
+
+  return chunks;
+}
+
 export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
   const [status, setStatus] = useState<TTSStatus>('idle');
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const currentBlockRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const chunksRef = useRef<string[]>([]);
+  const currentChunkRef = useRef(0);
+  const objectUrlsRef = useRef<string[]>([]);
   const isCancelledRef = useRef(false);
 
-  const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const isSupported = true;
 
-  const getBestVoice = useCallback((): SpeechSynthesisVoice | null => {
-    const voices = window.speechSynthesis.getVoices();
-    return (
-      voices.find(v => v.name === 'Luciana') ||
-      voices.find(v => v.name.toLowerCase().includes('brasil')) ||
-      voices.find(v => v.lang === 'pt-BR') ||
-      voices.find(v => v.lang === 'pt_BR') ||
-      voices.find(v => v.lang.startsWith('pt')) ||
-      null
-    );
+  const revokeObjectUrls = useCallback(() => {
+    objectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    objectUrlsRef.current = [];
   }, []);
 
-  const speakBlock = useCallback((index: number) => {
-    if (isCancelledRef.current) return;
-    if (index >= blocks.length) {
-      setStatus('idle');
-      setProgress(0);
-      return;
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
     }
-
-    const utterance = new SpeechSynthesisUtterance(blocks[index]);
-    const voice = getBestVoice();
-    if (voice) utterance.voice = voice;
-
-    utterance.lang = 'pt-BR';
-    utterance.rate = 1.0;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    utterance.onstart = () => {
-      if (index === 0) setStatus('playing');
-    };
-
-    utterance.onend = () => {
-      if (isCancelledRef.current) return;
-      const next = index + 1;
-      currentBlockRef.current = next;
-      setProgress(Math.round((next / blocks.length) * 100));
-      speakBlock(next);
-    };
-
-    utterance.onerror = (event) => {
-      if (event.error === 'interrupted' || event.error === 'canceled') return;
-      setStatus('error');
-      setErrorMessage('Não foi possível iniciar a leitura.');
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }, [blocks, getBestVoice]);
+  }, []);
 
   const stop = useCallback(() => {
-    if (!isSupported) return;
     isCancelledRef.current = true;
-    window.speechSynthesis.cancel();
-    currentBlockRef.current = 0;
+    stopAudio();
+    revokeObjectUrls();
+    currentChunkRef.current = 0;
     setStatus('idle');
     setProgress(0);
-  }, [isSupported]);
+    setErrorMessage(null);
+  }, [stopAudio, revokeObjectUrls]);
 
   useEffect(() => {
     return () => {
       isCancelledRef.current = true;
-      if (isSupported) window.speechSynthesis.cancel();
+      stopAudio();
+      revokeObjectUrls();
     };
-  }, [isSupported]);
+  }, [stopAudio, revokeObjectUrls]);
 
-  const play = useCallback(() => {
-    if (!isSupported) { setStatus('unsupported'); return; }
+  const generateAndPlayChunk = useCallback(async (chunkIndex: number) => {
+    if (isCancelledRef.current) return;
+    if (chunkIndex >= chunksRef.current.length) {
+      setStatus('idle');
+      setProgress(0);
+      revokeObjectUrls();
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/tts-generate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: chunksRef.current[chunkIndex] }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`TTS request failed: ${response.status}`);
+      }
+
+      if (isCancelledRef.current) return;
+
+      const audioBlob = await response.blob();
+      if (isCancelledRef.current) return;
+
+      const objectUrl = URL.createObjectURL(audioBlob);
+      objectUrlsRef.current.push(objectUrl);
+
+      const audio = new Audio(objectUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        if (isCancelledRef.current) return;
+        const next = chunkIndex + 1;
+        currentChunkRef.current = next;
+        setProgress(Math.round((next / chunksRef.current.length) * 100));
+        generateAndPlayChunk(next);
+      };
+
+      audio.onerror = () => {
+        if (isCancelledRef.current) return;
+        setStatus('error');
+        setErrorMessage('Erro ao reproduzir o áudio.');
+      };
+
+      await audio.play();
+      if (chunkIndex === 0) setStatus('playing');
+
+    } catch (err) {
+      if (isCancelledRef.current) return;
+      console.error('TTS chunk error:', err);
+      setStatus('error');
+      setErrorMessage('Não foi possível gerar o áudio. Tente novamente.');
+    }
+  }, [revokeObjectUrls]);
+
+  const play = useCallback(async () => {
     if (!blocks.length) return;
 
-    if (status === 'paused') {
-      window.speechSynthesis.resume();
+    if (status === 'paused' && audioRef.current) {
+      await audioRef.current.play();
       setStatus('playing');
       return;
     }
 
     isCancelledRef.current = false;
-    window.speechSynthesis.cancel();
-    currentBlockRef.current = 0;
+    stopAudio();
+    revokeObjectUrls();
+    currentChunkRef.current = 0;
+
+    const fullText = blocks.join(' ');
+    chunksRef.current = splitIntoChunks(fullText);
+
     setStatus('loading');
     setProgress(0);
+    setErrorMessage(null);
 
-    const startSpeaking = () => speakBlock(0);
-
-    if (window.speechSynthesis.getVoices().length > 0) {
-      startSpeaking();
-    } else {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        startSpeaking();
-      };
-    }
-  }, [blocks, status, isSupported, speakBlock]);
+    await generateAndPlayChunk(0);
+  }, [blocks, status, stopAudio, revokeObjectUrls, generateAndPlayChunk]);
 
   const pause = useCallback(() => {
-    if (!isSupported) return;
-    window.speechSynthesis.pause();
-    setStatus('paused');
-  }, [isSupported]);
+    if (audioRef.current && status === 'playing') {
+      audioRef.current.pause();
+      setStatus('paused');
+    }
+  }, [status]);
 
   return { status, progress, play, pause, stop, isSupported, errorMessage };
 }

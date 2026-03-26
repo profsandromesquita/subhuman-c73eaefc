@@ -85,7 +85,7 @@ export function ArticleTTSPlayer({ htmlContent, articleTitle }: ArticleTTSPlayer
 
       <div className="flex-1 min-w-0 space-y-1">
         <p className="text-xs text-muted-foreground truncate">
-          {status === 'loading' ? 'Carregando...' : status === 'paused' ? 'Pausado' : articleTitle}
+          {status === 'loading' ? 'Gerando áudio...' : status === 'paused' ? 'Pausado' : articleTitle}
         </p>
         <Progress value={progress} className="h-1" />
       </div>
