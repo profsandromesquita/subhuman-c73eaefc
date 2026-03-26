@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Headphones, Pause, Play, X, WarningCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,25 @@ export function ArticleTTSPlayer({ htmlContent, articleTitle }: ArticleTTSPlayer
   const { status, progress, play, pause, stop, isSupported } = useArticleTTS(plainText);
   const isMobile = useIsMobile();
 
-  if (!isSupported) return null;
-
   const isActive = status === 'playing' || status === 'paused' || status === 'loading';
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const PLAYER_HEIGHT = 72;
+    if (isActive) {
+      document.documentElement.style.setProperty('--tts-player-height', `${PLAYER_HEIGHT}px`);
+      document.body.classList.add('tts-player-active');
+    } else {
+      document.documentElement.style.removeProperty('--tts-player-height');
+      document.body.classList.remove('tts-player-active');
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--tts-player-height');
+      document.body.classList.remove('tts-player-active');
+    };
+  }, [isActive, isMobile]);
+
+  if (!isSupported) return null;
 
   // Idle state — simple button
   if (!isActive && status !== 'error') {
