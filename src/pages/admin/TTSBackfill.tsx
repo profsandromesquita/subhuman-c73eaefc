@@ -50,7 +50,7 @@ export default function TTSBackfill() {
               'Authorization': `Bearer ${session.access_token}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ limit: 5 }),
+            body: JSON.stringify({ limit: 1 }),
           }
         );
 
@@ -97,7 +97,7 @@ export default function TTSBackfill() {
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
           <p className="text-sm font-medium text-foreground">Informações do processo:</p>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Lotes de 5 artigos por vez</li>
+            <li>• 1 artigo processado por vez (evita timeout)</li>
             <li>• Artigos já gerados são ignorados automaticamente</li>
             <li>• Tempo estimado: ~30s por artigo</li>
           </ul>
