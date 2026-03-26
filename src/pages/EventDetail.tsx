@@ -94,7 +94,9 @@ export default function EventDetail() {
   const isPast = event ? hasSessions && event.sessions.every((s) => s.ends_at < now) : false;
 
   const meetUrl = event?.meet_url;
-  const youtubeUrl = event?.youtube_url;
+  const youtubeUrl = event?.youtube_url
+    || materials.find((m) => m.type === "video")?.url
+    || null;
 
   const youtubeId = youtubeUrl ? extractYouTubeId(youtubeUrl) : null;
 
