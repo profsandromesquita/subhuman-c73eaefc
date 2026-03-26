@@ -1,17 +1,23 @@
 
 
-# Plano: Remover MediaSource, usar apenas blob
+# Plano: Timeout + Retry no TTS, remover warm-up
 
-## Arquivo único: `src/hooks/useArticleTTS.ts`
+## 1. `src/hooks/useArticleTTS.ts` — substituição completa
 
-### Mudança
+Reescrever com a função `fetchTTSWithRetry` que:
+- Usa `AbortController` com timeout de 20s
+- Retenta até 2x em caso de timeout (`AbortError`) ou erro de rede (`TypeError`)
+- Log de retry no console
+- Mantém blob + HTMLAudioElement, sem MediaSource
 
-Substituir `generateAndPlayChunk` (que hoje tem branch MediaSource + fallback blob) pela versão simplificada que usa apenas `response.blob()` + `HTMLAudioElement`. Adiciona `ontimeupdate` para progresso granular durante reprodução de cada chunk.
+Resto do hook permanece igual (chunks, play/pause/stop, progress via `ontimeupdate`, cleanup).
 
-Remover também o helper `setupAudioEvents` que foi criado para o path MediaSource — a lógica de `onended`/`onerror` fica inline na nova função.
+## 2. `src/components/article/ArticleTTSPlayer.tsx` — remover warm-up
 
-### O que não muda
+Remover o `useEffect` de warm-up (linhas ~22-42) e o import de `supabase` que só era usado por ele.
 
-- Imports, tipos, `splitIntoChunks`, `stop`, `play`, `pause`, refs, cleanup — tudo permanece
-- Nenhum outro arquivo alterado
+## Arquivos alterados
+
+1. `src/hooks/useArticleTTS.ts` — substituição completa
+2. `src/components/article/ArticleTTSPlayer.tsx` — remover useEffect warm-up + import supabase
 
