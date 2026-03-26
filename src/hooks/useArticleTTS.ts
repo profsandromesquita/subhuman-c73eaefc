@@ -196,7 +196,12 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
         setErrorMessage('Erro ao reproduzir o áudio.');
       };
 
-      await audio.play();
+      audio.play().catch(err => {
+        if (isCancelledRef.current) return;
+        console.error('audio.play() failed:', err);
+        setStatus('error');
+        setErrorMessage('Não foi possível reproduzir o áudio.');
+      });
       if (chunkIndex === 0) setStatus('playing');
 
     } catch (err) {
@@ -226,6 +231,21 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
     setStatus('loading');
     setProgress(0);
     setErrorMessage(null);
+
+    // CRÍTICO: desbloquear contexto de áudio sincronicamente
+    // dentro do evento de clique, antes de qualquer await.
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (AC) {
+        const ctx = new AC();
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        setTimeout(() => ctx.close(), 500);
+      }
+    } catch { /* falha silenciosa */ }
 
     await generateAndPlayChunk(0);
   }, [blocks, status, stopAudio, revokeObjectUrls, generateAndPlayChunk]);
