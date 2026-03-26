@@ -6,7 +6,6 @@ import { Progress } from "@/components/ui/progress";
 import { useArticleTTS } from "@/hooks/useArticleTTS";
 import { htmlToSpeechBlocks } from "@/utils/htmlToSpeechText";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ArticleTTSPlayerProps {
   htmlContent: string;
@@ -18,27 +17,6 @@ export function ArticleTTSPlayer({ htmlContent, articleTitle }: ArticleTTSPlayer
   const { status, progress, play, pause, stop, isSupported } = useArticleTTS(speechBlocks);
   const isMobile = useIsMobile();
 
-  // Warm-up silencioso: acorda a Edge Function quando o artigo abre
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        await fetch(`${supabaseUrl}/functions/v1/tts-generate`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: ' ' }),
-        });
-      } catch {
-        // Falha silenciosa — warm-up é best-effort
-      }
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
 
   const isActive = status === 'playing' || status === 'paused' || status === 'loading';
 
