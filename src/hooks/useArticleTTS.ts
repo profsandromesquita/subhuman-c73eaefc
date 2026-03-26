@@ -20,6 +20,8 @@ interface UseArticleTTSReturn {
 }
 
 const MAX_CHARS_PER_CHUNK = 4000;
+const FETCH_TIMEOUT_MS = 20000;
+const MAX_RETRIES = 2;
 
 function splitIntoChunks(text: string): string[] {
   if (text.length <= MAX_CHARS_PER_CHUNK) return [text];
@@ -41,6 +43,52 @@ function splitIntoChunks(text: string): string[] {
   }
 
   return chunks;
+}
+
+async function fetchTTSWithRetry(
+  text: string,
+  accessToken: string,
+  supabaseUrl: string,
+  retriesLeft = MAX_RETRIES
+): Promise<Blob> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/tts-generate`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`TTS failed: ${response.status}`);
+    }
+
+    return await response.blob();
+
+  } catch (err) {
+    clearTimeout(timeoutId);
+
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
+    const isNetworkError = err instanceof TypeError;
+
+    if ((isTimeout || isNetworkError) && retriesLeft > 0) {
+      console.log(`TTS retry — tentativas restantes: ${retriesLeft}`);
+      return fetchTTSWithRetry(text, accessToken, supabaseUrl, retriesLeft - 1);
+    }
+
+    throw err;
+  }
 }
 
 export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
@@ -102,22 +150,12 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/tts-generate`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: chunksRef.current[chunkIndex] }),
-        }
+      const audioBlob = await fetchTTSWithRetry(
+        chunksRef.current[chunkIndex],
+        session.access_token,
+        supabaseUrl
       );
 
-      if (!response.ok) throw new Error(`TTS failed: ${response.status}`);
-      if (isCancelledRef.current) return;
-
-      const audioBlob = await response.blob();
       if (isCancelledRef.current) return;
 
       const objectUrl = URL.createObjectURL(audioBlob);
@@ -163,7 +201,7 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
 
     } catch (err) {
       if (isCancelledRef.current) return;
-      console.error('TTS chunk error:', err);
+      console.error('TTS error após retries:', err);
       setStatus('error');
       setErrorMessage('Não foi possível gerar o áudio. Tente novamente.');
     }
