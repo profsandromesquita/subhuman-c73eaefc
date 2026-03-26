@@ -13,8 +13,8 @@ interface ArticleTTSPlayerProps {
 }
 
 export function ArticleTTSPlayer({ htmlContent, articleTitle }: ArticleTTSPlayerProps) {
-  const plainText = useMemo(() => htmlToSpeechText(htmlContent), [htmlContent]);
-  const { status, progress, play, pause, stop, isSupported } = useArticleTTS(plainText);
+  const speechBlocks = useMemo(() => htmlToSpeechBlocks(htmlContent), [htmlContent]);
+  const { status, progress, play, pause, stop, isSupported } = useArticleTTS(speechBlocks);
   const isMobile = useIsMobile();
 
   const isActive = status === 'playing' || status === 'paused' || status === 'loading';
