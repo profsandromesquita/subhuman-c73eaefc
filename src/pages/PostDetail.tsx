@@ -47,6 +47,7 @@ export default function PostDetail() {
   const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
   const [optimisticLikesCount, setOptimisticLikesCount] = useState<number | null>(null);
   const [optimisticSaved, setOptimisticSaved] = useState<boolean | null>(null);
+  const [optimisticSavesCount, setOptimisticSavesCount] = useState<number | null>(null);
   const [localComments, setLocalComments] = useState<PostComment[] | null>(null);
   const [replyTo, setReplyTo] = useState<{ id: string; authorName: string } | null>(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
@@ -62,6 +63,7 @@ export default function PostDetail() {
   const isLiked = optimisticLiked ?? postDetail?.isLiked ?? false;
   const isSaved = optimisticSaved ?? postDetail?.isSaved ?? false;
   const likesCount = optimisticLikesCount ?? postDetail?.likesCount ?? 0;
+  const savesCount = optimisticSavesCount ?? postDetail?.savesCount ?? 0;
   const comments = localComments ?? postDetail?.comments ?? [];
   const media = postDetail?.media ?? [];
 
@@ -87,6 +89,7 @@ export default function PostDetail() {
 
     const wasSaved = isSaved;
     setOptimisticSaved(!isSaved);
+    setOptimisticSavesCount(wasSaved ? savesCount - 1 : savesCount + 1);
 
     try {
       if (wasSaved) {
@@ -98,6 +101,7 @@ export default function PostDetail() {
       }
     } catch {
       setOptimisticSaved(wasSaved);
+      setOptimisticSavesCount(wasSaved ? savesCount : savesCount);
       toast.error("Não foi possível salvar");
     }
   };
@@ -288,9 +292,12 @@ export default function PostDetail() {
           <PostEngagement
             likesCount={likesCount}
             commentsCount={comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+            savesCount={savesCount}
             isLiked={isLiked}
+            isSaved={isSaved}
             onLikeToggle={canLike ? handleLikeToggle : showAccessPrompt}
             onCommentClick={handleCommentClick}
+            onSave={handleSaveToggle}
           />
 
           {canComment && (
@@ -344,7 +351,7 @@ export default function PostDetail() {
                 }`}
               >
                 <BookmarkSimple className="w-4.5 h-4.5" weight={isSaved ? "fill" : "regular"} />
-                <span>{isSaved ? "Salvo" : "Salvar"}</span>
+                <span>{savesCount} {isSaved ? "salvo" : "salvos"}</span>
               </button>
             </div>
 
