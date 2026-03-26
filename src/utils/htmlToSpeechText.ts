@@ -14,10 +14,13 @@ export function htmlToSpeechText(html: string): string {
   );
   nonTextElements.forEach(el => el.remove());
 
-  // Adiciona pausas em pontos naturais
+  // Adiciona ponto final apenas quando o bloco não termina com pontuação
   const blockElements = temp.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, blockquote');
   blockElements.forEach(el => {
-    el.textContent = el.textContent + '. ';
+    const text = el.textContent?.trim();
+    if (text && !text.match(/[.!?]$/)) {
+      el.textContent = text + '. ';
+    }
   });
 
   return (temp.textContent || temp.innerText || '')

@@ -185,3 +185,8 @@
     animation: spotlight 2s ease 0.75s 1 forwards;
   }
 }
+
+/* TTS Player — empurra CommentInput para cima quando player está ativo no mobile */
+body.tts-player-active .fixed.bottom-0 {
+  bottom: var(--tts-player-height, 72px);
+}
