@@ -58,6 +58,35 @@ interface Space {
   name: string;
 }
 
+async function generateArticleAudio(postId: string, htmlContent: string): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts-generate`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: postId, html_content: htmlContent }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Audio generation failed:', await response.text());
+      return;
+    }
+
+    const { audio_url } = await response.json();
+    console.log('Audio generated:', audio_url);
+  } catch (err) {
+    console.error('Audio generation error:', err);
+  }
+}
+
 export default function SpaceContent() {
   const { user } = useAdminAuth();
   const { saveMediaToSpaceUpdate, deleteMediaFromSpaceUpdate, getMediaForSpaceUpdate } = useMediaUpload();
