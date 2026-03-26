@@ -20,7 +20,7 @@ interface UseArticleTTSReturn {
 }
 
 const MAX_CHARS_PER_CHUNK = 4000;
-const FETCH_TIMEOUT_MS = 20000;
+const FETCH_TIMEOUT_MS = 30000;
 const MAX_RETRIES = 2;
 
 function splitIntoChunks(text: string): string[] {
@@ -221,8 +221,7 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
     revokeObjectUrls();
     currentChunkRef.current = 0;
 
-    const fullText = blocks.join(' ');
-    chunksRef.current = splitIntoChunks(fullText);
+    chunksRef.current = blocks;
 
     setStatus('loading');
     setProgress(0);
