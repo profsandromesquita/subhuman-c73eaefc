@@ -1,60 +1,48 @@
 
 
-# Auditoria: Syntax Highlighting nos Code Blocks
+# Plano: Contagem de salvos no artigo
 
-## 1. Configuração atual do Tiptap
+## Etapa 1 — Migration RLS
 
-**Arquivo:** `src/components/editor/RichTextEditor.tsx`
+Nova policy SELECT pública em `saved_updates` para permitir COUNT global (a policy existente restringe a `auth.uid() = user_id`).
 
-**Extensões em uso:**
-- StarterKit (inclui `CodeBlock` básico, sem highlighting)
-- Link, Image, Youtube, Underline, TextStyle, Color, Highlight, Placeholder, Mention
+```sql
+CREATE POLICY "Anyone can count saves"
+ON public.saved_updates FOR SELECT TO public USING (true);
+```
 
-**Pacotes NÃO instalados:**
-- `@tiptap/extension-code-block-lowlight` — ausente
-- `lowlight` — ausente
-- `highlight.js` — ausente
-- Nenhuma biblioteca de syntax highlighting (prism, shiki) instalada
+## Etapa 2 — `src/hooks/usePostDetail.ts`
 
-O `StarterKit` inclui um `CodeBlock` básico que gera `<pre><code>` sem classes de linguagem e sem colorização.
+- Adicionar 7ª query paralela no `Promise.all` (linha 79-119): `saved_updates.select("id", { count: "exact", head: true }).eq("update_id", postData.id)`
+- Desestruturar como `savesCountResult`
+- No return (linha 186): adicionar `savesCount: savesCountResult.count || 0`
+- Na interface `PostDetailData`: adicionar `savesCount: number`
 
-## 2. Renderização atual dos code blocks
+## Etapa 3 — `src/pages/PostDetail.tsx`
 
-**PostContent.tsx:** Renderiza HTML via `dangerouslySetInnerHTML` com DOMPurify. Não há syntax highlighting em runtime.
+### 3.1 — Estado optimistic
+Adicionar `optimisticSavesCount` (useState, default null) junto aos outros optimistic states (linhas 47-49). Derivar `savesCount` como `optimisticSavesCount ?? postDetail?.savesCount ?? 0`.
 
-**CSS em `src/components/editor/editor.css`:**
-- `pre` recebe fundo `#141414`, borda `#262626`, border-radius 12px
-- `code` dentro de `pre` recebe cor fixa `#e5e7eb` (cinza claro), fonte monospace
-- **Tudo é monocromático** — não há classes `.hljs-*` ou tokens coloridos
+### 3.2 — handleSaveToggle optimistic
+Nas linhas 88-89, adicionar `setOptimisticSavesCount(wasSaved ? savesCount - 1 : savesCount + 1)`. No catch (linha 100), reverter: `setOptimisticSavesCount(wasSaved ? savesCount : savesCount)`.
 
-**HTML salvo no banco:** Tags `<pre><code>` sem atributo `class` de linguagem (StarterKit CodeBlock não adiciona).
+### 3.3 — Sidebar desktop (linha 340-348)
+Trocar `{isSaved ? "Salvo" : "Salvar"}` por `{savesCount} salvos` + label abaixo (`isSaved ? "Salvo" : "Salvar"`), mantendo o padrão visual de curtidas/comentários.
 
-## 3. Tema visual
+### 3.4 — Passar props ao PostEngagement (linha 288-294)
+Adicionar `savesCount`, `isSaved`, `onSave={handleSaveToggle}`.
 
-- Dark-only (`#000000` fundo, `#141414` cards)
-- Nenhuma biblioteca de highlighting instalada
+## Etapa 4 — `src/components/post/PostEngagement.tsx`
 
-## 4. Arquivos relevantes
+- Expandir interface com `savesCount`, `isSaved`, `onSave`
+- Na seção Stats: adicionar `BookmarkSimple` + `{savesCount} salvos`
+- Na seção Action Buttons: adicionar botão "Salvar" com ícone `BookmarkSimple`, toggle visual fill/regular
+- Importar `BookmarkSimple` de `@phosphor-icons/react`
 
-| Arquivo | Caminho |
-|---|---|
-| Editor Tiptap | `src/components/editor/RichTextEditor.tsx` |
-| PostContent | `src/components/post/PostContent.tsx` |
-| CSS do editor | `src/components/editor/editor.css` |
-| CSS global | `src/index.css` |
+## Arquivos alterados
 
-## 5. O que precisa ser feito para implementar
-
-### No editor (escrita)
-1. Instalar `@tiptap/extension-code-block-lowlight`, `lowlight`, `highlight.js`
-2. Em `RichTextEditor.tsx`: substituir o `CodeBlock` do StarterKit pelo `CodeBlockLowlight` configurado com lowlight + linguagens
-3. Isso faz o editor salvar `<pre><code class="language-javascript">` no HTML
-
-### Na visualização (leitura)
-1. No `PostContent.tsx`: após `dangerouslySetInnerHTML`, usar um `useEffect` para aplicar `lowlight.highlightAuto()` nos blocos `<pre><code>` do DOM (ou usar `highlight.js` diretamente)
-2. Importar um tema CSS do highlight.js compatível com dark mode (ex: `github-dark`, `atom-one-dark`, ou customizado)
-
-### CSS
-1. Importar o tema highlight.js (ex: `highlight.js/styles/atom-one-dark.css`)
-2. Ajustar os estilos de `pre/code` em `editor.css` para não sobrescrever as cores dos tokens `.hljs-*`
+1. Migration SQL (nova policy RLS)
+2. `src/hooks/usePostDetail.ts` — query + campo savesCount
+3. `src/pages/PostDetail.tsx` — optimistic state + sidebar + props
+4. `src/components/post/PostEngagement.tsx` — props + UI salvos
 
