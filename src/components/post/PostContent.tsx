@@ -46,6 +46,8 @@ interface PostContentProps {
   readTime: string;
   media?: MediaItem[];
   author?: Author | null;
+  postId: string;
+  audioUrl?: string | null;
 }
 
 export function PostContent({
@@ -60,6 +62,8 @@ export function PostContent({
   readTime,
   media,
   author,
+  postId,
+  audioUrl,
 }: PostContentProps) {
   const [showAuthorModal, setShowAuthorModal] = useState(false);
   const [mentionAuthor, setMentionAuthor] = useState<Author | null>(null);
@@ -233,7 +237,7 @@ export function PostContent({
 
         {/* TTS Player */}
         {canReadFullArticles && content && (
-          <ArticleTTSPlayer htmlContent={content} articleTitle={title} />
+          <ArticleTTSPlayer postId={postId} htmlContent={content} articleTitle={title} audioUrl={audioUrl} />
         )}
 
         {/* Content */}

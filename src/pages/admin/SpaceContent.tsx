@@ -155,6 +155,11 @@ export default function SpaceContent() {
         toast.success(publish ? 'Conteúdo publicado!' : 'Rascunho salvo!');
       }
 
+      // Dispara geração de áudio em background após publicação
+      if (publish && updateId && formData.content) {
+        generateArticleAudio(updateId, formData.content);
+      }
+
       // Save media if any
       if (updateId && media.length > 0) {
         await saveMediaToSpaceUpdate(updateId, media);
@@ -197,6 +202,12 @@ export default function SpaceContent() {
 
       if (error) throw error;
       toast.success('Conteúdo publicado!');
+
+      // Dispara geração de áudio em background
+      if (update.content) {
+        generateArticleAudio(update.id, update.content);
+      }
+
       fetchData();
     } catch (error) {
       console.error('Error publishing:', error);

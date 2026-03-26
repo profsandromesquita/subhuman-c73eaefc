@@ -281,6 +281,8 @@ export default function PostDetail() {
             readTime={estimateReadTime(post.content)}
             media={media}
             author={post.author}
+            postId={post.id}
+            audioUrl={post.audio_url}
           />
 
           <PostEngagement
