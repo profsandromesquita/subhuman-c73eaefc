@@ -1,66 +1,31 @@
-# Plano: TTS para artigos com Web Speech API
 
-Atenção em dois pontos durante a implementação:   
-  
-1. Confirme que a prop `canReadFullArticles` já está disponível no escopo do `PostContent.tsx` antes de usá-la na condição do player. Se não estiver, use a mesma origem que já controla a exibição do corpo do artigo.   
-  
-2. No `createPortal` do mobile (barra fixa no bottom): verifique se já existe algum elemento `fixed bottom-0` no layout global ou no `PostDetail`. Se houver, ajuste o `z-index` e o `bottom` do player para não sobrepor elementos existentes.   
-  
-Fora isso, implemente exatamente conforme o plano descrito a seguir.
 
-## Resumo
+# Plano: 3 correções no ArticleTTSPlayer
 
-4 novos arquivos + 1 arquivo alterado. Zero mudanças no banco ou backend.
+## Correção 1 — `src/hooks/useArticleTTS.ts`
+Reescrever completamente com abordagem de chunks por sentença (~200 chars cada). Inclui `splitIntoChunks`, `getBestVoice` (prioriza "Luciana" e vozes brasileiras), `speakChunk` recursivo, refs para chunks/currentChunk/isCancelled. Rate alterada para 1.05.
 
-## Arquivos novos
+## Correção 2 — `src/utils/htmlToSpeechText.ts`
+Substituir linhas 17-21: em vez de sempre adicionar `. `, só adicionar ponto quando o texto do bloco não termina com pontuação (`[.!?]`).
 
-### 1. `src/utils/htmlToSpeechText.ts`
+## Correção 3 — `src/components/article/ArticleTTSPlayer.tsx` + `src/index.css`
 
-Utilitário que converte HTML do Tiptap em texto puro para TTS. Remove `img`, `iframe`, `video`, `audio`, `figure`, `code`, `pre`. Adiciona pausas (`.` ) após headings, parágrafos e list items. Normaliza espaços.
+**ArticleTTSPlayer**: Adicionar `useEffect` que, quando `isActive && isMobile`, seta CSS variable `--tts-player-height: 72px` e classe `tts-player-active` no body. Cleanup no return.
 
-### 2. `src/hooks/useArticleTTS.ts`
+**CommentInput** usa `fixed bottom-0`. O TTS player usa `fixed bottom-16`. Quando ambos estão visíveis, o CommentInput fica atrás do player.
 
-Hook com estados `idle | loading | playing | paused | error | unsupported`. Usa `SpeechSynthesisUtterance` com voz `pt-BR`, rate 0.95. Expõe `play`, `pause`, `stop`, `progress` (0-100 via `onboundary`). Cleanup automático no unmount via `speechSynthesis.cancel()`.
-
-### 3. `src/components/article/ArticleTTSPlayer.tsx`
-
-Props: `htmlContent`, `articleTitle`. Chama `htmlToSpeechText` internamente.
-
-**Estado idle**: botão discreto `▶ Ouvir artigo` com ícone `Headphones` (Phosphor).
-
-**Estado playing/paused**: mini-player inline com:
-
-- Botão play/pause
-- Título truncado
-- Barra de progresso (`Progress` component existente)
-- Botão X (stop)
-
-**Mobile**: quando playing, renderiza barra fixa no bottom via `createPortal`.
-**Desktop**: sempre inline.
-
-Não renderiza nada se `!isSupported`.
-
-### 4. Integração em `src/components/post/PostContent.tsx`
-
-Inserir `ArticleTTSPlayer` entre o divider (linha 231) e o bloco de conteúdo (linha 233). Renderizar apenas se `content` não vazio e `canReadFullArticles` é true.
-
-```tsx
-{/* Divider */}
-<div className="w-full h-px bg-border/60 mb-8" />
-
-{/* TTS Player */}
-{canReadFullArticles && content && (
-  <ArticleTTSPlayer htmlContent={content} articleTitle={title} />
-)}
-
-{/* Content */}
+**index.css**: Adicionar regra que empurra o CommentInput para cima quando o player está ativo:
+```css
+body.tts-player-active .fixed.bottom-0 {
+  bottom: var(--tts-player-height, 72px);
+}
 ```
 
+Alternativa mais segura — usar seletor mais específico baseado no container do CommentInput (`fixed bottom-0 left-0 right-0` com `border-t`).
+
 ## Arquivos alterados
+1. `src/hooks/useArticleTTS.ts` — reescrita completa
+2. `src/utils/htmlToSpeechText.ts` — linhas 17-21
+3. `src/components/article/ArticleTTSPlayer.tsx` — adicionar useEffect + import
+4. `src/index.css` — adicionar 1 regra CSS
 
-- `src/components/post/PostContent.tsx` — adicionar import + 3 linhas de JSX entre divider e conteúdo
-
-## Escopo
-
-- 4 novos arquivos, 1 alterado
-- Zero: banco, migrations, Edge Functions, RLS, PodcastPlayer, usePostDetail
