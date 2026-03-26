@@ -10,6 +10,7 @@ import { MediaGallery } from "@/components/post/MediaGallery";
 import { AuthorModal } from "@/components/post/AuthorModal";
 import { ContentPaywall } from "@/components/ContentPaywall";
 import { CodeBlockCopyButton } from "@/components/post/CodeBlockCopyButton";
+import { ArticleTTSPlayer } from "@/components/article/ArticleTTSPlayer";
 import { useUserAccess } from "@/hooks/useUserAccess";
 import { useUserBadge } from "@/hooks/useUserBadge";
 import { PremiumBadge } from "@/components/PremiumBadge";
@@ -229,6 +230,11 @@ export function PostContent({
 
         {/* Divider */}
         <div className="w-full h-px bg-border/60 mb-8" />
+
+        {/* TTS Player */}
+        {canReadFullArticles && content && (
+          <ArticleTTSPlayer htmlContent={content} articleTitle={title} />
+        )}
 
         {/* Content */}
         {canReadFullArticles ? (
