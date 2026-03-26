@@ -17,6 +17,17 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+    const { text } = body;
+
+    // Keep-alive ping — retorna 200 sem chamar OpenAI nem validar auth
+    if (!text || typeof text !== 'string' || text.trim().length === 0 || text.trim() === 'keep-alive') {
+      return new Response(
+        JSON.stringify({ ok: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -37,15 +48,6 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { text } = await req.json();
-
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'text is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
