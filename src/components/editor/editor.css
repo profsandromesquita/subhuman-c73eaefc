@@ -190,10 +190,22 @@
   padding: 0 !important;
   font-size: 13px !important;
   line-height: 1.6 !important;
-  color: #e5e7eb !important;
   font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace !important;
   white-space: pre-wrap !important;
   word-break: break-word !important;
+}
+
+/* Let hljs token colors take precedence */
+.post-content pre code.hljs,
+.prose pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Fallback color for unclassified code */
+.post-content pre code:not(.hljs),
+.prose pre code:not(.hljs) {
+  color: #e5e7eb !important;
 }
 
 /* Inline code in articles */

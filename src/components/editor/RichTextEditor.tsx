@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useEditor, EditorContent, ReactRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import { common, createLowlight } from "lowlight";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
@@ -10,6 +12,8 @@ import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import Mention from "@tiptap/extension-mention";
+
+const lowlight = createLowlight(common);
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import tippy, { type Instance as TippyInstance } from "tippy.js";
 import { EditorToolbar } from "./EditorToolbar";
@@ -33,6 +37,13 @@ export function RichTextEditor({
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+        codeBlock: false,
+      }),
+      CodeBlockLowlight.configure({
+        lowlight,
+        HTMLAttributes: {
+          class: "hljs",
         },
       }),
       Link.configure({
