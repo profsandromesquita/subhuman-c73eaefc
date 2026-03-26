@@ -1,21 +1,27 @@
 import { motion } from "framer-motion";
-import { Heart, ChatCircle } from "@phosphor-icons/react";
+import { Heart, ChatCircle, BookmarkSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
 interface PostEngagementProps {
   likesCount: number;
   commentsCount: number;
+  savesCount: number;
   isLiked: boolean;
+  isSaved: boolean;
   onLikeToggle: () => void;
   onCommentClick: () => void;
+  onSave: () => void;
 }
 
 export function PostEngagement({
   likesCount,
   commentsCount,
+  savesCount,
   isLiked,
+  isSaved,
   onLikeToggle,
   onCommentClick,
+  onSave,
 }: PostEngagementProps) {
   return (
     <div className="max-w-2xl mx-auto px-5 lg:max-w-none lg:px-0">
@@ -31,6 +37,10 @@ export function PostEngagement({
         <span className="flex items-center gap-1.5">
           <ChatCircle className="w-4 h-4" weight="fill" />
           {commentsCount} comentários
+        </span>
+        <span className="flex items-center gap-1.5">
+          <BookmarkSimple className="w-4 h-4" weight="fill" />
+          {savesCount} salvos
         </span>
       </div>
 
@@ -63,6 +73,20 @@ export function PostEngagement({
           >
             <ChatCircle className="w-5 h-5" />
             Comentar
+          </Button>
+        </motion.div>
+
+        <motion.div className="flex-1" whileTap={{ scale: 0.98 }}>
+          <Button
+            variant={isSaved ? "secondary" : "outline"}
+            className={`w-full gap-2 h-12 ${isSaved ? "text-primary" : ""}`}
+            onClick={onSave}
+          >
+            <BookmarkSimple 
+              className="w-5 h-5" 
+              weight={isSaved ? "fill" : "regular"} 
+            />
+            {isSaved ? "Salvo" : "Salvar"}
           </Button>
         </motion.div>
       </div>

@@ -46,6 +46,7 @@ export interface PostComment {
 interface PostDetailData {
   post: Post;
   likesCount: number;
+  savesCount: number;
   media: any[];
   comments: PostComment[];
   isLiked: boolean;
@@ -76,7 +77,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
       if (postError || !postData) return null;
 
       // Parallel fetch: author, likes count, media, comments, user interactions
-      const [authorResult, likesCountResult, mediaResult, commentsResult, userLikeResult, userSaveResult] =
+      const [authorResult, likesCountResult, savesCountResult, mediaResult, commentsResult, userLikeResult, userSaveResult] =
         await Promise.all([
           postData.author_id
             ? supabase
@@ -87,6 +88,10 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
             : Promise.resolve({ data: null }),
           supabase
             .from("update_likes")
+            .select("id", { count: "exact", head: true })
+            .eq("update_id", postData.id),
+          supabase
+            .from("saved_updates")
             .select("id", { count: "exact", head: true })
             .eq("update_id", postData.id),
           supabase
@@ -191,6 +196,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
           space: postData.spaces as { name: string; slug: string },
         },
         likesCount: likesCountResult.count || 0,
+        savesCount: savesCountResult.count || 0,
         media: mediaResult.data || [],
         comments,
         isLiked: !!userLikeResult.data,
