@@ -231,6 +231,11 @@ export function PostContent({
         {/* Divider */}
         <div className="w-full h-px bg-border/60 mb-8" />
 
+        {/* TTS Player */}
+        {canReadFullArticles && content && (
+          <ArticleTTSPlayer htmlContent={content} articleTitle={title} />
+        )}
+
         {/* Content */}
         {canReadFullArticles ? (
           <div 
