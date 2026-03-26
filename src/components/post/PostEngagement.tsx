@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 interface PostEngagementProps {
   likesCount: number;
   commentsCount: number;
-  savesCount: number;
+  savesCount?: number;
   isLiked: boolean;
-  isSaved: boolean;
+  isSaved?: boolean;
   onLikeToggle: () => void;
   onCommentClick: () => void;
-  onSave: () => void;
+  onSave?: () => void;
 }
 
 export function PostEngagement({
@@ -18,7 +18,7 @@ export function PostEngagement({
   commentsCount,
   savesCount,
   isLiked,
-  isSaved,
+  isSaved = false,
   onLikeToggle,
   onCommentClick,
   onSave,
@@ -38,10 +38,12 @@ export function PostEngagement({
           <ChatCircle className="w-4 h-4" weight="fill" />
           {commentsCount} comentários
         </span>
-        <span className="flex items-center gap-1.5">
-          <BookmarkSimple className="w-4 h-4" weight="fill" />
-          {savesCount} salvos
-        </span>
+        {savesCount !== undefined && (
+          <span className="flex items-center gap-1.5">
+            <BookmarkSimple className="w-4 h-4" weight="fill" />
+            {savesCount} salvos
+          </span>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -76,19 +78,21 @@ export function PostEngagement({
           </Button>
         </motion.div>
 
-        <motion.div className="flex-1" whileTap={{ scale: 0.98 }}>
-          <Button
-            variant={isSaved ? "secondary" : "outline"}
-            className={`w-full gap-2 h-12 ${isSaved ? "text-primary" : ""}`}
-            onClick={onSave}
-          >
-            <BookmarkSimple 
-              className="w-5 h-5" 
-              weight={isSaved ? "fill" : "regular"} 
-            />
-            {isSaved ? "Salvo" : "Salvar"}
-          </Button>
-        </motion.div>
+        {onSave && (
+          <motion.div className="flex-1" whileTap={{ scale: 0.98 }}>
+            <Button
+              variant={isSaved ? "secondary" : "outline"}
+              className={`w-full gap-2 h-12 ${isSaved ? "text-primary" : ""}`}
+              onClick={onSave}
+            >
+              <BookmarkSimple 
+                className="w-5 h-5" 
+                weight={isSaved ? "fill" : "regular"} 
+              />
+              {isSaved ? "Salvo" : "Salvar"}
+            </Button>
+          </motion.div>
+        )}
       </div>
 
       {/* Divider */}
