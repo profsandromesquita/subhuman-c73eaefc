@@ -35,3 +35,5 @@ project_id = "akkbfzfjappludgsrwsw"
     verify_jwt = false
   [functions.tts-generate]
     verify_jwt = false
+  [functions.tts-keepalive]
+    verify_jwt = false
