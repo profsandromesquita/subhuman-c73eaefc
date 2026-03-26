@@ -47,7 +47,7 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
     if (voice) utterance.voice = voice;
 
     utterance.lang = 'pt-BR';
-    utterance.rate = 0.92;
+    utterance.rate = 1.0;
     utterance.pitch = 1;
     utterance.volume = 1;
 
