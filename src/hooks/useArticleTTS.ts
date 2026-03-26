@@ -221,8 +221,7 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
     revokeObjectUrls();
     currentChunkRef.current = 0;
 
-    const fullText = blocks.join(' ');
-    chunksRef.current = splitIntoChunks(fullText);
+    chunksRef.current = blocks;
 
     setStatus('loading');
     setProgress(0);
