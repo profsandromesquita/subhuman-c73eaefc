@@ -87,6 +87,21 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
     };
   }, [stopAudio, revokeObjectUrls]);
 
+  const setupAudioEvents = useCallback((audio: HTMLAudioElement, chunkIndex: number) => {
+    audio.onended = () => {
+      if (isCancelledRef.current) return;
+      const next = chunkIndex + 1;
+      currentChunkRef.current = next;
+      setProgress(Math.round((next / chunksRef.current.length) * 100));
+      generateAndPlayChunk(next);
+    };
+    audio.onerror = () => {
+      if (isCancelledRef.current) return;
+      setStatus('error');
+      setErrorMessage('Erro ao reproduzir o áudio.');
+    };
+  }, []);
+
   const generateAndPlayChunk = useCallback(async (chunkIndex: number) => {
     if (isCancelledRef.current) return;
     if (chunkIndex >= chunksRef.current.length) {
@@ -114,37 +129,81 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`TTS request failed: ${response.status}`);
+      if (!response.ok) throw new Error(`TTS failed: ${response.status}`);
+      if (isCancelledRef.current) return;
+
+      // Streaming via MediaSource quando suportado
+      if (
+        typeof MediaSource !== 'undefined' &&
+        MediaSource.isTypeSupported('audio/mpeg') &&
+        response.body
+      ) {
+        const mediaSource = new MediaSource();
+        const objectUrl = URL.createObjectURL(mediaSource);
+        objectUrlsRef.current.push(objectUrl);
+
+        const audio = new Audio(objectUrl);
+        audioRef.current = audio;
+        setupAudioEvents(audio, chunkIndex);
+
+        mediaSource.addEventListener('sourceopen', async () => {
+          try {
+            const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+            const reader = response.body!.getReader();
+
+            const pump = async (): Promise<void> => {
+              if (isCancelledRef.current) {
+                reader.cancel();
+                if (mediaSource.readyState === 'open') mediaSource.endOfStream();
+                return;
+              }
+
+              const { done, value } = await reader.read();
+
+              if (done) {
+                if (sourceBuffer.updating) {
+                  await new Promise<void>(r => sourceBuffer.addEventListener('updateend', () => r(), { once: true }));
+                }
+                if (mediaSource.readyState === 'open') mediaSource.endOfStream();
+                return;
+              }
+
+              if (sourceBuffer.updating) {
+                await new Promise<void>(r => sourceBuffer.addEventListener('updateend', () => r(), { once: true }));
+              }
+
+              sourceBuffer.appendBuffer(value);
+              await pump();
+            };
+
+            await pump();
+          } catch (err) {
+            if (!isCancelledRef.current) {
+              console.error('MediaSource pump error:', err);
+              setStatus('error');
+              setErrorMessage('Erro ao reproduzir o áudio.');
+            }
+          }
+        });
+
+        await audio.play();
+        if (chunkIndex === 0) setStatus('playing');
+
+      } else {
+        // Fallback para browsers sem MediaSource (Safari iOS)
+        const audioBlob = await response.blob();
+        if (isCancelledRef.current) return;
+
+        const objectUrl = URL.createObjectURL(audioBlob);
+        objectUrlsRef.current.push(objectUrl);
+
+        const audio = new Audio(objectUrl);
+        audioRef.current = audio;
+        setupAudioEvents(audio, chunkIndex);
+
+        await audio.play();
+        if (chunkIndex === 0) setStatus('playing');
       }
-
-      if (isCancelledRef.current) return;
-
-      const audioBlob = await response.blob();
-      if (isCancelledRef.current) return;
-
-      const objectUrl = URL.createObjectURL(audioBlob);
-      objectUrlsRef.current.push(objectUrl);
-
-      const audio = new Audio(objectUrl);
-      audioRef.current = audio;
-
-      audio.onended = () => {
-        if (isCancelledRef.current) return;
-        const next = chunkIndex + 1;
-        currentChunkRef.current = next;
-        setProgress(Math.round((next / chunksRef.current.length) * 100));
-        generateAndPlayChunk(next);
-      };
-
-      audio.onerror = () => {
-        if (isCancelledRef.current) return;
-        setStatus('error');
-        setErrorMessage('Erro ao reproduzir o áudio.');
-      };
-
-      await audio.play();
-      if (chunkIndex === 0) setStatus('playing');
 
     } catch (err) {
       if (isCancelledRef.current) return;
@@ -152,7 +211,7 @@ export function useArticleTTS(blocks: string[]): UseArticleTTSReturn {
       setStatus('error');
       setErrorMessage('Não foi possível gerar o áudio. Tente novamente.');
     }
-  }, [revokeObjectUrls]);
+  }, [revokeObjectUrls, setupAudioEvents]);
 
   const play = useCallback(async () => {
     if (!blocks.length) return;
