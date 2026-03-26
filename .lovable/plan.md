@@ -1,27 +1,17 @@
 
 
-# Plano: Warm-up + Streaming no TTS
+# Plano: Remover MediaSource, usar apenas blob
 
-## 1. `src/components/article/ArticleTTSPlayer.tsx`
+## Arquivo único: `src/hooks/useArticleTTS.ts`
 
-- Adicionar `import { supabase } from "@/integrations/supabase/client"`
-- Adicionar `useEffect` de warm-up após linha 18 (após `useIsMobile`): faz `setTimeout` de 1s, então envia `{ text: ' ' }` para a Edge Function com JWT. Falha silenciosa. Cleanup cancela o timer.
+### Mudança
 
-## 2. `src/hooks/useArticleTTS.ts`
+Substituir `generateAndPlayChunk` (que hoje tem branch MediaSource + fallback blob) pela versão simplificada que usa apenas `response.blob()` + `HTMLAudioElement`. Adiciona `ontimeupdate` para progresso granular durante reprodução de cada chunk.
 
-Substituir `generateAndPlayChunk` (linhas 90-155) pela versão com MediaSource:
+Remover também o helper `setupAudioEvents` que foi criado para o path MediaSource — a lógica de `onended`/`onerror` fica inline na nova função.
 
-- Se `MediaSource` disponível e suporta `audio/mpeg` e `response.body` existe:
-  - Cria `MediaSource` → `URL.createObjectURL` → `new Audio(url)`
-  - No `sourceopen`: cria `SourceBuffer('audio/mpeg')`, lê stream via `reader.read()` loop
-  - Aguarda `updateend` antes de cada `appendBuffer`
-  - Chama `endOfStream()` quando `done`
-  - Inicia `audio.play()` assim que o sourceopen dispara (áudio começa com primeiros bytes)
-- Else (Safari iOS fallback): mantém lógica atual com `response.blob()`
-- Ambos os paths compartilham `onended` → próximo chunk e `onerror` → status error
+### O que não muda
 
-## Arquivos alterados
-
-1. `src/components/article/ArticleTTSPlayer.tsx` — import + useEffect warm-up
-2. `src/hooks/useArticleTTS.ts` — generateAndPlayChunk com MediaSource + fallback
+- Imports, tipos, `splitIntoChunks`, `stop`, `play`, `pause`, refs, cleanup — tudo permanece
+- Nenhum outro arquivo alterado
 
