@@ -154,8 +154,38 @@ export default function RAGDocuments() {
   const handleFixMetadata = (id: string) => {
     fixMetadataMutation.mutate(id);
   };
+  const handleBackfillArticles = async () => {
+    if (!confirm("Isso vai indexar todos os artigos publicados no RAG. Artigos já indexados serão pulados. Continuar?")) return;
+    setBackfilling(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão inválida");
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/index-article-rag`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "backfill" }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Erro no backfill");
+      toast.success(`${result.indexed} artigos indexados, ${result.skipped} pulados`);
+      if (result.errors?.length > 0) {
+        toast.error(`${result.errors.length} erros durante o backfill`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao indexar artigos");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
-  return (
+
     <AdminLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Documentos RAG</h1>
