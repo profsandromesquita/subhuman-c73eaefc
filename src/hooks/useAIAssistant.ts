@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-const STORAGE_KEY = "subhumano_chat_history";
+const STORAGE_KEY_PREFIX = "subhumano_chat_history_";
 const MAX_MESSAGES = 100;
 
 export interface Message {
@@ -30,9 +30,13 @@ export interface UseAIAssistantReturn {
   resetLimit: () => void;
 }
 
-function loadMessages(): Message[] {
+function getStorageKey(userId: string | null): string {
+  return STORAGE_KEY_PREFIX + (userId || "anonymous");
+}
+
+function loadMessages(userId: string | null): Message[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed.slice(-MAX_MESSAGES);
@@ -42,26 +46,53 @@ function loadMessages(): Message[] {
   return [];
 }
 
-function saveMessages(messages: Message[]) {
+function saveMessages(messages: Message[], userId: string | null) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_MESSAGES)));
+    localStorage.setItem(getStorageKey(userId), JSON.stringify(messages.slice(-MAX_MESSAGES)));
   } catch {
     // ignore
   }
 }
 
 export function useAIAssistant(): UseAIAssistantReturn {
-  const [messages, setMessages] = useState<Message[]>(loadMessages);
+  const [userId, setUserId] = useState<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
   const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
 
+  // Detectar usuário atual e recarregar histórico ao trocar conta
+  useEffect(() => {
+    const loadForUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id || null;
+      userIdRef.current = uid;
+      setUserId(uid);
+      setMessages(loadMessages(uid));
+    };
+    loadForUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const uid = session?.user?.id || null;
+      if (uid !== userIdRef.current) {
+        userIdRef.current = uid;
+        setUserId(uid);
+        setMessages(loadMessages(uid));
+        setLimitReached(false);
+        setLimitInfo(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Persist messages on change
   useEffect(() => {
-    saveMessages(messages);
-  }, [messages]);
+    saveMessages(messages, userId);
+  }, [messages, userId]);
 
   const resetLimit = useCallback(() => {
     setLimitReached(false);
@@ -256,9 +287,9 @@ export function useAIAssistant(): UseAIAssistantReturn {
     setMessages([]);
     setShowClearConfirm(false);
     resetLimit();
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    try { localStorage.removeItem(getStorageKey(userId)); } catch {}
     toast.success("Nova conversa iniciada");
-  }, [resetLimit]);
+  }, [resetLimit, userId]);
 
   const requestClearMessages = useCallback(() => {
     setShowClearConfirm(true);

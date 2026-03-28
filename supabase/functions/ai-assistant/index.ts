@@ -362,7 +362,7 @@ function buildUserContext(profile: UserProfile | null): string {
 
 function buildPodcastContext(podcasts: Podcast[]): string {
   if (!podcasts.length) return "";
-  return "\n[PODCASTS RECENTES]\n" + podcasts.map(p => {
+  return "\n[PODCASTS RECENTES — últimos 8 episódios publicados nos últimos 60 dias]\n" + podcasts.map(p => {
     const date = new Date(p.published_at).toLocaleDateString("pt-BR");
     const desc = p.description ? ` - ${p.description.substring(0, 100)}` : "";
     return `🎙️ [${p.title}](/podcasts/${p.slug}) ${date}${desc}`;
@@ -372,7 +372,7 @@ function buildPodcastContext(podcasts: Podcast[]): string {
 function buildPlatformContext(posts: SpaceUpdate[], chPosts: ChannelPost[]): string {
   let ctx = "";
   if (posts.length) {
-    ctx += "\n[ARTIGOS RECENTES]\n" + posts.slice(0, 5).map(p => {
+    ctx += "\n[ARTIGOS RECENTES — últimos 5 artigos publicados nos últimos 30 dias]\n" + posts.slice(0, 5).map(p => {
       const d = new Date(p.published_at).toLocaleDateString("pt-BR");
       const spaceSlug = p.spaces?.slug || "geral";
       return `[${p.spaces?.name}] [${p.title}](/spaces/${spaceSlug}/post/${p.slug || p.id}) - ${d}\n${p.content?.replace(/<[^>]*>/g, '').substring(0, 100)}`;

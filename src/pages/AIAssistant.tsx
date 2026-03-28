@@ -188,6 +188,10 @@ export default function AIAssistant() {
                     {suggestion}
                   </button>)}
               </div>
+
+              <p className="text-xs text-muted-foreground text-center max-w-xs mt-2">
+                💡 Suas conversas são salvas neste dispositivo. Para acessar o mesmo histórico em outro dispositivo, use o mesmo navegador.
+              </p>
             </div> : <>
               {messages.map((message, index) => <div key={index} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
                   <div className={cn("max-w-[85%] rounded-2xl px-4 py-3 relative group", message.role === "user" ? "bg-card text-foreground" : "bg-secondary text-foreground")}>
