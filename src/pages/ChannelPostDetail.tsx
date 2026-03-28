@@ -208,6 +208,7 @@ export default function ChannelPostDetail() {
             mentionedCompanyId: m.type === "company" ? m.id : undefined,
             contextType: "channel_comment",
             contextId: commentData.id,
+            notificationUrl: window.location.pathname,
           }))
         );
       }

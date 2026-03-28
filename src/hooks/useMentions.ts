@@ -7,6 +7,7 @@ interface MentionData {
   mentionedCompanyId?: string;
   contextType: string;
   contextId: string;
+  notificationUrl?: string;
 }
 
 export function useCreateMentions() {
@@ -32,9 +33,11 @@ export function useCreateMentions() {
         .filter((m) => m.mentionedUserId)
         .map((m) => ({
           user_id: m.mentionedUserId!,
+          sender_id: user.id,
           title: "Você foi mencionado",
           message: "Alguém mencionou você em uma publicação",
           type: "mention",
+          notification_url: m.notificationUrl || null,
         }));
 
       if (notifications.length > 0) {
