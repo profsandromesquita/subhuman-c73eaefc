@@ -58,6 +58,27 @@ interface Space {
   name: string;
 }
 
+async function indexArticleRAG(articleId: string): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/index-article-rag`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ article_id: articleId }),
+      }
+    );
+    console.log('RAG indexing triggered for article:', articleId);
+  } catch (err) {
+    console.error('RAG indexing error:', err);
+  }
+}
+
 async function generateArticleAudio(postId: string, htmlContent: string): Promise<void> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -184,9 +205,15 @@ export default function SpaceContent() {
         toast.success(publish ? 'Conteúdo publicado!' : 'Rascunho salvo!');
       }
 
-      // Dispara geração de áudio em background após publicação
+      // Dispara geração de áudio e indexação RAG em background após publicação
       if (publish && updateId && formData.content) {
         generateArticleAudio(updateId, formData.content);
+        indexArticleRAG(updateId);
+      }
+
+      // Re-indexa RAG quando artigo já publicado é editado
+      if (editingUpdate?.is_published && updateId && !publish) {
+        indexArticleRAG(updateId);
       }
 
       // Save media if any
@@ -232,10 +259,11 @@ export default function SpaceContent() {
       if (error) throw error;
       toast.success('Conteúdo publicado!');
 
-      // Dispara geração de áudio em background
+      // Dispara geração de áudio e indexação RAG em background
       if (update.content) {
         generateArticleAudio(update.id, update.content);
       }
+      indexArticleRAG(update.id);
 
       fetchData();
     } catch (error) {

@@ -46,7 +46,11 @@ import {
   DotsThreeVertical,
   TrashSimple,
   Wrench,
+  Article,
 } from "@phosphor-icons/react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useRAGDocuments,
   useIngestDocument,
@@ -103,7 +107,9 @@ export default function RAGDocuments() {
   const [content, setContent] = useState(DOCUMENT_TEMPLATE);
   const [layerFilter, setLayerFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [backfilling, setBackfilling] = useState(false);
 
+  const queryClient = useQueryClient();
   const { data: documents, isLoading } = useRAGDocuments();
   const ingestMutation = useIngestDocument();
   const generateChunksMutation = useGenerateChunks();
@@ -183,13 +189,27 @@ export default function RAGDocuments() {
             </Select>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Documento
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBackfillArticles}
+              disabled={backfilling}
+            >
+              {backfilling ? (
+                <Spinner className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Article className="w-4 h-4 mr-2" />
+              )}
+              Indexar Artigos
+            </Button>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Documento
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adicionar Documento à Base de Conhecimento</DialogTitle>
@@ -232,7 +252,8 @@ export default function RAGDocuments() {
                 </div>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Table */}
