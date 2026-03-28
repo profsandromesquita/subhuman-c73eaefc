@@ -1,118 +1,202 @@
 
 
-# Plano: Indexação automática de artigos no RAG
+# Plano: Correção de navegação em notificações de menção
 
 ## Resumo
 
-5 partes, 3 arquivos alterados/criados. A Edge Function `index-article-rag` centraliza toda a lógica. O frontend dispara a indexação na publicação/edição e oferece botão de backfill.
+3 arquivos alterados + 1 migration RLS. Corrige o bug de clique sem navegação e popula `notification_url` + `sender_id` no insert.
+
+**Descoberta crítica:** A tabela `notifications` só permite INSERT por admins ou para `type = 'direct_message'`. Notificações de menção criadas por usuários comuns **falham silenciosamente**. É necessária uma nova policy RLS.
 
 ---
 
-## Parte 1 — Edge Function `supabase/functions/index-article-rag/index.ts`
+## Etapa 1 — Migration: policy INSERT para menções
 
-Nova Edge Function com ~250 linhas. Usa **Opção B** (copiar lógica de chunking) para não tocar em `generate-chunks`.
+```sql
+CREATE POLICY "Users can create mention notifications"
+ON public.notifications
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  sender_id = auth.uid()
+  AND type = 'mention'
+  AND user_id IS NOT NULL
+);
+```
 
-**Endpoints:**
-- `POST { article_id }` — indexa um artigo específico
-- `POST { action: "backfill" }` — indexa todos os artigos publicados sem documento RAG
-
-**Fluxo para artigo individual:**
-1. Auth JWT + verificação admin/moderator via `user_roles`
-2. Busca artigo em `space_updates` com join `spaces!inner(name, slug)`, valida `is_published = true`
-3. Busca `rag_documents` com filtro `metadata->>'article_id' = article_id`
-4. Se existe: atualiza `source_content`, deleta chunks antigos, recria
-5. Se não existe: insere novo `rag_document` com layer `biblioteca`, priority `65`, metadata `{ source_type: "article", article_id, space_id, space_slug, published_at }`
-6. Gera `source_content` com cabeçalho formatado + HTML stripado
-7. Gera chunks (cópia da lógica `chunkContent` + `extractAutoTags` de `generate-chunks`)
-8. Insere chunks em `rag_chunks`, seta status `indexed`
-
-**Fluxo backfill:**
-1. Busca todos artigos `is_published = true`
-2. Para cada, verifica se já tem `rag_document` (via query batch de todos os documents com `metadata->>'source_type' = 'article'`)
-3. Pula existentes, indexa novos
-4. Retorna `{ indexed, skipped, errors }`
-
-**Tags:** `["artigo", "{space_slug}", ...palavras do título]` limitadas a 8.
+Sem isso, apenas admins conseguem inserir notificações de menção.
 
 ---
 
-## Parte 2 — Integração na publicação (`src/pages/admin/SpaceContent.tsx`)
+## Etapa 2 — `src/hooks/useNotifications.ts`
 
-### 2.1 — Nova função `indexArticleRAG`
+### 2.1 — Adicionar `notification_url` ao tipo e select
+
+**Interface (linha 6-17):**
+```typescript
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  is_read: boolean;
+  created_at: string;
+  space_id: string | null;
+  space_name?: string;
+  space_slug?: string;
+  isGlobal?: boolean;
+  notification_url: string | null;  // NOVO
+}
+```
+
+**Select (linha 93-96):** adicionar `notification_url`
+```
+id, type, title, message, is_read, created_at, space_id, user_id, notification_url,
+spaces(name, slug)
+```
+
+**Map (linha 122-133):** adicionar campo
+```typescript
+notification_url: n.notification_url || null,
+```
+
+---
+
+## Etapa 3 — `src/pages/Notifications.tsx`
+
+### 3.1 — Importar `At` do Phosphor e adicionar ao iconMap
 
 ```typescript
-async function indexArticleRAG(articleId: string): Promise<void> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/index-article-rag`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ article_id: articleId }),
-    });
-  } catch (err) {
-    console.error('RAG indexing error:', err);
+import { 
+  Bell, TrendUp, ChatCircle, Megaphone, EnvelopeSimple, Check, At, IconProps
+} from "@phosphor-icons/react";
+
+const iconMap: Record<string, PhosphorIcon> = {
+  update: Bell,
+  channel: ChatCircle,
+  announcement: Megaphone,
+  trending: TrendUp,
+  info: Bell,
+  direct_message: EnvelopeSimple,
+  mention: At,  // NOVO
+};
+```
+
+### 3.2 — Refatorar `handleNotificationClick`
+
+```typescript
+const handleNotificationClick = async (notification: typeof notifications[0]) => {
+  if (!notification.is_read) {
+    try {
+      await markRead.mutateAsync({ 
+        notificationId: notification.id, 
+        isGlobal: notification.isGlobal 
+      });
+    } catch { /* ignore */ }
   }
-}
-```
 
-### 2.2 — Chamada em `handleSave` (linha 188-190)
+  // 1. notification_url como critério prioritário
+  if (notification.notification_url) {
+    const url = notification.notification_url;
+    if (url.startsWith("/")) {
+      navigate(url);
+      return;
+    }
+    // Extrair path de URLs absolutas do domínio
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname.includes("subhumano")) {
+        navigate(parsed.pathname);
+        return;
+      }
+    } catch { /* não é URL válida */ }
+  }
 
-Após `generateArticleAudio`, adicionar:
-```typescript
-if (publish && updateId) {
-  generateArticleAudio(updateId, formData.content);
-  indexArticleRAG(updateId);  // NOVO
-}
-```
-
-### 2.3 — Chamada em `handlePublish` (linha 236-238)
-
-Após `generateArticleAudio`, adicionar:
-```typescript
-indexArticleRAG(update.id);  // NOVO
-```
-
-### 2.4 — Re-indexação na edição (dentro de `handleSave`, bloco de edição, ~linha 173)
-
-Quando `editingUpdate` e o artigo já está publicado:
-```typescript
-if (editingUpdate?.is_published && updateId) {
-  indexArticleRAG(updateId);
-}
+  // 2. Fallbacks por tipo (lógica existente)
+  if (notification.type === "update" && notification.space_slug) {
+    navigate(`/spaces/${notification.space_slug}`);
+  } else if (notification.type === "update" && notification.space_id) {
+    navigate(`/spaces`);
+  } else if (notification.type === "channel") {
+    navigate(`/canais`);
+  }
+};
 ```
 
 ---
 
-## Parte 3 — Botão de backfill no admin RAG (`src/pages/admin/rag/Documents.tsx`)
+## Etapa 4 — `src/hooks/useMentions.ts`
 
-Adicionar botão "Indexar Artigos" no header da página, ao lado do botão existente de criar documento.
+### 4.1 — Adicionar `notificationUrl` à interface
 
-```tsx
-<Button variant="outline" onClick={handleBackfillArticles} disabled={backfilling}>
-  {backfilling ? <Spinner className="animate-spin" /> : <FileText />}
-  Indexar Artigos
-</Button>
+```typescript
+interface MentionData {
+  mentionedUserId?: string;
+  mentionedCompanyId?: string;
+  contextType: string;
+  contextId: string;
+  notificationUrl?: string;  // NOVO
+}
 ```
 
-A função `handleBackfillArticles`:
-1. Confirma via `window.confirm`
-2. Chama `index-article-rag` com `{ action: "backfill" }`
-3. Mostra toast com resultado
-4. Invalida queries RAG via `queryClient`
+### 4.2 — Popular `notification_url` e `sender_id` no insert
+
+```typescript
+const notifications = mentions
+  .filter((m) => m.mentionedUserId)
+  .map((m) => ({
+    user_id: m.mentionedUserId!,
+    sender_id: user.id,
+    title: "Você foi mencionado",
+    message: "Alguém mencionou você em uma publicação",
+    type: "mention",
+    notification_url: m.notificationUrl || null,
+  }));
+```
+
+### 4.3 — Atualizar chamadores
+
+**PostDetail.tsx (linha 161-168):** adicionar `notificationUrl: window.location.pathname`
+```typescript
+createMentions.mutate(
+  mentions.map((m) => ({
+    mentionedUserId: m.type === "user" ? m.id : undefined,
+    mentionedCompanyId: m.type === "company" ? m.id : undefined,
+    contextType: "update_comment",
+    contextId: postId,
+    notificationUrl: window.location.pathname,
+  }))
+);
+```
+
+**ChannelPostDetail.tsx (linha 205-212):** adicionar `notificationUrl: window.location.pathname`
+```typescript
+createMentions.mutate(
+  mentions.map((m) => ({
+    mentionedUserId: m.type === "user" ? m.id : undefined,
+    mentionedCompanyId: m.type === "company" ? m.id : undefined,
+    contextType: "channel_comment",
+    contextId: commentData.id,
+    notificationUrl: window.location.pathname,
+  }))
+);
+```
 
 ---
 
-## Arquivos
+## Arquivos alterados
 
-1. `supabase/functions/index-article-rag/index.ts` — novo (~250 linhas)
-2. `src/pages/admin/SpaceContent.tsx` — 3 inserções (~15 linhas)
-3. `src/pages/admin/rag/Documents.tsx` — botão + handler (~30 linhas)
+1. Migration SQL — nova policy INSERT para menções
+2. `src/hooks/useNotifications.ts` — tipo + select + map
+3. `src/pages/Notifications.tsx` — ícone `At` + handler refatorado
+4. `src/hooks/useMentions.ts` — interface + insert com `notification_url`/`sender_id`
+5. `src/pages/PostDetail.tsx` — passa `notificationUrl`
+6. `src/pages/ChannelPostDetail.tsx` — passa `notificationUrl`
 
 ## Não alterado
 
-- `generate-chunks/index.ts`
-- `ai-assistant/index.ts`
-- `search_rag_chunks_lexical`
-- Nenhuma tabela ou migration
+- Tabela notifications (schema)
+- Edge Functions
+- Triggers SQL
+- Sistema de detecção de menções
 
