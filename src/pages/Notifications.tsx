@@ -10,6 +10,7 @@ import {
   Megaphone,
   EnvelopeSimple,
   Check,
+  At,
   IconProps
 } from "@phosphor-icons/react";
 import { ForwardRefExoticComponent, RefAttributes } from "react";
@@ -29,6 +30,7 @@ const iconMap: Record<string, PhosphorIcon> = {
   trending: TrendUp,
   info: Bell,
   direct_message: EnvelopeSimple,
+  mention: At,
 };
 
 export default function Notifications() {
@@ -64,7 +66,23 @@ export default function Notifications() {
       }
     }
 
-    // Navigate based on type
+    // 1. notification_url como critério prioritário
+    if (notification.notification_url) {
+      const url = notification.notification_url;
+      if (url.startsWith("/")) {
+        navigate(url);
+        return;
+      }
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes("subhumano")) {
+          navigate(parsed.pathname);
+          return;
+        }
+      } catch { /* não é URL válida */ }
+    }
+
+    // 2. Fallbacks por tipo
     if (notification.type === "update" && notification.space_slug) {
       navigate(`/spaces/${notification.space_slug}`);
     } else if (notification.type === "update" && notification.space_id) {

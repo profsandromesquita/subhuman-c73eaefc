@@ -14,6 +14,7 @@ export interface Notification {
   space_name?: string;
   space_slug?: string;
   isGlobal?: boolean;
+  notification_url: string | null;
 }
 
 // Hook para subscrição realtime de notificações
@@ -91,7 +92,7 @@ export function useNotifications() {
       const { data: notifications, error } = await supabase
         .from("notifications")
         .select(`
-          id, type, title, message, is_read, created_at, space_id, user_id,
+          id, type, title, message, is_read, created_at, space_id, user_id, notification_url,
           spaces(name, slug)
         `)
         .or(`user_id.eq.${user.id},user_id.is.null`)
@@ -130,6 +131,7 @@ export function useNotifications() {
         space_name: (n.spaces as any)?.name || null,
         space_slug: (n.spaces as any)?.slug || null,
         isGlobal: n.user_id === null,
+        notification_url: n.notification_url || null,
       }));
     },
     enabled: !!user,

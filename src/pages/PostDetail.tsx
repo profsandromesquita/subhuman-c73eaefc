@@ -164,6 +164,7 @@ export default function PostDetail() {
             mentionedCompanyId: m.type === "company" ? m.id : undefined,
             contextType: "update_comment",
             contextId: postId,
+            notificationUrl: window.location.pathname,
           }))
         );
       }
