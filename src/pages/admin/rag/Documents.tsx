@@ -46,7 +46,11 @@ import {
   DotsThreeVertical,
   TrashSimple,
   Wrench,
+  Article,
 } from "@phosphor-icons/react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useRAGDocuments,
   useIngestDocument,
@@ -103,7 +107,9 @@ export default function RAGDocuments() {
   const [content, setContent] = useState(DOCUMENT_TEMPLATE);
   const [layerFilter, setLayerFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [backfilling, setBackfilling] = useState(false);
 
+  const queryClient = useQueryClient();
   const { data: documents, isLoading } = useRAGDocuments();
   const ingestMutation = useIngestDocument();
   const generateChunksMutation = useGenerateChunks();
@@ -148,8 +154,38 @@ export default function RAGDocuments() {
   const handleFixMetadata = (id: string) => {
     fixMetadataMutation.mutate(id);
   };
+  const handleBackfillArticles = async () => {
+    if (!confirm("Isso vai indexar todos os artigos publicados no RAG. Artigos já indexados serão pulados. Continuar?")) return;
+    setBackfilling(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão inválida");
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/index-article-rag`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "backfill" }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Erro no backfill");
+      toast.success(`${result.indexed} artigos indexados, ${result.skipped} pulados`);
+      if (result.errors?.length > 0) {
+        toast.error(`${result.errors.length} erros durante o backfill`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["rag-documents"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao indexar artigos");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
-  return (
+
     <AdminLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Documentos RAG</h1>
@@ -183,13 +219,27 @@ export default function RAGDocuments() {
             </Select>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Documento
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBackfillArticles}
+              disabled={backfilling}
+            >
+              {backfilling ? (
+                <Spinner className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Article className="w-4 h-4 mr-2" />
+              )}
+              Indexar Artigos
+            </Button>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Documento
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Adicionar Documento à Base de Conhecimento</DialogTitle>
@@ -232,7 +282,8 @@ export default function RAGDocuments() {
                 </div>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Table */}
