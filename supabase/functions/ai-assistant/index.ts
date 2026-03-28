@@ -96,6 +96,64 @@ async function fetchRecentChannelPosts(db: any): Promise<ChannelPost[]> {
   });
 }
 
+// ============ CONTENT INDEX ============
+interface IndexArticle { title: string; slug: string; created_at: string; spaces: { name: string; slug: string }; }
+interface IndexPodcast { title: string; slug: string; created_at: string; }
+
+// deno-lint-ignore no-explicit-any
+async function fetchContentIndex(db: any): Promise<{ articles: IndexArticle[]; podcasts: IndexPodcast[] }> {
+  return cached("content_index", 10 * 60_000, async () => {
+    const [artRes, podRes] = await Promise.all([
+      db.from("space_updates")
+        .select("title, slug, created_at, spaces!inner(name, slug)")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false }),
+      db.from("podcasts")
+        .select("title, slug, created_at")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false }),
+    ]);
+    return {
+      articles: (artRes.data || []) as IndexArticle[],
+      podcasts: (podRes.data || []) as IndexPodcast[],
+    };
+  });
+}
+
+function buildContentIndex(articles: IndexArticle[], podcasts: IndexPodcast[]): string {
+  const MAX_CHARS = 8000;
+  const truncTitle = (t: string) => t.length > 60 ? t.substring(0, 57) + "..." : t;
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR");
+
+  let ctx = `\n[ÍNDICE COMPLETO DE CONTEÚDO DA PLATAFORMA]\nArtigos publicados (${articles.length} artigos):\n`;
+
+  let truncatedArticles = 0;
+  for (const a of articles) {
+    const line = `- ${a.spaces?.name || "Geral"} | ${truncTitle(a.title)} | ${fmtDate(a.created_at)} | /spaces/${a.spaces?.slug || "geral"}/post/${a.slug}\n`;
+    if (ctx.length + line.length > MAX_CHARS - 500) {
+      truncatedArticles = articles.length - articles.indexOf(a);
+      ctx += `... e mais ${truncatedArticles} artigos. Consulte os espaços da plataforma para ver todos.\n`;
+      break;
+    }
+    ctx += line;
+  }
+
+  ctx += `\nPodcasts publicados (${podcasts.length} episódios):\n`;
+
+  let truncatedPodcasts = 0;
+  for (const p of podcasts) {
+    const line = `- ${truncTitle(p.title)} | ${fmtDate(p.created_at)} | /podcasts/${p.slug}\n`;
+    if (ctx.length + line.length > MAX_CHARS) {
+      truncatedPodcasts = podcasts.length - podcasts.indexOf(p);
+      ctx += `... e mais ${truncatedPodcasts} podcasts. Consulte a seção de podcasts para ver todos.\n`;
+      break;
+    }
+    ctx += line;
+  }
+
+  return ctx + "\n";
+}
+
 // ============ SYNONYM NORMALIZATION (Correção 2) ============
 // Resolve aliases comuns ANTES do FTS para corrigir "ChatGPT" → "GPT"
 const AI_SYNONYMS: Record<string, string> = {
@@ -490,7 +548,7 @@ serve(async (req) => {
     const searchQuery = await extractSearchQuery(normalizedUserQuery, API_KEY);
 
     // Parallel fetches with cache (Tarefa 6)
-    const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks] = await Promise.all([
+    const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks, contentIndex] = await Promise.all([
       searchRAGChunks(searchQuery, db, ragCfg),
       fetchRecentPosts(db),
       fetchRecentChannelPosts(db),
@@ -498,6 +556,7 @@ serve(async (req) => {
       fetchRecentPodcasts(db),
       fetchUserProfile(db, user.id),
       needsConstitution ? fetchConstitutionChunks(db) : Promise.resolve([]),
+      fetchContentIndex(db),
     ]);
 
     // CORREÇÃO 3: Fallback por tags quando FTS retornou 0 resultados
@@ -535,7 +594,7 @@ serve(async (req) => {
     const hasRelevantRAG = nonConstitutionChunks.length > 0 && 
       nonConstitutionChunks.some(c => (c.rank ?? 0) >= scoreThreshold);
 
-    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, normalized: "${normalizedUserQuery.substring(0, 60)}", searchQuery: "${searchQuery}"`);
+    console.log(`Context: ${ragChunks.length} RAG (reranked: ${shouldRerank}), constitution: ${needsConstitution}(${constitutionChunks.length}), index: ${contentIndex.articles.length}a/${contentIndex.podcasts.length}p, ${recentPosts.length} posts, ${channelPosts.length} discussions, ${channels.length} channels, ${podcasts.length} podcasts, profile: ${userProfile?.full_name || 'anon'}, latency: ${Date.now() - startTime}ms, normalized: "${normalizedUserQuery.substring(0, 60)}", searchQuery: "${searchQuery}"`);
 
     // Tarefa 5: Log RAG query
     try {
@@ -565,6 +624,7 @@ serve(async (req) => {
       sysMsg += RAG_FALLBACK;
     }
     
+    sysMsg += buildContentIndex(contentIndex.articles, contentIndex.podcasts);
     sysMsg += buildChannelsContext(channels);
     sysMsg += buildPodcastContext(podcasts);
     sysMsg += buildPlatformContext(recentPosts, channelPosts);
