@@ -1,136 +1,118 @@
 
 
-# Plano: Índice completo de conteúdo no contexto da IA
+# Plano: Indexação automática de artigos no RAG
 
 ## Resumo
 
-1 arquivo alterado: `supabase/functions/ai-assistant/index.ts`. Adicionar função `fetchContentIndex` + `buildContentIndex` para injetar um índice compacto de TODOS os artigos e podcasts publicados no system message, com cache de 10 minutos e limite de 8000 caracteres.
+5 partes, 3 arquivos alterados/criados. A Edge Function `index-article-rag` centraliza toda a lógica. O frontend dispara a indexação na publicação/edição e oferece botão de backfill.
 
 ---
 
-## Mudança 1 — Novo fetcher com cache (após linha 97)
+## Parte 1 — Edge Function `supabase/functions/index-article-rag/index.ts`
+
+Nova Edge Function com ~250 linhas. Usa **Opção B** (copiar lógica de chunking) para não tocar em `generate-chunks`.
+
+**Endpoints:**
+- `POST { article_id }` — indexa um artigo específico
+- `POST { action: "backfill" }` — indexa todos os artigos publicados sem documento RAG
+
+**Fluxo para artigo individual:**
+1. Auth JWT + verificação admin/moderator via `user_roles`
+2. Busca artigo em `space_updates` com join `spaces!inner(name, slug)`, valida `is_published = true`
+3. Busca `rag_documents` com filtro `metadata->>'article_id' = article_id`
+4. Se existe: atualiza `source_content`, deleta chunks antigos, recria
+5. Se não existe: insere novo `rag_document` com layer `biblioteca`, priority `65`, metadata `{ source_type: "article", article_id, space_id, space_slug, published_at }`
+6. Gera `source_content` com cabeçalho formatado + HTML stripado
+7. Gera chunks (cópia da lógica `chunkContent` + `extractAutoTags` de `generate-chunks`)
+8. Insere chunks em `rag_chunks`, seta status `indexed`
+
+**Fluxo backfill:**
+1. Busca todos artigos `is_published = true`
+2. Para cada, verifica se já tem `rag_document` (via query batch de todos os documents com `metadata->>'source_type' = 'article'`)
+3. Pula existentes, indexa novos
+4. Retorna `{ indexed, skipped, errors }`
+
+**Tags:** `["artigo", "{space_slug}", ...palavras do título]` limitadas a 8.
+
+---
+
+## Parte 2 — Integração na publicação (`src/pages/admin/SpaceContent.tsx`)
+
+### 2.1 — Nova função `indexArticleRAG`
 
 ```typescript
-interface IndexArticle { title: string; slug: string; created_at: string; spaces: { name: string; slug: string }; }
-interface IndexPodcast { title: string; slug: string; created_at: string; }
-
-async function fetchContentIndex(db: any): Promise<{ articles: IndexArticle[]; podcasts: IndexPodcast[] }> {
-  return cached("content_index", 10 * 60_000, async () => {
-    const [artRes, podRes] = await Promise.all([
-      db.from("space_updates")
-        .select("title, slug, created_at, spaces!inner(name, slug)")
-        .eq("is_published", true)
-        .order("created_at", { ascending: false }),
-      db.from("podcasts")
-        .select("title, slug, created_at")
-        .eq("is_published", true)
-        .order("created_at", { ascending: false }),
-    ]);
-    return {
-      articles: (artRes.data || []) as IndexArticle[],
-      podcasts: (podRes.data || []) as IndexPodcast[],
-    };
-  });
+async function indexArticleRAG(articleId: string): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/index-article-rag`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ article_id: articleId }),
+    });
+  } catch (err) {
+    console.error('RAG indexing error:', err);
+  }
 }
 ```
 
-## Mudança 2 — Builder compacto (após fetcher)
+### 2.2 — Chamada em `handleSave` (linha 188-190)
 
+Após `generateArticleAudio`, adicionar:
 ```typescript
-function buildContentIndex(articles: IndexArticle[], podcasts: IndexPodcast[]): string {
-  const MAX_CHARS = 8000;
-  const truncTitle = (t: string) => t.length > 60 ? t.substring(0, 57) + "..." : t;
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString("pt-BR");
-
-  let ctx = `\n[ÍNDICE COMPLETO DE CONTEÚDO DA PLATAFORMA]\nArtigos publicados (${articles.length} artigos):\n`;
-
-  let truncatedArticles = 0;
-  for (const a of articles) {
-    const line = `- ${a.spaces?.name || "Geral"} | ${truncTitle(a.title)} | ${fmtDate(a.created_at)} | /spaces/${a.spaces?.slug || "geral"}/post/${a.slug}\n`;
-    if (ctx.length + line.length > MAX_CHARS - 500) { // reserva 500 chars para podcasts
-      truncatedArticles = articles.length - articles.indexOf(a);
-      ctx += `... e mais ${truncatedArticles} artigos. Consulte os espaços da plataforma para ver todos.\n`;
-      break;
-    }
-    ctx += line;
-  }
-
-  ctx += `\nPodcasts publicados (${podcasts.length} episódios):\n`;
-
-  let truncatedPodcasts = 0;
-  for (const p of podcasts) {
-    const line = `- ${truncTitle(p.title)} | ${fmtDate(p.created_at)} | /podcasts/${p.slug}\n`;
-    if (ctx.length + line.length > MAX_CHARS) {
-      truncatedPodcasts = podcasts.length - podcasts.indexOf(p);
-      ctx += `... e mais ${truncatedPodcasts} podcasts. Consulte a seção de podcasts para ver todos.\n`;
-      break;
-    }
-    ctx += line;
-  }
-
-  return ctx + "\n";
+if (publish && updateId) {
+  generateArticleAudio(updateId, formData.content);
+  indexArticleRAG(updateId);  // NOVO
 }
 ```
 
-## Mudança 3 — Adicionar fetch ao Promise.all (linha 493)
+### 2.3 — Chamada em `handlePublish` (linha 236-238)
 
-Adicionar `fetchContentIndex(db)` ao array de promises paralelas:
-
+Após `generateArticleAudio`, adicionar:
 ```typescript
-const [rawRagChunks, recentPosts, channelPosts, channels, podcasts, userProfile, constitutionChunks, contentIndex] = await Promise.all([
-  searchRAGChunks(searchQuery, db, ragCfg),
-  fetchRecentPosts(db),
-  fetchRecentChannelPosts(db),
-  fetchChannelsCatalog(db),
-  fetchRecentPodcasts(db),
-  fetchUserProfile(db, user.id),
-  needsConstitution ? fetchConstitutionChunks(db) : Promise.resolve([]),
-  fetchContentIndex(db),  // NOVO
-]);
+indexArticleRAG(update.id);  // NOVO
 ```
 
-## Mudança 4 — Inserir no system message (entre linha 567-568)
+### 2.4 — Re-indexação na edição (dentro de `handleSave`, bloco de edição, ~linha 173)
 
-Inserir o bloco do índice ANTES de `buildChannelsContext`:
-
+Quando `editingUpdate` e o artigo já está publicado:
 ```typescript
-sysMsg += buildContentIndex(contentIndex.articles, contentIndex.podcasts);
-sysMsg += buildChannelsContext(channels);
-```
-
-## Mudança 5 — Log atualizado (linha 538)
-
-Adicionar contagem do índice no console.log:
-
-```
-..., index: ${contentIndex.articles.length}a/${contentIndex.podcasts.length}p, ...
+if (editingUpdate?.is_published && updateId) {
+  indexArticleRAG(updateId);
+}
 ```
 
 ---
 
-## Resultado no system message
+## Parte 3 — Botão de backfill no admin RAG (`src/pages/admin/rag/Documents.tsx`)
 
-```
-... [IDENTIDADE E DIRETRIZES] ...
-... [BASE DE CONHECIMENTO] ...
+Adicionar botão "Indexar Artigos" no header da página, ao lado do botão existente de criar documento.
 
-[ÍNDICE COMPLETO DE CONTEÚDO DA PLATAFORMA]
-Artigos publicados (83 artigos):
-- Produtividade | Como o Claude 3.5 mudou o Vibe-Coding | 25/03/2026 | /spaces/produtividade/post/claude-35-vibe-coding
-- Marketing | Automação com IA para leads | 20/03/2026 | /spaces/marketing/post/automacao-ia-leads
-...
-
-Podcasts publicados (24 episódios):
-- O futuro do trabalho com IA | 22/03/2026 | /podcasts/futuro-trabalho-ia
-...
-
-[CANAIS DA PLATAFORMA]
-...
-[PODCASTS RECENTES — últimos 8 episódios...]
-[ARTIGOS RECENTES — últimos 5 artigos...]
+```tsx
+<Button variant="outline" onClick={handleBackfillArticles} disabled={backfilling}>
+  {backfilling ? <Spinner className="animate-spin" /> : <FileText />}
+  Indexar Artigos
+</Button>
 ```
 
-## Arquivo alterado
+A função `handleBackfillArticles`:
+1. Confirma via `window.confirm`
+2. Chama `index-article-rag` com `{ action: "backfill" }`
+3. Mostra toast com resultado
+4. Invalida queries RAG via `queryClient`
 
-`supabase/functions/ai-assistant/index.ts` — 5 edits (2 funções novas, Promise.all, sysMsg, log)
+---
+
+## Arquivos
+
+1. `supabase/functions/index-article-rag/index.ts` — novo (~250 linhas)
+2. `src/pages/admin/SpaceContent.tsx` — 3 inserções (~15 linhas)
+3. `src/pages/admin/rag/Documents.tsx` — botão + handler (~30 linhas)
+
+## Não alterado
+
+- `generate-chunks/index.ts`
+- `ai-assistant/index.ts`
+- `search_rag_chunks_lexical`
+- Nenhuma tabela ou migration
 
