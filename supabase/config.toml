@@ -39,3 +39,5 @@ project_id = "akkbfzfjappludgsrwsw"
     verify_jwt = false
   [functions.tts-backfill]
     verify_jwt = false
+  [functions.og-meta]
+    verify_jwt = false
