@@ -106,7 +106,7 @@ serve(async (req) => {
           description: DEFAULT_DESCRIPTION,
           image: DEFAULT_IMAGE,
           url: SITE_URL,
-        }),
+        }, bot),
         {
           headers: {
             ...corsHeaders,
@@ -144,7 +144,7 @@ serve(async (req) => {
           description: DEFAULT_DESCRIPTION,
           image: DEFAULT_IMAGE,
           url: SITE_URL,
-        }),
+        }, bot),
         {
           headers: {
             ...corsHeaders,
@@ -174,7 +174,7 @@ serve(async (req) => {
         })(),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
-      }),
+      }, bot),
       {
         headers: {
           ...corsHeaders,
@@ -191,7 +191,7 @@ serve(async (req) => {
         description: DEFAULT_DESCRIPTION,
         image: DEFAULT_IMAGE,
         url: SITE_URL,
-      }),
+      }, bot),
       {
         headers: {
           ...corsHeaders,
