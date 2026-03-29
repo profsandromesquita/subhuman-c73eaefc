@@ -144,6 +144,13 @@ Deno.serve(async (req) => {
   }
 });
 
+function convertMarkdownToHtml(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<br>• $1');
+}
+
 function generateNotificationEmail(userName: string | null, title: string, message: string | null): string {
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
 
@@ -159,7 +166,7 @@ function generateNotificationEmail(userName: string | null, title: string, messa
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
     <!-- Header -->
     <div style="text-align: center; margin-bottom: 32px;">
-      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="180" style="display: block; margin: 0 auto 8px auto;" />
+      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="80" style="display: block; margin: 0 auto 8px auto;" />
       <p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Notificação</p>
     </div>
 
@@ -171,12 +178,12 @@ function generateNotificationEmail(userName: string | null, title: string, messa
     <!-- Notification card -->
     <div style="background-color: #141414; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
       <h2 style="color: #ffffff; font-size: 18px; font-weight: 600; margin: 0 0 12px 0;">📣 ${title}</h2>
-      ${message ? `<p style="color: #9ca3af; font-size: 15px; line-height: 1.6; margin: 0;">${message.replace(/\n/g, '<br>')}</p>` : ''}
+      ${message ? `<p style="color: #9ca3af; font-size: 15px; line-height: 1.6; margin: 0;">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
     </div>
 
     <!-- CTA -->
     <div style="text-align: center; margin-bottom: 32px;">
-      <a href="https://subhumano.ia.br/notifications" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+      <a href="https://subhumano.ia.br/login" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
         Ver na plataforma
       </a>
     </div>

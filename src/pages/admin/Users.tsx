@@ -542,6 +542,9 @@ export default function Users() {
                   className="mt-2 resize-none"
                   rows={3}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Formatação suportada: **negrito**, *itálico*, - item de lista
+                </p>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border p-3">
                 <div>
