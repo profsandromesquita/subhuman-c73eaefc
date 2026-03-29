@@ -159,7 +159,7 @@ function generateNotificationEmail(userName: string | null, title: string, messa
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
     <!-- Header -->
     <div style="text-align: center; margin-bottom: 32px;">
-      <h1 style="color: #ffffff; font-size: 24px; font-weight: bold; margin: 0;">SUBHUMANO</h1>
+      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="180" style="display: block; margin: 0 auto 8px auto;" />
       <p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Notificação</p>
     </div>
 
@@ -171,23 +171,27 @@ function generateNotificationEmail(userName: string | null, title: string, messa
     <!-- Notification card -->
     <div style="background-color: #141414; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
       <h2 style="color: #ffffff; font-size: 18px; font-weight: 600; margin: 0 0 12px 0;">📣 ${title}</h2>
-      ${message ? `<p style="color: #9ca3af; font-size: 15px; line-height: 1.6; margin: 0;">${message}</p>` : ''}
+      ${message ? `<p style="color: #9ca3af; font-size: 15px; line-height: 1.6; margin: 0;">${message.replace(/\n/g, '<br>')}</p>` : ''}
     </div>
 
     <!-- CTA -->
     <div style="text-align: center; margin-bottom: 32px;">
-      <a href="https://subhumano.ia.br/notificacoes" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+      <a href="https://subhumano.ia.br/notifications" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
         Ver na plataforma
       </a>
     </div>
 
     <!-- Footer -->
     <div style="border-top: 1px solid #262626; padding-top: 24px; text-align: center;">
+      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="120" style="display: block; margin: 0 auto 12px auto;" />
+      <p style="color: #9ca3af; font-size: 13px; line-height: 1.5; margin: 0 0 16px 0;">
+        Estamos aqui para ajudar você a usar IA com clareza e propósito. Se precisar de algo, conte com a gente.
+      </p>
       <p style="color: #6b7280; font-size: 12px; margin: 0;">
         Você recebeu esta mensagem da equipe Subhumano.
       </p>
       <p style="color: #6b7280; font-size: 12px; margin-top: 8px;">
-        <a href="https://subhumano.ia.br/perfil/notificacoes" style="color: #9ca3af;">Gerenciar preferências</a>
+        <a href="https://subhumano.ia.br/profile/notifications" style="color: #9ca3af;">Gerenciar preferências</a>
       </p>
     </div>
   </div>
