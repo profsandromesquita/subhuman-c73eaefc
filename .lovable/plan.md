@@ -1,45 +1,63 @@
 
 
-# Plano: Corrigir template de email de notificação admin
+# Plano: Ajustes finais no template de email + helper Markdown
 
-## Arquivo único: `supabase/functions/send-user-notification/index.ts`
+## Resumo
 
-Função `generateNotificationEmail()` (linhas 147-197). 4 bugs + 1 melhoria.
+2 arquivos, 3 correções + 1 melhoria.
 
 ---
 
-## Bug 1 — Quebras de linha (linha 174)
+## Arquivo 1: `supabase/functions/send-user-notification/index.ts`
 
-**Antes:** `${message}`
-**Depois:** `${message.replace(/\n/g, '<br>')}`
+### Correção 1 — Logo header menor (linha 162)
+**Antes:** `width="180"`
+**Depois:** `width="80"`
 
-## Bug 2 — Logo no header (linhas 161-163)
+### Correção 2 — CTA aponta para /login (linha 179)
+**Antes:** `href="https://subhumano.ia.br/notifications"`
+**Depois:** `href="https://subhumano.ia.br/login"`
+
+O link de "Gerenciar preferências" (linha 194) já aponta para `/profile/notifications` — sem alteração necessária.
+
+### Melhoria Parte B — Função `convertMarkdownToHtml` + aplicação na mensagem
+
+Nova função auxiliar antes de `generateNotificationEmail`:
+
+```typescript
+function convertMarkdownToHtml(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<br>• $1');
+}
+```
+
+Alterar a injeção da mensagem (linha 174):
 
 **Antes:**
-```html
-<h1 style="...">SUBHUMANO</h1>
-<p style="...">Notificação</p>
+```typescript
+${message ? `<p style="...">${message.replace(/\n/g, '<br>')}</p>` : ''}
 ```
 
 **Depois:**
-```html
-<img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="180" style="display: block; margin: 0 auto 8px auto;" />
-<p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Notificação</p>
+```typescript
+${message ? `<p style="...">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
 ```
 
-## Bug 3 — URL do botão CTA (linha 179)
+---
 
-**Antes:** `href="https://subhumano.ia.br/notificacoes"`
-**Depois:** `href="https://subhumano.ia.br/notifications"`
+## Arquivo 2: `src/pages/admin/Users.tsx`
 
-## Bug 4 — URL do footer (linha 190)
+### Melhoria Parte A — Helper text abaixo do textarea (após linha 544)
 
-**Antes:** `href="https://subhumano.ia.br/perfil/notificacoes"`
-**Depois:** `href="https://subhumano.ia.br/profile/notifications"`
+Adicionar após o `</Textarea>`:
 
-## Melhoria — Footer redesenhado (linhas 185-192)
-
-Substituir footer atual por versão com logo pequena (width=120), mensagem de acolhimento, texto original e link corrigido. Tudo centralizado, cores consistentes (#9ca3af para acolhimento, #6b7280 para rodapé).
+```tsx
+<p className="text-xs text-muted-foreground mt-1">
+  Formatação suportada: **negrito**, *itálico*, - item de lista
+</p>
+```
 
 ---
 
@@ -47,6 +65,5 @@ Substituir footer atual por versão com logo pequena (width=120), mensagem de ac
 
 - Lógica de envio Resend, JWT, validação admin
 - Insert na tabela notifications
-- Modal admin (Users.tsx)
-- Qualquer outro arquivo
+- Nenhum outro arquivo ou template
 
