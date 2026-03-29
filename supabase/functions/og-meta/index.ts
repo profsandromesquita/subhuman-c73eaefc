@@ -41,6 +41,7 @@ function buildHtml(meta: {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <title>${esc(meta.title)}</title>
   <meta property="og:title" content="${esc(meta.title)}" />
   <meta property="og:description" content="${esc(meta.description)}" />
@@ -102,13 +103,13 @@ serve(async (req) => {
     const { data: post, error } = await supabase
       .from('space_updates')
       .select(`
-        title,
-        slug,
-        thumbnail_url,
-        content,
-        published_at,
-        spaces!inner ( slug, name ),
-        profiles ( full_name )
+    title,
+    slug,
+    thumbnail_url,
+    content,
+    published_at,
+    author_id,
+    spaces!inner ( slug, name )
       `)
       .eq('slug', postSlug)
       .eq('spaces.slug', spaceSlug)
@@ -148,7 +149,6 @@ serve(async (req) => {
         description,
         image: post.thumbnail_url ?? DEFAULT_IMAGE,
         url: articleUrl,
-        author: (post.profiles as any)?.full_name ?? undefined,
         publishedTime: post.published_at ?? undefined,
       }),
       {
