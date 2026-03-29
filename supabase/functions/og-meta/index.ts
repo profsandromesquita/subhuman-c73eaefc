@@ -33,7 +33,7 @@ function buildHtml(meta: {
   url: string;
   author?: string;
   publishedTime?: string;
-}): string {
+}, isBot = false): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -58,7 +58,7 @@ function buildHtml(meta: {
   <meta name="twitter:title" content="${esc(meta.title)}" />
   <meta name="twitter:description" content="${esc(meta.description)}" />
   <meta name="twitter:image" content="${esc(meta.image)}" />
-  <script>window.location.href="${meta.url.replace(/"/g, '\\"')}";</script>
+  ${isBot ? '' : `<script>window.location.href="${meta.url.replace(/"/g, '\\"')}";</script>`}
 </head>
 <body>
   <p>Redirecionando para ${esc(meta.title)}...</p>
@@ -76,6 +76,9 @@ serve(async (req) => {
     const spaceSlug = url.searchParams.get('space');
     const postSlug = url.searchParams.get('post');
 
+    const userAgent = req.headers.get('user-agent') || '';
+    const bot = isBot(userAgent);
+    console.log('og-meta ua:', { isBot: bot, ua: userAgent.slice(0, 120) });
     console.log('og-meta request:', { spaceSlug, postSlug });
 
     const supabase = createClient(
