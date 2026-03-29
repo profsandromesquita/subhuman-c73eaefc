@@ -1,66 +1,52 @@
 
 
-# Plano: Corrigir og-meta (remover profiles join + UTF-8)
+# Plano: Corrigir template de email de notificação admin
 
-## Arquivo: `supabase/functions/og-meta/index.ts`
+## Arquivo único: `supabase/functions/send-user-notification/index.ts`
 
-### Edição 1 — Remover profiles do select (linhas 102-116)
+Função `generateNotificationEmail()` (linhas 147-197). 4 bugs + 1 melhoria.
 
-**Antes:**
-```typescript
-const { data: post, error } = await supabase
-  .from('space_updates')
-  .select(`
-    title,
-    slug,
-    thumbnail_url,
-    content,
-    published_at,
-    spaces!inner ( slug, name ),
-    profiles ( full_name )
-  `)
-```
+---
 
-**Depois:**
-```typescript
-const { data: post, error } = await supabase
-  .from('space_updates')
-  .select(`
-    title,
-    slug,
-    thumbnail_url,
-    content,
-    published_at,
-    author_id,
-    spaces!inner ( slug, name )
-  `)
-```
+## Bug 1 — Quebras de linha (linha 174)
 
-### Edição 2 — Remover author do buildHtml call (linha 151)
+**Antes:** `${message}`
+**Depois:** `${message.replace(/\n/g, '<br>')}`
 
-**Antes:**
-```typescript
-author: (post.profiles as any)?.full_name ?? undefined,
-```
-
-**Depois:** linha removida.
-
-### Edição 3 — Adicionar Content-Type meta ao HTML (linha 43-44)
+## Bug 2 — Logo no header (linhas 161-163)
 
 **Antes:**
 ```html
-<meta charset="UTF-8" />
-<title>...
+<h1 style="...">SUBHUMANO</h1>
+<p style="...">Notificação</p>
 ```
 
 **Depois:**
 ```html
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>...
+<img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="180" style="display: block; margin: 0 auto 8px auto;" />
+<p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Notificação</p>
 ```
 
-## Resumo
+## Bug 3 — URL do botão CTA (linha 179)
 
-3 edições cirúrgicas no mesmo arquivo. Remove o join problemático com `profiles` que causa erro de schema cache, e adiciona declaração explícita de charset no HTML para corrigir caracteres UTF-8 quebrados.
+**Antes:** `href="https://subhumano.ia.br/notificacoes"`
+**Depois:** `href="https://subhumano.ia.br/notifications"`
+
+## Bug 4 — URL do footer (linha 190)
+
+**Antes:** `href="https://subhumano.ia.br/perfil/notificacoes"`
+**Depois:** `href="https://subhumano.ia.br/profile/notifications"`
+
+## Melhoria — Footer redesenhado (linhas 185-192)
+
+Substituir footer atual por versão com logo pequena (width=120), mensagem de acolhimento, texto original e link corrigido. Tudo centralizado, cores consistentes (#9ca3af para acolhimento, #6b7280 para rodapé).
+
+---
+
+## Não alterado
+
+- Lógica de envio Resend, JWT, validação admin
+- Insert na tabela notifications
+- Modal admin (Users.tsx)
+- Qualquer outro arquivo
 
