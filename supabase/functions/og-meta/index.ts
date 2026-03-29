@@ -150,7 +150,13 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: post.thumbnail_url ?? DEFAULT_IMAGE,
+        image: (() => {
+          const thumb = post.thumbnail_url ?? '';
+          if (thumb.toLowerCase().endsWith('.webp') || !thumb) {
+            return DEFAULT_IMAGE;
+          }
+          return thumb;
+        })(),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
       }),
