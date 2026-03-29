@@ -13,6 +13,18 @@ const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/objec
 const DEFAULT_DESCRIPTION =
   'Curadoria de inteligência artificial validada por especialistas. Aprenda IA de forma prática e aplicada.';
 
+const BOT_PATTERNS = [
+  'facebookexternalhit', 'facebot', 'twitterbot', 'linkedinbot',
+  'whatsapp', 'telegrambot', 'slackbot', 'discordbot',
+  'googlebot', 'bingbot', 'applebot', 'pinterestbot',
+  'snapchat', 'redditbot', 'skypeuripreview',
+];
+
+function isBot(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  return BOT_PATTERNS.some(pattern => ua.includes(pattern));
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
