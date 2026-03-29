@@ -13,6 +13,18 @@ const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/objec
 const DEFAULT_DESCRIPTION =
   'Curadoria de inteligência artificial validada por especialistas. Aprenda IA de forma prática e aplicada.';
 
+const BOT_PATTERNS = [
+  'facebookexternalhit', 'facebot', 'twitterbot', 'linkedinbot',
+  'whatsapp', 'telegrambot', 'slackbot', 'discordbot',
+  'googlebot', 'bingbot', 'applebot', 'pinterestbot',
+  'snapchat', 'redditbot', 'skypeuripreview',
+];
+
+function isBot(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  return BOT_PATTERNS.some(pattern => ua.includes(pattern));
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
@@ -33,7 +45,7 @@ function buildHtml(meta: {
   url: string;
   author?: string;
   publishedTime?: string;
-}): string {
+}, isBot = false): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -58,7 +70,7 @@ function buildHtml(meta: {
   <meta name="twitter:title" content="${esc(meta.title)}" />
   <meta name="twitter:description" content="${esc(meta.description)}" />
   <meta name="twitter:image" content="${esc(meta.image)}" />
-  <script>window.location.href="${meta.url.replace(/"/g, '\\"')}";</script>
+  ${isBot ? '' : `<script>window.location.href="${meta.url.replace(/"/g, '\\"')}";</script>`}
 </head>
 <body>
   <p>Redirecionando para ${esc(meta.title)}...</p>
@@ -76,6 +88,9 @@ serve(async (req) => {
     const spaceSlug = url.searchParams.get('space');
     const postSlug = url.searchParams.get('post');
 
+    const userAgent = req.headers.get('user-agent') || '';
+    const bot = isBot(userAgent);
+    console.log('og-meta ua:', { isBot: bot, ua: userAgent.slice(0, 120) });
     console.log('og-meta request:', { spaceSlug, postSlug });
 
     const supabase = createClient(
@@ -91,7 +106,7 @@ serve(async (req) => {
           description: DEFAULT_DESCRIPTION,
           image: DEFAULT_IMAGE,
           url: SITE_URL,
-        }),
+        }, bot),
         {
           headers: {
             ...corsHeaders,
@@ -129,7 +144,7 @@ serve(async (req) => {
           description: DEFAULT_DESCRIPTION,
           image: DEFAULT_IMAGE,
           url: SITE_URL,
-        }),
+        }, bot),
         {
           headers: {
             ...corsHeaders,
@@ -159,7 +174,7 @@ serve(async (req) => {
         })(),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
-      }),
+      }, bot),
       {
         headers: {
           ...corsHeaders,
@@ -176,7 +191,7 @@ serve(async (req) => {
         description: DEFAULT_DESCRIPTION,
         image: DEFAULT_IMAGE,
         url: SITE_URL,
-      }),
+      }, bot),
       {
         headers: {
           ...corsHeaders,
