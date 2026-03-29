@@ -46,6 +46,9 @@ function buildHtml(meta: {
   <meta property="og:title" content="${esc(meta.title)}" />
   <meta property="og:description" content="${esc(meta.description)}" />
   <meta property="og:image" content="${esc(meta.image)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/png" />
   <meta property="og:url" content="${esc(meta.url)}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="${SITE_NAME}" />
@@ -55,7 +58,7 @@ function buildHtml(meta: {
   <meta name="twitter:title" content="${esc(meta.title)}" />
   <meta name="twitter:description" content="${esc(meta.description)}" />
   <meta name="twitter:image" content="${esc(meta.image)}" />
-  <meta http-equiv="refresh" content="0;url=${esc(meta.url)}" />
+  <script>window.location.href="${meta.url.replace(/"/g, '\\"')}";</script>
 </head>
 <body>
   <p>Redirecionando para ${esc(meta.title)}...</p>
