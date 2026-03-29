@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SITE_URL = 'https://subhumano.ia.br';
 const SITE_NAME = 'Subhumano';
-const DEFAULT_IMAGE = `${SITE_URL}/og-default.png`;
+const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png?v=1';
 const DEFAULT_DESCRIPTION =
   'Curadoria de inteligência artificial validada por especialistas. Aprenda IA de forma prática e aplicada.';
 
@@ -72,9 +72,11 @@ serve(async (req) => {
     const spaceSlug = url.searchParams.get('space');
     const postSlug = url.searchParams.get('post');
 
+    console.log('og-meta request:', { spaceSlug, postSlug });
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // No params — return home meta tags
@@ -112,6 +114,8 @@ serve(async (req) => {
       .eq('spaces.slug', spaceSlug)
       .eq('is_published', true)
       .single();
+
+    console.log('og-meta result:', { found: !!post, error: error?.message, title: (post as any)?.title });
 
     if (error || !post) {
       console.error('Post not found:', error?.message);
