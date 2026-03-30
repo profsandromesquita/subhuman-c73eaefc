@@ -25,6 +25,23 @@ function isBot(userAgent: string): boolean {
   return BOT_PATTERNS.some(pattern => ua.includes(pattern));
 }
 
+function getOgImageUrl(thumbnailUrl: string | null): string {
+  if (!thumbnailUrl) return DEFAULT_IMAGE;
+
+  if (thumbnailUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = thumbnailUrl
+      .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+      .split('?')[0];
+    return `${renderUrl}?width=1200&height=630&resize=cover&format=jpg&quality=85`;
+  }
+
+  if (thumbnailUrl.toLowerCase().endsWith('.webp')) {
+    return DEFAULT_IMAGE;
+  }
+
+  return thumbnailUrl;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
@@ -60,7 +77,7 @@ function buildHtml(meta: {
   <meta property="og:image" content="${esc(meta.image)}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:url" content="${esc(meta.url)}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="${SITE_NAME}" />
@@ -165,13 +182,7 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: (() => {
-          const thumb = post.thumbnail_url ?? '';
-          if (thumb.toLowerCase().endsWith('.webp') || !thumb) {
-            return DEFAULT_IMAGE;
-          }
-          return thumb;
-        })(),
+        image: getOgImageUrl(post.thumbnail_url),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
       }, bot),
