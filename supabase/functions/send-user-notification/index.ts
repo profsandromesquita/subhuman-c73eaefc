@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const resendApiKey = Deno.env.get('RESEND');
 
-    // Validate caller using getUser() — padrão de todas as edge functions do projeto
     const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -38,11 +37,8 @@ Deno.serve(async (req) => {
     }
 
     const callerId = user.id;
-
-    // Use service role client for admin operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if caller is admin or moderator
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
@@ -66,7 +62,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Insert in-app notification using service role (bypasses RLS)
     const { error: notifError } = await supabase.from('notifications').insert({
       user_id,
       title,
@@ -83,17 +78,14 @@ Deno.serve(async (req) => {
     let emailSent = false;
     let emailErrorMsg: string | null = null;
 
-    // Send email if requested and Resend is configured
     if (send_email && resendApiKey) {
       try {
-        // Get user email via admin API
         const { data: userData, error: userFetchError } = await supabase.auth.admin.getUserById(user_id);
 
         if (userFetchError || !userData?.user?.email) {
           console.error('Could not fetch user email:', userFetchError);
           emailErrorMsg = 'Não foi possível obter o email do usuário';
         } else {
-          // Get profile for name
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name')
@@ -104,15 +96,16 @@ Deno.serve(async (req) => {
           const resend = new Resend(resendApiKey);
 
           const htmlContent = generateNotificationEmail(userName, title, message);
+          const plainText = generatePlainText(userName, title, message);
 
           console.log('Tentando enviar email para:', userData.user.email);
-          console.log('API Key (primeiros 12 chars):', resendApiKey.slice(0, 12));
 
           const sendResult = await resend.emails.send({
             from: 'Subhumano <noreply@subhumano.ia.br>',
             to: [userData.user.email],
             subject: `📣 ${title}`,
             html: htmlContent,
+            text: plainText,
           });
 
           console.log('Resultado Resend completo:', JSON.stringify(sendResult));
@@ -151,58 +144,70 @@ function convertMarkdownToHtml(text: string): string {
     .replace(/^- (.+)$/gm, '<br>• $1');
 }
 
+function generatePlainText(userName: string | null, title: string, message: string | null): string {
+  const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
+  return [
+    greeting, '', title, '', message || '', '',
+    'Ver na plataforma: https://subhumano.ia.br/login', '',
+    '---',
+    'Você recebeu esta mensagem da equipe Subhumano.',
+    'Gerenciar preferências: https://subhumano.ia.br/profile/notifications',
+  ].join('\n');
+}
+
 function generateNotificationEmail(userName: string | null, title: string, message: string | null): string {
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
+  const logoUrl = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png';
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>${title} - Subhumano</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    <!-- Header -->
-    <div style="text-align: center; margin-bottom: 32px;">
-      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="80" style="display: block; margin: 0 auto 8px auto;" />
-      <p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Notificação</p>
-    </div>
-
-    <!-- Greeting -->
-    <div style="margin-bottom: 24px;">
-      <p style="color: #ffffff; font-size: 18px; margin: 0;">${greeting}</p>
-    </div>
-
-    <!-- Notification card -->
-    <div style="background-color: #141414; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 32px;">
-      <h2 style="color: #ffffff; font-size: 18px; font-weight: 600; margin: 0 0 12px 0;">📣 ${title}</h2>
-      ${message ? `<p style="color: #9ca3af; font-size: 15px; line-height: 1.6; margin: 0;">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
-    </div>
-
-    <!-- CTA -->
-    <div style="text-align: center; margin-bottom: 32px;">
-      <a href="https://subhumano.ia.br/login" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
-        Ver na plataforma
-      </a>
-    </div>
-
-    <!-- Footer -->
-    <div style="border-top: 1px solid #262626; padding-top: 24px; text-align: center;">
-      <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png" alt="Subhumano" width="120" style="display: block; margin: 0 auto 12px auto;" />
-      <p style="color: #9ca3af; font-size: 13px; line-height: 1.5; margin: 0 0 16px 0;">
-        Estamos aqui para ajudar você a usar IA com clareza e propósito. Se precisar de algo, conte com a gente.
-      </p>
-      <p style="color: #6b7280; font-size: 12px; margin: 0;">
-        Você recebeu esta mensagem da equipe Subhumano.
-      </p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 8px;">
-        <a href="https://subhumano.ia.br/profile/notifications" style="color: #9ca3af;">Gerenciar preferências</a>
-      </p>
-    </div>
-  </div>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" bgcolor="#f4f4f5" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 0;">
+        <table width="600" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;">
+          <tr>
+            <td align="center" style="padding:32px 40px 24px;">
+              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
+            </td>
+          </tr>
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
+          <tr>
+            <td style="padding:32px 40px 0;">
+              <p style="margin:0;font-size:20px;font-weight:600;color:#1a1a1a;">${greeting}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 40px;">
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;">
+                <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#1a1a1a;">${title}</p>
+                ${message ? `<p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 40px;">
+              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Ver na plataforma</a>
+            </td>
+          </tr>
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
+          <tr>
+            <td align="center" style="padding:24px 40px 32px;">
+              <p style="margin:0 0 8px;font-size:12px;color:#9ca3af;">Você recebeu esta mensagem da equipe Subhumano.</p>
+              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:12px;color:#6b7280;text-decoration:underline;">Gerenciar preferências</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-  `;
+</html>`;
 }
