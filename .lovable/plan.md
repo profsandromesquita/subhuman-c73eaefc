@@ -1,24 +1,21 @@
 
 
-# Plano: Simplificar getOgImageUrl
+# Plano: Corrigir og:image:type para image/webp
 
 ## Arquivo: `supabase/functions/og-meta/index.ts`
 
-### Edição única — linhas 28-43
+### Edição única — linha 70
 
-**Antes:** Função com lógica de transformação Supabase render API + bloqueio de WebP (15 linhas)
+**Antes:**
+```html
+<meta property="og:image:type" content="image/jpeg" />
+```
 
 **Depois:**
-```typescript
-function getOgImageUrl(thumbnailUrl: string | null): string {
-  if (!thumbnailUrl || thumbnailUrl.trim() === '') {
-    return DEFAULT_IMAGE;
-  }
-  return thumbnailUrl;
-}
+```html
+<meta property="og:image:type" content="image/webp" />
 ```
 
 ## Não alterado
-- Nenhum outro arquivo
-- Restante do og-meta/index.ts (bot detection, buildHtml, query, etc.)
+- Nenhum outro arquivo ou linha
 
