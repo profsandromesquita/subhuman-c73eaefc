@@ -182,13 +182,7 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: (() => {
-          const thumb = post.thumbnail_url ?? '';
-          if (thumb.toLowerCase().endsWith('.webp') || !thumb) {
-            return DEFAULT_IMAGE;
-          }
-          return thumb;
-        })(),
+        image: getOgImageUrl(post.thumbnail_url),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
       }, bot),
