@@ -26,19 +26,9 @@ function isBot(userAgent: string): boolean {
 }
 
 function getOgImageUrl(thumbnailUrl: string | null): string {
-  if (!thumbnailUrl) return DEFAULT_IMAGE;
-
-  if (thumbnailUrl.includes('/storage/v1/object/public/')) {
-    const renderUrl = thumbnailUrl
-      .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-      .split('?')[0];
-    return `${renderUrl}?width=1200&height=630&resize=cover&format=jpg&quality=85`;
-  }
-
-  if (thumbnailUrl.toLowerCase().endsWith('.webp')) {
+  if (!thumbnailUrl || thumbnailUrl.trim() === '') {
     return DEFAULT_IMAGE;
   }
-
   return thumbnailUrl;
 }
 
