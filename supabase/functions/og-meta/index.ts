@@ -212,14 +212,17 @@ serve(async (req) => {
     );
   } catch (err) {
     console.error('og-meta error:', err);
+    const catchUa = req.headers.get('user-agent') || '';
+    const catchBot = isBot(catchUa);
+    const catchWhatsApp = isWhatsApp(catchUa);
     return new Response(
       buildHtml({
         title: SITE_NAME,
         description: DEFAULT_DESCRIPTION,
-        image: getImageUrl(null, whatsapp),
+        image: getImageUrl(null, catchWhatsApp),
         url: SITE_URL,
-        imageType: whatsapp ? 'image/jpeg' : 'image/webp',
-      }, bot),
+        imageType: catchWhatsApp ? 'image/jpeg' : 'image/webp',
+      }, catchBot),
       {
         headers: {
           ...corsHeaders,
