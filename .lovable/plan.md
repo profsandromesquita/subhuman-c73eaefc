@@ -1,47 +1,90 @@
 
 
-# Plano: Atualizar DEFAULT_IMAGE no og-meta e index.html
+# Plano: Fix WhatsApp OG preview — robots.txt + JPEG transform
 
-## Arquivo 1: `supabase/functions/og-meta/index.ts`
+## Arquivo 1: `public/robots.txt`
 
-### Edição — linha 11
+Adicionar ao final do arquivo existente (após linha 14):
 
-**Antes:**
+```
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+```
+
+## Arquivo 2: `supabase/functions/og-meta/index.ts`
+
+### Edição 1 — Adicionar `isWhatsApp()` e `getImageUrl()` (após linha 26, substituindo `getOgImageUrl`)
+
+Remover `getOgImageUrl` (linhas 28-33) e adicionar:
+
 ```typescript
-const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png?v=1';
+function isWhatsApp(userAgent: string): boolean {
+  return userAgent.toLowerCase().includes('whatsapp') ||
+    userAgent.toLowerCase().includes('meta-externalagent');
+}
+
+function getImageUrl(thumbnailUrl: string | null, forWhatsApp: boolean): string {
+  if (!thumbnailUrl || thumbnailUrl.trim() === '') {
+    if (forWhatsApp) {
+      return DEFAULT_IMAGE.includes('.webp')
+        ? DEFAULT_IMAGE.replace(
+            '/object/public/',
+            '/render/image/public/'
+          ) + '?width=1200&height=630&resize=cover&format=jpg&quality=90'
+        : DEFAULT_IMAGE;
+    }
+    return DEFAULT_IMAGE;
+  }
+
+  if (forWhatsApp && thumbnailUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = thumbnailUrl
+      .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+      .split('?')[0];
+    return `${renderUrl}?width=1200&height=630&resize=cover&format=jpg&quality=85`;
+  }
+
+  return thumbnailUrl;
+}
 ```
 
-**Depois:**
+### Edição 2 — Extrair `whatsapp` do UA (após linha 100)
+
 ```typescript
-const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/ecossistema-subhumano-inteligencia-artificial-prof-sandro-mesquita.webp';
+const whatsapp = isWhatsApp(userAgent);
 ```
 
-## Arquivo 2: `index.html`
+### Edição 3 — Atualizar todas as 4 chamadas a `buildHtml` para usar `getImageUrl`
 
-### Edição A — og:image (linha 18)
+- **Linha 114:** `image: DEFAULT_IMAGE` → `image: getImageUrl(null, whatsapp)`
+- **Linha 152:** `image: DEFAULT_IMAGE` → `image: getImageUrl(null, whatsapp)`
+- **Linha 175:** `image: getOgImageUrl(post.thumbnail_url)` → `image: getImageUrl(post.thumbnail_url, whatsapp)`
+- **Linha 193:** `image: DEFAULT_IMAGE` → `image: getImageUrl(null, whatsapp)`
 
-**Antes:**
-```html
-<meta property="og:image" content="https://subhumano.ia.br/og-default.png" />
+### Edição 4 — `og:image:type` dinâmico no `buildHtml`
+
+Adicionar parâmetro `imageType` ao objeto `meta` do `buildHtml`:
+
+```typescript
+function buildHtml(meta: {
+  title: string;
+  description: string;
+  image: string;
+  url: string;
+  author?: string;
+  publishedTime?: string;
+  imageType?: string;
+}, isBot = false): string {
 ```
 
-**Depois:**
-```html
-<meta property="og:image" content="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/ecossistema-subhumano-inteligencia-artificial-prof-sandro-mesquita.webp" />
-```
+Linha 70: `content="image/webp"` → `content="${meta.imageType || 'image/webp'}"`
 
-### Edição B — twitter:image (linha 22)
-
-**Antes:**
-```html
-<meta name="twitter:image" content="https://subhumano.ia.br/og-default.png" />
-```
-
-**Depois:**
-```html
-<meta name="twitter:image" content="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/ecossistema-subhumano-inteligencia-artificial-prof-sandro-mesquita.webp" />
-```
+Nas chamadas com WhatsApp, passar `imageType: whatsapp ? 'image/jpeg' : 'image/webp'`.
 
 ## Não alterado
-- Nenhum outro arquivo ou linha
+- Nenhum outro arquivo
+- Banco / RLS
+- index.html
 
