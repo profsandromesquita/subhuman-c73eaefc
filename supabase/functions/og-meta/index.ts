@@ -37,7 +37,7 @@ function getImageUrl(thumbnailUrl: string | null, forWhatsApp: boolean): string 
         ? DEFAULT_IMAGE.replace(
             '/object/public/',
             '/render/image/public/'
-          ) + '?width=1200&height=630&resize=cover&format=jpg&quality=90'
+          ) + '?width=1200&height=630&resize=cover&quality=90'
         : DEFAULT_IMAGE;
     }
     return DEFAULT_IMAGE;
