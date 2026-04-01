@@ -17,7 +17,7 @@ const BOT_PATTERNS = [
   'facebookexternalhit', 'facebot', 'twitterbot', 'linkedinbot',
   'whatsapp', 'telegrambot', 'slackbot', 'discordbot',
   'googlebot', 'bingbot', 'applebot', 'pinterestbot',
-  'snapchat', 'redditbot', 'skypeuripreview',
+  'snapchat', 'redditbot', 'skypeuripreview', 'meta-externalagent',
 ];
 
 function isBot(userAgent: string): boolean {
