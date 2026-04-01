@@ -120,6 +120,7 @@ serve(async (req) => {
     const userAgent = req.headers.get('user-agent') || '';
     const bot = isBot(userAgent);
     console.log('og-meta ua:', { isBot: bot, ua: userAgent.slice(0, 120) });
+    const whatsapp = isWhatsApp(userAgent);
     console.log('og-meta request:', { spaceSlug, postSlug });
 
     const supabase = createClient(
