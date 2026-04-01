@@ -25,31 +25,10 @@ function isBot(userAgent: string): boolean {
   return BOT_PATTERNS.some(pattern => ua.includes(pattern));
 }
 
-function isWhatsApp(userAgent: string): boolean {
-  return userAgent.toLowerCase().includes('whatsapp') ||
-    userAgent.toLowerCase().includes('meta-externalagent');
-}
-
-function getImageUrl(thumbnailUrl: string | null, forWhatsApp: boolean): string {
+function getImageUrl(thumbnailUrl: string | null): string {
   if (!thumbnailUrl || thumbnailUrl.trim() === '') {
-    if (forWhatsApp) {
-      return DEFAULT_IMAGE.includes('.webp')
-        ? DEFAULT_IMAGE.replace(
-            '/object/public/',
-            '/render/image/public/'
-          ) + '?width=1200&height=630&resize=cover&quality=90'
-        : DEFAULT_IMAGE;
-    }
     return DEFAULT_IMAGE;
   }
-
-  if (forWhatsApp && thumbnailUrl.includes('/storage/v1/object/public/')) {
-    const renderUrl = thumbnailUrl
-      .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-      .split('?')[0];
-    return `${renderUrl}?width=1200&height=630&resize=cover&quality=85`;
-  }
-
   return thumbnailUrl;
 }
 
@@ -73,7 +52,6 @@ function buildHtml(meta: {
   url: string;
   author?: string;
   publishedTime?: string;
-  imageType?: string;
 }, isBot = false): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -89,7 +67,7 @@ function buildHtml(meta: {
   <meta property="og:image" content="${esc(meta.image)}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="${meta.imageType || 'image/webp'}" />
+  <meta property="og:image:type" content="image/webp" />
   <meta property="og:url" content="${esc(meta.url)}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="${SITE_NAME}" />
@@ -107,6 +85,13 @@ function buildHtml(meta: {
 </html>`;
 }
 
+const htmlHeaders = {
+  ...corsHeaders,
+  'Content-Type': 'text/html; charset=utf-8',
+  'content-type': 'text/html; charset=utf-8',
+  'X-Content-Type-Options': 'nosniff',
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -120,7 +105,6 @@ serve(async (req) => {
     const userAgent = req.headers.get('user-agent') || '';
     const bot = isBot(userAgent);
     console.log('og-meta ua:', { isBot: bot, ua: userAgent.slice(0, 120) });
-    const whatsapp = isWhatsApp(userAgent);
     console.log('og-meta request:', { spaceSlug, postSlug });
 
     const supabase = createClient(
@@ -128,27 +112,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // No params — return home meta tags
     if (!spaceSlug || !postSlug) {
       return new Response(
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null, whatsapp),
+          image: getImageUrl(null),
           url: SITE_URL,
-          imageType: whatsapp ? 'image/jpeg' : 'image/webp',
         }, bot),
-        {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, max-age=3600',
-          },
-        }
+        { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=3600' } }
       );
     }
 
-    // Fetch article data — public data, no auth needed
     const { data: post, error } = await supabase
       .from('space_updates')
       .select(`
@@ -173,62 +148,37 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null, whatsapp),
+          image: getImageUrl(null),
           url: SITE_URL,
-          imageType: whatsapp ? 'image/jpeg' : 'image/webp',
         }, bot),
-        {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, max-age=60',
-          },
-        }
+        { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=60' } }
       );
     }
 
     const articleUrl = `${SITE_URL}/spaces/${spaceSlug}/post/${postSlug}`;
-
-    const description = post.content
-      ? stripHtml(post.content)
-      : DEFAULT_DESCRIPTION;
+    const description = post.content ? stripHtml(post.content) : DEFAULT_DESCRIPTION;
 
     return new Response(
       buildHtml({
         title: post.title,
         description,
-        image: getImageUrl(post.thumbnail_url, whatsapp),
+        image: getImageUrl(post.thumbnail_url),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
-        imageType: whatsapp ? 'image/jpeg' : 'image/webp',
       }, bot),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600',
-        },
-      }
+      { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=3600' } }
     );
   } catch (err) {
     console.error('og-meta error:', err);
-    const catchUa = req.headers.get('user-agent') || '';
-    const catchBot = isBot(catchUa);
-    const catchWhatsApp = isWhatsApp(catchUa);
+    const catchBot = isBot(req.headers.get('user-agent') || '');
     return new Response(
       buildHtml({
         title: SITE_NAME,
         description: DEFAULT_DESCRIPTION,
-        image: getImageUrl(null, catchWhatsApp),
+        image: getImageUrl(null),
         url: SITE_URL,
-        imageType: catchWhatsApp ? 'image/jpeg' : 'image/webp',
       }, catchBot),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'text/html; charset=utf-8',
-        },
-      }
+      { headers: htmlHeaders }
     );
   }
 });
