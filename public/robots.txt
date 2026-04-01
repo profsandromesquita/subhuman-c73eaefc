@@ -12,3 +12,9 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: WhatsApp
+Allow: /

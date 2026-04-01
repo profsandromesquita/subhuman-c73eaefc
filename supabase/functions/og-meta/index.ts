@@ -25,10 +25,31 @@ function isBot(userAgent: string): boolean {
   return BOT_PATTERNS.some(pattern => ua.includes(pattern));
 }
 
-function getOgImageUrl(thumbnailUrl: string | null): string {
+function isWhatsApp(userAgent: string): boolean {
+  return userAgent.toLowerCase().includes('whatsapp') ||
+    userAgent.toLowerCase().includes('meta-externalagent');
+}
+
+function getImageUrl(thumbnailUrl: string | null, forWhatsApp: boolean): string {
   if (!thumbnailUrl || thumbnailUrl.trim() === '') {
+    if (forWhatsApp) {
+      return DEFAULT_IMAGE.includes('.webp')
+        ? DEFAULT_IMAGE.replace(
+            '/object/public/',
+            '/render/image/public/'
+          ) + '?width=1200&height=630&resize=cover&format=jpg&quality=90'
+        : DEFAULT_IMAGE;
+    }
     return DEFAULT_IMAGE;
   }
+
+  if (forWhatsApp && thumbnailUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = thumbnailUrl
+      .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+      .split('?')[0];
+    return `${renderUrl}?width=1200&height=630&resize=cover&format=jpg&quality=85`;
+  }
+
   return thumbnailUrl;
 }
 
