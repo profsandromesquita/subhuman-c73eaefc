@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SITE_URL = 'https://subhumano.ia.br';
 const SITE_NAME = 'Subhumano';
-const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png?v=1';
+const DEFAULT_IMAGE = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/ecossistema-subhumano-inteligencia-artificial-prof-sandro-mesquita.webp';
 const DEFAULT_DESCRIPTION =
   'Curadoria de inteligência artificial validada por especialistas. Aprenda IA de forma prática e aplicada.';
 
