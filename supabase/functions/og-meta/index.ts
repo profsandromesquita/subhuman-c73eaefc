@@ -73,6 +73,7 @@ function buildHtml(meta: {
   url: string;
   author?: string;
   publishedTime?: string;
+  imageType?: string;
 }, isBot = false): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
