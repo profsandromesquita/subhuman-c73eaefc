@@ -1,98 +1,74 @@
 
-## Auditoria completa (resultado)
 
-### Escopo auditado
-- `supabase/functions/og-meta/index.ts` (fluxo completo de geração OG)
-- `public/robots.txt`
-- `index.html` (fallback OG da home)
-- Banco (`space_updates`, `spaces`, `storage.objects`, `storage.buckets`)
-- Logs da função `og-meta`
-- Testes de resposta da função com UAs `facebookexternalhit` e `meta-externalagent` para os 2 artigos do print.
+# Plano: Fase 2 — Imagem OG determinística para WhatsApp
 
-### Evidências objetivas coletadas
-1. **Os dois artigos existem e estão publicados**, com `thumbnail_url` preenchida.
-2. **Para os dois slugs**, a `og-meta` retorna `og:title`, `og:description`, `og:image`, `og:url` corretamente.
-3. **Bug real de classificação de bot**:
-   - `isBot(meta-externalagent) = false` (log real)
-   - resultado: HTML inclui `<script>window.location.href=...` para `meta-externalagent`.
-4. `robots.txt` já permite `meta-externalagent` e `WhatsApp`.
-5. A URL `render/image` usada para WhatsApp responde 200; porém em testes de fetch binário apareceu payload `WEBP` em parte dos acessos (conversão para JPEG não ficou determinística no nosso ambiente de teste).
-6. Durante o seu teste original (print), **não encontramos log do slug “figma...”** no intervalo disponível, enquanto há múltiplos logs de “vazamento...”, sugerindo possível inconsistência de roteamento/chamada upstream.
+## Diagnóstico atualizado (pós-Fase 1)
 
-### Candidatos a causa raiz (do mais provável ao menos provável)
+Dos testes com curl, identifiquei **dois problemas críticos** que explicam a falha:
 
-1. **[Muito provável] `meta-externalagent` não é tratado como bot em `isBot`**  
-   Impacto: injeta redirect JS para crawler do WhatsApp/Meta, podendo interromper ou degradar parsing OG (especialmente título/descrição).
+### Problema A — `Content-Type: text/plain`
+A Edge Function retorna `Content-Type: text/plain` nos headers da resposta (visível no curl), mesmo com o código definindo `text/html; charset=utf-8`. O gateway Supabase está sobrescrevendo o header. Crawlers rigorosos podem ignorar OG tags em respostas `text/plain`.
 
-2. **[Muito provável] Inconsistência no roteamento externo para `og-meta` (camada de borda/proxy)**  
-   Evidência: ausência de logs para um dos links no teste real + inconsistência entre links “nunca usados”.  
-   Impacto: crawler recebe HTML SPA/fallback em vez de OG dinâmico.
+### Problema B — og:image via Render API é instável
+A URL da imagem usa `/render/image/public/...webp?width=1200&height=630&resize=cover&quality=85`. Este endpoint:
+- Mantém extensão `.webp` no path (confunde crawlers que checam extensão)
+- Pode ser lento/instável, causando timeout no crawler
+- Adiciona latência desnecessária à resolução da imagem
 
-3. **[Provável] Conversão WebP→JPEG não determinística no endpoint `render/image`**  
-   Impacto: título pode aparecer, mas imagem pode falhar no WhatsApp (comportamento visto no print do primeiro link).
+## Solução (3 edições em `og-meta/index.ts`)
 
-4. **[Médio] `Content-Type` da resposta observado como `text/plain` em chamadas diretas da função**  
-   Impacto: alguns crawlers podem ter parsing mais rígido.
+### Edição 1 — Simplificar `getImageUrl`: servir URL original sem transformação
 
-5. **[Médio/baixo] Cache agressivo (`max-age=3600`) em OG para conteúdo recém-publicado**  
-   Impacto: preview inconsistente entre links novos por janela de cache.
+Remover toda a lógica de `/render/image/`. Servir a `thumbnail_url` original diretamente (o Supabase Storage com `/object/public/` responde rápido e com Content-Type correto). O fallback continua sendo `DEFAULT_IMAGE`.
 
-## Plano de correção em fases (sequencial com rollback de hipótese)
+```typescript
+function getImageUrl(thumbnailUrl: string | null): string {
+  if (!thumbnailUrl || thumbnailUrl.trim() === '') {
+    return DEFAULT_IMAGE;
+  }
+  return thumbnailUrl;
+}
+```
 
-### Fase 1 — Corrigir classificação de crawler (candidato #1)
-**Mudança alvo:** `og-meta/index.ts`
-- Incluir `meta-externalagent` em `BOT_PATTERNS` (ou ajustar condição de redirect para excluir WhatsApp/Meta explicitamente).
-- Garantir que bot nunca receba script de redirect.
-- Manter `isWhatsApp` como está.
+### Edição 2 — Remover `isWhatsApp()` e parâmetro `forWhatsApp`
 
-**Critério de sucesso**
-- `curl -A 'meta-externalagent/1.1' .../og-meta?...` retorna OG sem `<script>`.
-- Ambos os slugs com `og:title` e `og:image` corretos.
-- Novo teste no WhatsApp: os 2 links exibem ao menos título/descrição consistentemente.
+Com a simplificação da imagem, não há mais necessidade de diferenciar por UA para a imagem. Remover a função `isWhatsApp` e todas as referências a `whatsapp` no fluxo de imagem.
 
-**Se falhar:** avançar para Fase 2.
+### Edição 3 — Atualizar todas as chamadas
 
-### Fase 2 — Tornar imagem WhatsApp determinística (candidato #3)
-**Mudança alvo:** `og-meta/index.ts` (e, se necessário, pipeline de mídia)
-- Estratégia A (rápida): para WhatsApp, usar **imagem fallback PNG/JPEG fixa** para garantir render imediato.
-- Estratégia B (definitiva): gerar e persistir thumbnail JPEG em publish/upload (URL dedicada), e usar essa URL para WhatsApp.
-- Não depender de negociação implícita de formato.
+- `getImageUrl(post.thumbnail_url)` — sem segundo parâmetro
+- `getImageUrl(null)` — nos fallbacks
+- Remover `imageType` das chamadas a `buildHtml` — usar `image/webp` fixo (que é o formato real das thumbnails)
+- Remover o parâmetro `whatsapp` da função `serve`
 
-**Critério de sucesso**
-- `curl -I` na `og:image` WhatsApp retorna `Content-Type` consistente (`image/jpeg` ou `image/png`) e 200.
-- Preview com imagem aparece em ambos os links no WhatsApp.
+### Edição 4 — Forçar `Content-Type` com workaround
 
-**Se falhar:** avançar para Fase 3.
+Adicionar header duplicado para tentar forçar o tipo correto pelo gateway:
 
-### Fase 3 — Auditoria/correção de roteamento externo (candidato #2)
-**Mudança alvo:** camada externa de roteamento para `og-meta` (proxy/edge fora deste repositório)
-- Validar regex de rota para `/spaces/{space}/post/{post}` em todos os slugs.
-- Garantir encaminhamento para `og-meta` para UAs `facebookexternalhit`, `meta-externalagent`, `WhatsApp`.
-- Adicionar log de decisão de roteamento por UA+path.
+```typescript
+headers: {
+  ...corsHeaders,
+  'Content-Type': 'text/html; charset=utf-8',
+  'content-type': 'text/html; charset=utf-8',
+},
+```
 
-**Critério de sucesso**
-- Para ambos os slugs, todo request desses UAs gera log na `og-meta`.
-- Sem casos de fallback SPA para crawler.
+Se o gateway ignora case-sensitive, pelo menos um deve passar. Também adicionar `X-Content-Type-Options: nosniff`.
 
-**Se falhar:** avançar para Fase 4.
+## Resultado esperado
 
-### Fase 4 — Hardening de compatibilidade/caching (candidatos #4 e #5)
-- Forçar `Content-Type: text/html; charset=utf-8` observável na rota pública.
-- Reduzir TTL para conteúdo recém-publicado (ex.: 300s) + política de invalidação.
-- Adicionar `og:image:secure_url` e `og:image:alt` (robustez cross-crawler).
+- og:image aponta para URL direta do Storage (`/object/public/...`) — rápida, estável, sem transformação
+- HTML retornado com Content-Type mais provável de ser `text/html`
+- Sem lógica condicional por UA para imagem — simplificação total
 
-**Critério de sucesso**
-- Re-scrape consistente em WhatsApp/Facebook para links novos.
-- Sem variação de título entre links do mesmo lote de publicação.
+## O que NÃO muda
 
-## Matriz de validação final (obrigatória em cada fase)
-- UAs: `facebookexternalhit`, `meta-externalagent`, `WhatsApp`
-- URLs: os 2 artigos do print + 1 artigo antigo de controle
-- Verificações:
-  1) presença de `og:title`, `og:description`, `og:image`, `og:url`
-  2) ausência de redirect script para bots
-  3) imagem 200 com tipo suportado
-  4) logs da `og-meta` para **todos** os testes
+- Detecção de bot (`isBot`, `BOT_PATTERNS`) — mantida
+- Lógica de redirect JS vs bot — mantida
+- Query ao banco — mantida
+- Nenhum outro arquivo
 
-## Conclusão da auditoria
-O candidato mais forte é **erro de classificação de `meta-externalagent` como não-bot**, seguido por **inconsistência de roteamento externo** e **não determinismo de formato da imagem para WhatsApp**. O plano acima foi ordenado para atacar primeiro as causas com maior relação direta com o sintoma observado no print e menor custo de correção.
+## Observação sobre Fase 3
+
+Se após este deploy o artigo "mythos" continuar sem preview mas o "vazamento" funcionar, o problema é **roteamento externo** (Cloudflare Worker / proxy não encaminha o slug correto para a Edge Function). Isso será Fase 3.
+
