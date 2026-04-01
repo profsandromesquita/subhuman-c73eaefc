@@ -197,9 +197,10 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: getOgImageUrl(post.thumbnail_url),
+        image: getImageUrl(post.thumbnail_url, whatsapp),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
+        imageType: whatsapp ? 'image/jpeg' : 'image/webp',
       }, bot),
       {
         headers: {
