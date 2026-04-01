@@ -134,8 +134,9 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: DEFAULT_IMAGE,
+          image: getImageUrl(null, whatsapp),
           url: SITE_URL,
+          imageType: whatsapp ? 'image/jpeg' : 'image/webp',
         }, bot),
         {
           headers: {
