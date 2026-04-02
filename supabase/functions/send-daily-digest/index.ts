@@ -211,6 +211,7 @@ Deno.serve(async (req) => {
     let emailsSent = 0;
     let pushSent = 0;
     const errors: string[] = [];
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Enviar email para usuários que têm notify_daily_email = true
     for (const digest of userDigests.filter(d => d.notify_daily_email)) {
@@ -247,9 +248,11 @@ Deno.serve(async (req) => {
           emailsSent++;
           console.log(`Email sent to ${digest.email}`);
         }
+        await sleep(250);
       } catch (error: any) {
         console.error(`Error sending email to ${digest.email}:`, error);
         errors.push(`Error for ${digest.email}: ${error.message}`);
+        await sleep(250);
       }
     }
 
