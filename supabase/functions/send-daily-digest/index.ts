@@ -18,12 +18,28 @@ function getSpaceInfo(spaces: SpaceInfo | SpaceInfo[] | null): SpaceInfo | null 
   return spaces;
 }
 
+function extractExcerpt(htmlContent: string | null, maxLength = 120): string {
+  if (!htmlContent) return '';
+  const text = htmlContent.replace(/<[^>]*>/g, '').trim();
+  const decoded = text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  if (decoded.length <= maxLength) return decoded;
+  return decoded.substring(0, maxLength).replace(/\s+\S*$/, '') + '...';
+}
+
 interface SpaceUpdate {
   id: string;
   title: string;
   slug: string;
   space_id: string;
   published_at: string;
+  thumbnail_url: string | null;
+  content: string | null;
   spaces: SpaceInfo | SpaceInfo[] | null;
 }
 
@@ -77,6 +93,8 @@ Deno.serve(async (req) => {
         slug,
         space_id,
         published_at,
+        thumbnail_url,
+        content,
         spaces (
           name,
           slug
@@ -207,13 +225,19 @@ Deno.serve(async (req) => {
           return acc;
         }, {} as Record<string, SpaceUpdate[]>);
 
+        const userUpdateCount = digest.updates.length;
         const htmlContent = generateEmailHtml(digest.full_name, groupedUpdates);
+        const plainText = generatePlainText(digest.full_name, groupedUpdates);
 
         const { error: emailError } = await resend.emails.send({
           from: 'Subhumano <noreply@subhumano.ia.br>',
           to: [digest.email],
-          subject: `📬 Resumo do dia - ${updates.length} nova${updates.length > 1 ? 's' : ''} atualização${updates.length > 1 ? 'ões' : ''}`,
-          html: htmlContent
+          subject: `📬 Resumo do dia - ${userUpdateCount} ${userUpdateCount === 1 ? 'nova atualização' : 'novas atualizações'}`,
+          html: htmlContent,
+          text: plainText,
+          tags: [
+            { name: 'type', value: 'daily-digest' },
+          ],
         });
 
         if (emailError) {
@@ -247,7 +271,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           title: '📬 Resumo do dia',
-          body: `${updates.length} nova${updates.length > 1 ? 's' : ''} atualização${updates.length > 1 ? 'ões' : ''} nos seus espaços`,
+          body: `${updates.length} ${updates.length === 1 ? 'nova atualização' : 'novas atualizações'} nos seus espaços`,
           url: '/notifications',
           tag: 'daily-digest',
           userIds: pushUserIds
@@ -282,76 +306,124 @@ Deno.serve(async (req) => {
   }
 });
 
+function generatePlainText(userName: string | null, groupedUpdates: Record<string, SpaceUpdate[]>): string {
+  const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
+  const lines = [greeting, '', 'Novidades nos espaços que você segue:', ''];
+  for (const [spaceName, updates] of Object.entries(groupedUpdates)) {
+    lines.push(`--- ${spaceName} ---`);
+    for (const update of updates) {
+      const spaceInfo = getSpaceInfo(update.spaces);
+      lines.push(`• ${update.title}`);
+      lines.push(`  https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`);
+    }
+    lines.push('');
+  }
+  lines.push('---');
+  lines.push('Explorar Subhumano: https://subhumano.ia.br/login');
+  lines.push('Gerenciar preferências: https://subhumano.ia.br/profile/notifications');
+  return lines.join('\n');
+}
+
 function generateEmailHtml(userName: string | null, groupedUpdates: Record<string, SpaceUpdate[]>): string {
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
-  
+  const logoUrl = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png';
+  const fontFamily = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
   let updatesHtml = '';
-  
+
   for (const [spaceName, spaceUpdates] of Object.entries(groupedUpdates)) {
     updatesHtml += `
-      <div style="margin-bottom: 24px;">
-        <h3 style="color: #9ca3af; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">${spaceName}</h3>
-        ${spaceUpdates.map(update => {
-          const spaceInfo = getSpaceInfo(update.spaces);
-          return `
-          <div style="background-color: #1a1a1a; border-radius: 8px; padding: 16px; margin-bottom: 8px;">
-            <a href="https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}" style="color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px;">
-              ${update.title}
+      <tr>
+        <td style="padding:24px 40px 0;">
+          <p style="margin:0;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">${spaceName}</p>
+        </td>
+      </tr>`;
+
+    for (const update of spaceUpdates) {
+      const spaceInfo = getSpaceInfo(update.spaces);
+      const articleUrl = `https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`;
+      const excerpt = extractExcerpt(update.content);
+
+      const thumbnailCell = update.thumbnail_url
+        ? `<td width="160" valign="top" style="padding:0;">
+            <a href="${articleUrl}" style="text-decoration:none;">
+              <img src="${update.thumbnail_url}" width="160" height="107" alt="" style="display:block;object-fit:cover;border-radius:8px 0 0 8px;">
             </a>
-          </div>
-        `;
-        }).join('')}
-      </div>
-    `;
+          </td>`
+        : `<td width="160" valign="top" style="padding:0;">
+            <div style="width:160px;height:107px;background:#e5e7eb;border-radius:8px 0 0 8px;display:table;">
+              <div style="display:table-cell;vertical-align:middle;text-align:center;">
+                <span style="color:#9ca3af;font-size:12px;font-family:${fontFamily};">Subhumano</span>
+              </div>
+            </div>
+          </td>`;
+
+      updatesHtml += `
+      <tr>
+        <td style="padding:12px 40px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+            <tr>
+              ${thumbnailCell}
+              <td valign="top" style="padding:12px 16px;">
+                <a href="${articleUrl}" style="color:#1a1a1a;text-decoration:none;font-size:15px;font-weight:600;line-height:1.3;display:block;margin-bottom:6px;font-family:${fontFamily};">${update.title}</a>
+                ${excerpt ? `<p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.4;font-family:${fontFamily};">${excerpt}</p>` : ''}
+                <a href="${articleUrl}" style="color:#000000;font-size:12px;font-weight:600;text-decoration:none;font-family:${fontFamily};">Ler artigo →</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
   }
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>Resumo do dia - Subhumano</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    <!-- Header -->
-    <div style="text-align: center; margin-bottom: 32px;">
-      <h1 style="color: #ffffff; font-size: 24px; font-weight: bold; margin: 0;">SUBHUMANO</h1>
-      <p style="color: #6b7280; font-size: 14px; margin-top: 8px;">Resumo diário</p>
-    </div>
-    
-    <!-- Greeting -->
-    <div style="margin-bottom: 24px;">
-      <p style="color: #ffffff; font-size: 18px; margin: 0;">${greeting}</p>
-      <p style="color: #9ca3af; font-size: 14px; margin-top: 8px;">
-        Aqui está o que rolou hoje nos espaços que você segue:
-      </p>
-    </div>
-    
-    <!-- Updates -->
-    <div style="margin-bottom: 32px;">
-      ${updatesHtml}
-    </div>
-    
-    <!-- CTA -->
-    <div style="text-align: center; margin-bottom: 32px;">
-      <a href="https://subhumano.ia.br" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
-        Acessar Subhumano
-      </a>
-    </div>
-    
-    <!-- Footer -->
-    <div style="border-top: 1px solid #262626; padding-top: 24px; text-align: center;">
-      <p style="color: #6b7280; font-size: 12px; margin: 0;">
-        Você está recebendo este email porque habilitou o resumo diário nas suas preferências.
-      </p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 8px;">
-        <a href="https://subhumano.ia.br/profile/notifications" style="color: #9ca3af;">Gerenciar preferências</a>
-      </p>
-    </div>
-  </div>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:${fontFamily};">
+  <table width="100%" bgcolor="#f4f4f5" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 0;">
+        <table width="600" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;">
+          <!-- Header: Logo -->
+          <tr>
+            <td align="center" style="padding:32px 40px 24px;">
+              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
+            </td>
+          </tr>
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
+          <!-- Greeting -->
+          <tr>
+            <td style="padding:32px 40px 0;">
+              <p style="margin:0;font-size:20px;font-weight:600;color:#1a1a1a;">${greeting}</p>
+              <p style="margin:8px 0 0;font-size:15px;color:#4b5563;">Aqui está o que rolou hoje nos espaços que você segue:</p>
+            </td>
+          </tr>
+          <!-- Updates -->
+          ${updatesHtml}
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:32px 40px;">
+              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Explorar Subhumano</a>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
+          <tr>
+            <td align="center" style="padding:24px 40px 32px;">
+              <p style="margin:0 0 8px;font-size:12px;color:#9ca3af;">Você está recebendo este email porque habilitou o resumo diário nas suas preferências.</p>
+              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:12px;color:#6b7280;text-decoration:underline;">Gerenciar preferências</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-  `;
+</html>`;
 }
