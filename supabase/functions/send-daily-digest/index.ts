@@ -396,6 +396,14 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
               <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
             </td>
           </tr>
+          <!-- Banner -->
+          <tr>
+            <td style="padding:16px 0 0;">
+              <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
+                <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/banner-email-subhumano.png" width="600" height="200" alt="Subhumano - Ecossistema de Inteligência Artificial" style="display:block;width:100%;height:auto;border-radius:0;">
+              </a>
+            </td>
+          </tr>
           <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
           <!-- Greeting -->
           <tr>
