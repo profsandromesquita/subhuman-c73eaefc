@@ -1,50 +1,38 @@
 
 
-# Plano: Adicionar banner no header do email de resumo diário
+# Plano: Adicionar throttle de 250ms entre envios no daily digest
 
 ## Arquivo: `supabase/functions/send-daily-digest/index.ts`
 
-### Edição única — entre linhas 398 e 399
-
-Inserir uma nova row com o banner **após** a row da logo (linha 398) e **antes** da row do separador (linha 399).
-
-**Código a inserir:**
-
-```html
-<!-- Banner -->
-<tr>
-  <td style="padding:16px 0 0;">
-    <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
-      <img 
-        src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/banner-email-subhumano.png" 
-        width="600" 
-        height="200" 
-        alt="Subhumano - Ecossistema de Inteligência Artificial" 
-        style="display:block;width:100%;height:auto;border-radius:0;"
-      >
-    </a>
-  </td>
-</tr>
-```
-
-### Localização exata no código
+### Edição 1 — Adicionar função `sleep` (antes do loop de envio, ~linha 215)
 
 ```typescript
-// Linha 393-398 (logo - NÃO alterar)
-          <!-- Header: Logo -->
-          <tr>
-            <td align="center" style="padding:32px 40px 24px;">
-              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
-            </td>
-          </tr>
-          ▼▼▼ INSERIR BANNER AQUI ▼▼▼
-// Linha 399 (separador - NÃO alterar)
-          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+```
+
+### Edição 2 — Adicionar delay após cada envio bem-sucedido (após linha 248)
+
+Dentro do bloco `else` (envio com sucesso), adicionar um `await sleep(250)` para manter no máximo ~4 req/s (abaixo do limite de 5 req/s do Resend):
+
+```typescript
+} else {
+  emailsSent++;
+  console.log(`Email sent to ${digest.email}`);
+  await sleep(250);
+}
+```
+
+Também adicionar o delay após erros não-fatais (no catch), para evitar burst em cenários de retry:
+
+```typescript
+} catch (error: any) {
+  console.error(`Error sending email to ${digest.email}:`, error);
+  errors.push(`Error for ${digest.email}: ${error.message}`);
+  await sleep(250);
+}
 ```
 
 ## O que NÃO muda
-
-- Logo, separador, greeting, cards, CTA, footer
-- `generatePlainText`, `extractExcerpt`, query, subject
+- Template HTML, plain text, query, subject, push notifications
 - Nenhum outro arquivo
 
