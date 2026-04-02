@@ -1,74 +1,50 @@
 
 
-# Plano: Fase 2 — Imagem OG determinística para WhatsApp
+# Plano: Adicionar banner no header do email de resumo diário
 
-## Diagnóstico atualizado (pós-Fase 1)
+## Arquivo: `supabase/functions/send-daily-digest/index.ts`
 
-Dos testes com curl, identifiquei **dois problemas críticos** que explicam a falha:
+### Edição única — entre linhas 398 e 399
 
-### Problema A — `Content-Type: text/plain`
-A Edge Function retorna `Content-Type: text/plain` nos headers da resposta (visível no curl), mesmo com o código definindo `text/html; charset=utf-8`. O gateway Supabase está sobrescrevendo o header. Crawlers rigorosos podem ignorar OG tags em respostas `text/plain`.
+Inserir uma nova row com o banner **após** a row da logo (linha 398) e **antes** da row do separador (linha 399).
 
-### Problema B — og:image via Render API é instável
-A URL da imagem usa `/render/image/public/...webp?width=1200&height=630&resize=cover&quality=85`. Este endpoint:
-- Mantém extensão `.webp` no path (confunde crawlers que checam extensão)
-- Pode ser lento/instável, causando timeout no crawler
-- Adiciona latência desnecessária à resolução da imagem
+**Código a inserir:**
 
-## Solução (3 edições em `og-meta/index.ts`)
-
-### Edição 1 — Simplificar `getImageUrl`: servir URL original sem transformação
-
-Remover toda a lógica de `/render/image/`. Servir a `thumbnail_url` original diretamente (o Supabase Storage com `/object/public/` responde rápido e com Content-Type correto). O fallback continua sendo `DEFAULT_IMAGE`.
-
-```typescript
-function getImageUrl(thumbnailUrl: string | null): string {
-  if (!thumbnailUrl || thumbnailUrl.trim() === '') {
-    return DEFAULT_IMAGE;
-  }
-  return thumbnailUrl;
-}
+```html
+<!-- Banner -->
+<tr>
+  <td style="padding:16px 0 0;">
+    <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
+      <img 
+        src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/banner-email-subhumano.png" 
+        width="600" 
+        height="200" 
+        alt="Subhumano - Ecossistema de Inteligência Artificial" 
+        style="display:block;width:100%;height:auto;border-radius:0;"
+      >
+    </a>
+  </td>
+</tr>
 ```
 
-### Edição 2 — Remover `isWhatsApp()` e parâmetro `forWhatsApp`
-
-Com a simplificação da imagem, não há mais necessidade de diferenciar por UA para a imagem. Remover a função `isWhatsApp` e todas as referências a `whatsapp` no fluxo de imagem.
-
-### Edição 3 — Atualizar todas as chamadas
-
-- `getImageUrl(post.thumbnail_url)` — sem segundo parâmetro
-- `getImageUrl(null)` — nos fallbacks
-- Remover `imageType` das chamadas a `buildHtml` — usar `image/webp` fixo (que é o formato real das thumbnails)
-- Remover o parâmetro `whatsapp` da função `serve`
-
-### Edição 4 — Forçar `Content-Type` com workaround
-
-Adicionar header duplicado para tentar forçar o tipo correto pelo gateway:
+### Localização exata no código
 
 ```typescript
-headers: {
-  ...corsHeaders,
-  'Content-Type': 'text/html; charset=utf-8',
-  'content-type': 'text/html; charset=utf-8',
-},
+// Linha 393-398 (logo - NÃO alterar)
+          <!-- Header: Logo -->
+          <tr>
+            <td align="center" style="padding:32px 40px 24px;">
+              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
+            </td>
+          </tr>
+          ▼▼▼ INSERIR BANNER AQUI ▼▼▼
+// Linha 399 (separador - NÃO alterar)
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
 ```
-
-Se o gateway ignora case-sensitive, pelo menos um deve passar. Também adicionar `X-Content-Type-Options: nosniff`.
-
-## Resultado esperado
-
-- og:image aponta para URL direta do Storage (`/object/public/...`) — rápida, estável, sem transformação
-- HTML retornado com Content-Type mais provável de ser `text/html`
-- Sem lógica condicional por UA para imagem — simplificação total
 
 ## O que NÃO muda
 
-- Detecção de bot (`isBot`, `BOT_PATTERNS`) — mantida
-- Lógica de redirect JS vs bot — mantida
-- Query ao banco — mantida
+- Logo, separador, greeting, cards, CTA, footer
+- `generatePlainText`, `extractExcerpt`, query, subject
 - Nenhum outro arquivo
-
-## Observação sobre Fase 3
-
-Se após este deploy o artigo "mythos" continuar sem preview mas o "vazamento" funcionar, o problema é **roteamento externo** (Cloudflare Worker / proxy não encaminha o slug correto para a Edge Function). Isso será Fase 3.
 
