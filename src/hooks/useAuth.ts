@@ -72,7 +72,7 @@ export function useAuth() {
   }, []);
 
   const resendConfirmationEmail = useCallback(async (email: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = 'https://subhumano.ia.br/';
     
     const { error } = await supabase.auth.resend({
       type: 'signup',
