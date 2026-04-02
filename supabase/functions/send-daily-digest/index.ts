@@ -393,12 +393,6 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
     <tr>
       <td align="center" style="padding:40px 0;">
         <table width="600" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;">
-          <!-- Header: Logo -->
-          <tr>
-            <td align="center" style="padding:32px 40px 24px;">
-              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
-            </td>
-          </tr>
           <!-- Banner -->
           <tr>
             <td style="padding:16px 0 0;">
