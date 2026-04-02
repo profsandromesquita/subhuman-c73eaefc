@@ -23,11 +23,7 @@ self.addEventListener('install', async (event) => {
   );
 });
 
-if (workbox.navigationPreload.isSupported()) {
-  workbox.navigationPreload.enable();
-}
-
-// Limpar caches antigos ao ativar nova versão do SW
+// Limpar caches antigos e habilitar Navigation Preload ao ativar nova versão do SW
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -36,6 +32,10 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name !== CACHE)
           .map((name) => caches.delete(name))
       );
+    }).then(() => {
+      if (workbox && workbox.navigationPreload && workbox.navigationPreload.isSupported()) {
+        return workbox.navigationPreload.enable();
+      }
     }).then(() => self.clients.claim())
   );
 });
@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       try {
         const preloadResp = await event.preloadResponse;
-        if (preloadResp) return preloadResp;
+        if (preloadResp && preloadResp.ok) return preloadResp;
         return await fetch(event.request);
       } catch (error) {
         const cache = await caches.open(CACHE);
