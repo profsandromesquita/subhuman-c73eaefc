@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DataTable } from '@/components/admin/DataTable';
-import { Bell, PaperPlaneTilt, DeviceMobile, Check } from '@phosphor-icons/react';
+import { Bell, PaperPlaneTilt, DeviceMobile, Check, Users } from '@phosphor-icons/react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Select,
@@ -26,6 +26,7 @@ interface Notification {
   space_id: string | null;
   created_at: string;
   space_name?: string;
+  user_id?: string | null;
 }
 
 interface Space {
@@ -39,6 +40,8 @@ export default function NotificationSettings() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [pushStats, setPushStats] = useState({ total: 0, unique: 0 });
+  const [adminId, setAdminId] = useState<string | null>(null);
+  const [recipientCount, setRecipientCount] = useState({ users: 0, devices: 0 });
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -48,8 +51,62 @@ export default function NotificationSettings() {
   });
 
   useEffect(() => {
-    fetchData();
+    const getAdmin = async () => {
+      const { data } = await supabase.auth.getUser();
+      setAdminId(data.user?.id || null);
+    };
+    getAdmin();
   }, []);
+
+  useEffect(() => {
+    if (adminId) fetchData();
+  }, [adminId]);
+
+  // Recipient count effect
+  useEffect(() => {
+    const fetchRecipientCount = async () => {
+      try {
+        if (formData.space_id === 'all') {
+          const { count: userCount } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true });
+
+          const { count: deviceCount } = await supabase
+            .from('push_subscriptions')
+            .select('*', { count: 'exact', head: true });
+
+          setRecipientCount({ users: userCount || 0, devices: deviceCount || 0 });
+        } else {
+          const { data: spaceUsers, count: userCount } = await supabase
+            .from('user_space_subscriptions')
+            .select('user_id', { count: 'exact' })
+            .eq('space_id', formData.space_id);
+
+          const userIds = spaceUsers?.map(u => u.user_id) || [];
+
+          let deviceCount = 0;
+          if (userIds.length > 0) {
+            const { count } = await supabase
+              .from('push_subscriptions')
+              .select('*', { count: 'exact', head: true })
+              .in('user_id', userIds);
+            deviceCount = count || 0;
+          }
+
+          setRecipientCount({ users: userCount || 0, devices: deviceCount });
+        }
+      } catch (error) {
+        console.error('Error fetching recipient count:', error);
+      }
+    };
+
+    fetchRecipientCount();
+  }, [formData.space_id]);
+
+  const selectedSpaceName = useMemo(() => {
+    if (formData.space_id === 'all') return null;
+    return spaces.find(s => s.id === formData.space_id)?.name || null;
+  }, [formData.space_id, spaces]);
 
   const fetchData = async () => {
     try {
@@ -72,24 +129,49 @@ export default function NotificationSettings() {
       const uniqueUserIds = new Set(uniqueUsers?.map(u => u.user_id) || []);
       setPushStats({ total: totalSubs || 0, unique: uniqueUserIds.size });
 
-      // Fetch recent notifications (broadcast ones - no user_id)
-      const { data, error } = await supabase
+      // Fetch recent notifications (broadcast OR sent by this admin)
+      let query = supabase
         .from('notifications')
         .select('*')
-        .is('user_id', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
+      if (adminId) {
+        query = query.or(`user_id.is.null,sender_id.eq.${adminId}`);
+      } else {
+        query = query.is('user_id', null);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
-      const notificationsWithSpaces = (data || []).map(n => ({
-        ...n,
-        space_name: n.space_id
-          ? spacesData?.find(s => s.id === n.space_id)?.name || 'Desconhecido'
-          : 'Todos'
-      }));
+      // Deduplicate by grouping space-targeted notifications
+      const seen = new Map<string, Notification>();
+      for (const n of data || []) {
+        // For space-targeted batch notifications, group by title+space+time (within 1 min)
+        if (n.user_id && n.space_id && n.sender_id) {
+          const timeKey = new Date(n.created_at).toISOString().slice(0, 16); // minute precision
+          const groupKey = `${n.title}|${n.space_id}|${timeKey}`;
+          if (!seen.has(groupKey)) {
+            seen.set(groupKey, {
+              ...n,
+              space_name: n.space_id
+                ? spacesData?.find(s => s.id === n.space_id)?.name || 'Desconhecido'
+                : 'Todos'
+            });
+          }
+        } else {
+          seen.set(n.id, {
+            ...n,
+            space_name: n.space_id
+              ? spacesData?.find(s => s.id === n.space_id)?.name || 'Desconhecido'
+              : 'Todos'
+          });
+        }
+      }
 
-      setNotifications(notificationsWithSpaces);
+      setNotifications(Array.from(seen.values()));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -105,18 +187,49 @@ export default function NotificationSettings() {
 
     setSending(true);
     try {
-      // Inserir notificação no banco
-      const { error } = await supabase.from('notifications').insert({
-        title: formData.title,
-        message: formData.message || null,
-        type: formData.type,
-        space_id: formData.space_id === 'all' ? null : formData.space_id,
-        user_id: null // Broadcast notification
-      });
+      const { data: userData } = await supabase.auth.getUser();
+      const currentUserId = userData.user?.id;
 
-      if (error) throw error;
+      if (formData.space_id === 'all') {
+        // Broadcast: INSERT with user_id = null
+        const { error } = await supabase.from('notifications').insert({
+          title: formData.title,
+          message: formData.message || null,
+          type: formData.type,
+          space_id: null,
+          user_id: null,
+          sender_id: currentUserId || null
+        });
+        if (error) throw error;
+      } else {
+        // Space-specific: fetch subscribers and insert individual notifications
+        const { data: subscribers, error: subError } = await supabase
+          .from('user_space_subscriptions')
+          .select('user_id')
+          .eq('space_id', formData.space_id);
 
-      // Enviar push notification se habilitado
+        if (subError) throw subError;
+
+        if (!subscribers || subscribers.length === 0) {
+          toast.warning('Nenhum usuário inscrito neste espaço');
+          setSending(false);
+          return;
+        }
+
+        const notificationRecords = subscribers.map(sub => ({
+          title: formData.title,
+          message: formData.message || null,
+          type: formData.type,
+          space_id: formData.space_id,
+          user_id: sub.user_id,
+          sender_id: currentUserId || null
+        }));
+
+        const { error } = await supabase.from('notifications').insert(notificationRecords);
+        if (error) throw error;
+      }
+
+      // Send push notification if enabled
       if (formData.sendPush) {
         try {
           const pushPayload: Record<string, unknown> = {
@@ -245,7 +358,7 @@ export default function NotificationSettings() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{pushStats.unique}</p>
-                <p className="text-xs text-muted-foreground">Usuários ativos</p>
+                <p className="text-xs text-muted-foreground">Usuários com push</p>
               </div>
             </div>
           </div>
@@ -349,6 +462,16 @@ export default function NotificationSettings() {
                 ({pushStats.total} dispositivos)
               </span>
             </Label>
+          </div>
+
+          {/* Recipient count */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
+            <Users className="w-4 h-4" />
+            <span>
+              Esta notificação será enviada para {recipientCount.users} usuários
+              {selectedSpaceName && ` inscritos em ${selectedSpaceName}`}
+              {formData.sendPush && ` + push para ${recipientCount.devices} dispositivos`}
+            </span>
           </div>
 
           <Button onClick={handleSend} disabled={sending} variant="glow">
