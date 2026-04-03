@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DataTable } from '@/components/admin/DataTable';
-import { Bell, PaperPlaneTilt, DeviceMobile, Check, Users } from '@phosphor-icons/react';
+import { Bell, PaperPlaneTilt, DeviceMobile, Check, Users, EnvelopeSimple } from '@phosphor-icons/react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Select,
@@ -17,6 +17,16 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Notification {
   id: string;
@@ -42,12 +52,14 @@ export default function NotificationSettings() {
   const [pushStats, setPushStats] = useState({ total: 0, unique: 0 });
   const [adminId, setAdminId] = useState<string | null>(null);
   const [recipientCount, setRecipientCount] = useState({ users: 0, devices: 0 });
+  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     message: '',
     space_id: 'all',
     type: 'info',
-    sendPush: true
+    sendPush: true,
+    sendEmail: false,
   });
 
   useEffect(() => {
@@ -149,9 +161,8 @@ export default function NotificationSettings() {
       // Deduplicate by grouping space-targeted notifications
       const seen = new Map<string, Notification>();
       for (const n of data || []) {
-        // For space-targeted batch notifications, group by title+space+time (within 1 min)
         if (n.user_id && n.space_id && n.sender_id) {
-          const timeKey = new Date(n.created_at).toISOString().slice(0, 16); // minute precision
+          const timeKey = new Date(n.created_at).toISOString().slice(0, 16);
           const groupKey = `${n.title}|${n.space_id}|${timeKey}`;
           if (!seen.has(groupKey)) {
             seen.set(groupKey, {
@@ -179,6 +190,18 @@ export default function NotificationSettings() {
     }
   };
 
+  const handleSendClick = () => {
+    if (!formData.title.trim()) {
+      toast.error('Informe o título da notificação');
+      return;
+    }
+    if (formData.sendEmail && recipientCount.users > 10) {
+      setShowEmailConfirm(true);
+    } else {
+      handleSend();
+    }
+  };
+
   const handleSend = async () => {
     if (!formData.title.trim()) {
       toast.error('Informe o título da notificação');
@@ -189,6 +212,9 @@ export default function NotificationSettings() {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const currentUserId = userData.user?.id;
+
+      // Collect subscribers for space-specific targeting (shared between in-app and email)
+      let subscribers: { user_id: string }[] | null = null;
 
       if (formData.space_id === 'all') {
         // Broadcast: INSERT with user_id = null
@@ -203,20 +229,22 @@ export default function NotificationSettings() {
         if (error) throw error;
       } else {
         // Space-specific: fetch subscribers and insert individual notifications
-        const { data: subscribers, error: subError } = await supabase
+        const { data: subs, error: subError } = await supabase
           .from('user_space_subscriptions')
           .select('user_id')
           .eq('space_id', formData.space_id);
 
         if (subError) throw subError;
 
-        if (!subscribers || subscribers.length === 0) {
+        if (!subs || subs.length === 0) {
           toast.warning('Nenhum usuário inscrito neste espaço');
           setSending(false);
           return;
         }
 
-        const notificationRecords = subscribers.map(sub => ({
+        subscribers = subs;
+
+        const notificationRecords = subs.map(sub => ({
           title: formData.title,
           message: formData.message || null,
           type: formData.type,
@@ -228,6 +256,10 @@ export default function NotificationSettings() {
         const { error } = await supabase.from('notifications').insert(notificationRecords);
         if (error) throw error;
       }
+
+      // Track channel results
+      let pushOk = false;
+      let emailOk = false;
 
       // Send push notification if enabled
       if (formData.sendPush) {
@@ -250,19 +282,72 @@ export default function NotificationSettings() {
 
           if (pushError) {
             console.error('Push notification error:', pushError);
-            toast.warning('Notificação salva, mas push falhou');
           } else {
-            toast.success('Notificação enviada com push!');
+            pushOk = true;
           }
         } catch (pushErr) {
           console.error('Push error:', pushErr);
-          toast.warning('Notificação salva, mas push falhou');
         }
+      }
+
+      // Send email if enabled
+      if (formData.sendEmail) {
+        try {
+          let emailUserIds: string[];
+
+          if (formData.space_id === 'all') {
+            const { data: allUsers } = await supabase.from('profiles').select('id');
+            emailUserIds = allUsers?.map(u => u.id) || [];
+          } else {
+            emailUserIds = subscribers?.map(s => s.user_id) || [];
+          }
+
+          if (emailUserIds.length > 0) {
+            const { data: emailResult, error: emailError } = await supabase.functions.invoke('send-bulk-email', {
+              body: {
+                user_ids: emailUserIds,
+                title: formData.title,
+                message: formData.message || null,
+              },
+            });
+
+            if (emailError) {
+              console.error('Bulk email error:', emailError);
+            } else {
+              const result = emailResult as { sent?: number; failed?: number; errors?: string[] };
+              console.log('Bulk email result:', result);
+              if (result?.failed && result.failed > 0) {
+                toast.warning(`Email: ${result.sent} enviados, ${result.failed} falharam`);
+              } else {
+                emailOk = true;
+              }
+            }
+          }
+        } catch (emailErr) {
+          console.error('Email send error:', emailErr);
+        }
+      }
+
+      // Dynamic toast based on channels used
+      const channels: string[] = [];
+      if (formData.sendPush && pushOk) channels.push('push');
+      if (formData.sendEmail && emailOk) channels.push('email');
+
+      if (formData.sendPush && !pushOk) {
+        toast.warning('Notificação salva, mas push falhou');
+      } else if (formData.sendEmail && !emailOk && formData.sendEmail) {
+        toast.warning('Notificação salva, mas email falhou');
+      } else if (channels.length === 2) {
+        toast.success('Notificação enviada com push e email!');
+      } else if (channels.includes('push')) {
+        toast.success('Notificação enviada com push!');
+      } else if (channels.includes('email')) {
+        toast.success('Notificação enviada com email!');
       } else {
         toast.success('Notificação enviada!');
       }
 
-      setFormData({ title: '', message: '', space_id: 'all', type: 'info', sendPush: true });
+      setFormData({ title: '', message: '', space_id: 'all', type: 'info', sendPush: true, sendEmail: false });
       fetchData();
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -464,6 +549,24 @@ export default function NotificationSettings() {
             </Label>
           </div>
 
+          {/* Email notification toggle */}
+          <div className="flex items-center gap-3">
+            <Switch
+              id="sendEmail"
+              checked={formData.sendEmail}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, sendEmail: checked })
+              }
+            />
+            <Label htmlFor="sendEmail" className="text-sm cursor-pointer flex items-center gap-1">
+              <EnvelopeSimple className="w-4 h-4" />
+              Enviar também por email
+              <span className="text-xs text-muted-foreground ml-1">
+                ({recipientCount.users} destinatários)
+              </span>
+            </Label>
+          </div>
+
           {/* Recipient count */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
             <Users className="w-4 h-4" />
@@ -471,14 +574,35 @@ export default function NotificationSettings() {
               Esta notificação será enviada para {recipientCount.users} usuários
               {selectedSpaceName && ` inscritos em ${selectedSpaceName}`}
               {formData.sendPush && ` + push para ${recipientCount.devices} dispositivos`}
+              {formData.sendEmail && ` + email para ${recipientCount.users} destinatários`}
             </span>
           </div>
 
-          <Button onClick={handleSend} disabled={sending} variant="glow">
+          <Button onClick={handleSendClick} disabled={sending} variant="glow">
             <PaperPlaneTilt className="w-4 h-4 mr-2" />
             {sending ? 'Enviando...' : 'Enviar Notificação'}
           </Button>
         </div>
+
+        {/* Email confirmation dialog */}
+        <AlertDialog open={showEmailConfirm} onOpenChange={setShowEmailConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar envio de email em massa</AlertDialogTitle>
+              <AlertDialogDescription>
+                Você está prestes a enviar email para {recipientCount.users} usuários
+                {selectedSpaceName ? ` inscritos em ${selectedSpaceName}` : ''}.
+                Deseja continuar?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { setShowEmailConfirm(false); handleSend(); }}>
+                Confirmar envio
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* History */}
         <div>
