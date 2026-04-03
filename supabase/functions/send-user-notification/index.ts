@@ -106,6 +106,7 @@ Deno.serve(async (req) => {
             subject: `📣 ${title}`,
             html: htmlContent,
             text: plainText,
+            tags: [{ name: 'type', value: 'admin-notification' }],
           });
 
           console.log('Resultado Resend completo:', JSON.stringify(sendResult));
@@ -157,7 +158,8 @@ function generatePlainText(userName: string | null, title: string, message: stri
 
 function generateNotificationEmail(userName: string | null, title: string, message: string | null): string {
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
-  const logoUrl = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/logo-subhumano.png';
+  const fontFamily = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const bannerUrl = 'https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/banner-email-subhumano.png';
 
   return `<!DOCTYPE html>
 <html>
@@ -168,40 +170,80 @@ function generateNotificationEmail(userName: string | null, title: string, messa
   <meta name="supported-color-schemes" content="light">
   <title>${title} - Subhumano</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:${fontFamily};">
   <table width="100%" bgcolor="#f4f4f5" cellpadding="0" cellspacing="0" border="0">
     <tr>
       <td align="center" style="padding:40px 0;">
         <table width="600" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;">
+          <!-- Banner -->
           <tr>
-            <td align="center" style="padding:32px 40px 24px;">
-              <img src="${logoUrl}" width="140" alt="Subhumano" style="display:block;">
+            <td style="padding:16px 0 0;">
+              <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
+                <img src="${bannerUrl}" width="600" height="200" alt="Subhumano - Ecossistema de Inteligência Artificial" style="display:block;width:100%;height:auto;border-radius:0;">
+              </a>
             </td>
           </tr>
           <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
           <tr>
             <td style="padding:32px 40px 0;">
-              <p style="margin:0;font-size:20px;font-weight:600;color:#1a1a1a;">${greeting}</p>
+              <p style="margin:0;font-size:20px;font-weight:600;color:#1a1a1a;font-family:${fontFamily};">${greeting}</p>
             </td>
           </tr>
           <tr>
             <td style="padding:16px 40px;">
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;">
-                <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#1a1a1a;">${title}</p>
-                ${message ? `<p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
+                <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#1a1a1a;font-family:${fontFamily};">${title}</p>
+                ${message ? `<p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;font-family:${fontFamily};">${convertMarkdownToHtml(message).replace(/\n/g, '<br>')}</p>` : ''}
               </div>
             </td>
           </tr>
           <tr>
             <td align="center" style="padding:24px 40px;">
-              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Ver na plataforma</a>
+              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;font-family:${fontFamily};">Ver na plataforma</a>
             </td>
           </tr>
+          <!-- Footer -->
           <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e5e7eb;"></div></td></tr>
           <tr>
-            <td align="center" style="padding:24px 40px 32px;">
-              <p style="margin:0 0 8px;font-size:12px;color:#9ca3af;">Você recebeu esta mensagem da equipe Subhumano.</p>
-              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:12px;color:#6b7280;text-decoration:underline;">Gerenciar preferências</a>
+            <td align="center" style="padding:24px 40px 0;">
+              <p style="margin:0;font-size:14px;font-weight:700;color:#1a1a1a;font-family:${fontFamily};">Subhumano</p>
+              <p style="margin:4px 0 0;font-size:12px;color:#6b7280;font-family:${fontFamily};">Ecossistema de Inteligência Artificial</p>
+              <p style="margin:4px 0 0;font-size:11px;color:#9ca3af;font-family:${fontFamily};">Mantido pelo ITIA — Instituto de Tecnologia e Inteligência Artificial</p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:16px 40px 0;">
+              <p style="margin:0;font-size:12px;font-family:${fontFamily};">
+                <a href="https://subhumano.ia.br/login" style="color:#6b7280;text-decoration:underline;">Site</a>
+                <span style="color:#d1d5db;"> · </span>
+                <a href="https://subhumano.ia.br/spaces" style="color:#6b7280;text-decoration:underline;">Espaços</a>
+                <span style="color:#d1d5db;"> · </span>
+                <a href="https://subhumano.ia.br/channels" style="color:#6b7280;text-decoration:underline;">Canais</a>
+                <span style="color:#d1d5db;"> · </span>
+                <a href="https://subhumano.ia.br/podcasts" style="color:#6b7280;text-decoration:underline;">Podcasts</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:16px 40px 0;">
+              <p style="margin:0;font-size:12px;font-family:${fontFamily};">
+                <a href="https://instagram.com/subhumano.ia" style="color:#6b7280;text-decoration:underline;">Instagram</a>
+                <span style="color:#d1d5db;"> · </span>
+                <a href="https://youtube.com/@subhumano.ia" style="color:#6b7280;text-decoration:underline;">YouTube</a>
+                <span style="color:#d1d5db;"> · </span>
+                <a href="https://linkedin.com/company/subhumano" style="color:#6b7280;text-decoration:underline;">LinkedIn</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:16px 40px 0;">
+              <p style="margin:0 0 8px;font-size:11px;color:#9ca3af;font-family:${fontFamily};">Você recebeu esta mensagem da equipe Subhumano.</p>
+              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:11px;color:#6b7280;text-decoration:underline;font-family:${fontFamily};">Gerenciar preferências</a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:16px 40px 32px;">
+              <p style="margin:0;font-size:11px;color:#d1d5db;font-family:${fontFamily};">© 2026 Subhumano. Todos os direitos reservados.</p>
             </td>
           </tr>
         </table>
