@@ -347,30 +347,34 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
       const articleUrl = `https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`;
       const excerpt = extractExcerpt(update.content);
 
-      const thumbnailCell = update.thumbnail_url
-        ? `<td width="160" valign="top" style="padding:0;">
-            <a href="${articleUrl}" style="text-decoration:none;">
-              <img src="${update.thumbnail_url}" width="160" height="107" alt="" style="display:block;object-fit:cover;border-radius:8px 0 0 8px;">
-            </a>
-          </td>`
-        : `<td width="160" valign="top" style="padding:0;">
-            <div style="width:160px;height:107px;background:#e5e7eb;border-radius:8px 0 0 8px;display:table;">
-              <div style="display:table-cell;vertical-align:middle;text-align:center;">
-                <span style="color:#9ca3af;font-size:12px;font-family:${fontFamily};">Subhumano</span>
+      const thumbnailRow = update.thumbnail_url
+        ? `<tr>
+            <td style="padding:0;">
+              <a href="${articleUrl}" style="text-decoration:none;">
+                <img src="${update.thumbnail_url}" width="520" height="0" alt="" style="display:block;width:100%;height:auto;max-height:200px;object-fit:cover;">
+              </a>
+            </td>
+          </tr>`
+        : `<tr>
+            <td style="padding:0;">
+              <div style="width:100%;height:120px;background:#e5e7eb;display:table;">
+                <div style="display:table-cell;vertical-align:middle;text-align:center;">
+                  <span style="color:#9ca3af;font-size:12px;font-family:${fontFamily};">Subhumano</span>
+                </div>
               </div>
-            </div>
-          </td>`;
+            </td>
+          </tr>`;
 
       updatesHtml += `
       <tr>
         <td style="padding:12px 40px 0;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+            ${thumbnailRow}
             <tr>
-              ${thumbnailCell}
-              <td valign="top" style="padding:12px 16px;">
-                <a href="${articleUrl}" style="color:#1a1a1a;text-decoration:none;font-size:15px;font-weight:600;line-height:1.3;display:block;margin-bottom:6px;font-family:${fontFamily};">${update.title}</a>
-                ${excerpt ? `<p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.4;font-family:${fontFamily};">${excerpt}</p>` : ''}
-                <a href="${articleUrl}" style="color:#000000;font-size:12px;font-weight:600;text-decoration:none;font-family:${fontFamily};">Ler artigo →</a>
+              <td style="padding:16px 20px;">
+                <a href="${articleUrl}" style="color:#1a1a1a;text-decoration:none;font-size:16px;font-weight:600;line-height:1.3;display:block;margin-bottom:8px;font-family:${fontFamily};">${update.title}</a>
+                ${excerpt ? `<p style="margin:0 0 12px;font-size:14px;color:#6b7280;line-height:1.5;font-family:${fontFamily};">${excerpt}</p>` : ''}
+                <a href="${articleUrl}" style="color:#000000;font-size:13px;font-weight:600;text-decoration:none;font-family:${fontFamily};">Ler artigo →</a>
               </td>
             </tr>
           </table>
