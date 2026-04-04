@@ -224,14 +224,16 @@ export default function PostDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background pt-safe">
-        <div className="pt-14 px-5 max-w-2xl mx-auto space-y-4">
-          <Skeleton className="w-full aspect-video" />
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-4 w-48" />
+      <AppLayout>
+        <div className="min-h-screen bg-background">
+          <div className="pt-14 px-5 max-w-2xl mx-auto space-y-4">
+            <Skeleton className="w-full aspect-video" />
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-4 w-48" />
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
