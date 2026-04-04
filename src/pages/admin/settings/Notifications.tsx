@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DataTable } from '@/components/admin/DataTable';
-import { Bell, PaperPlaneTilt, DeviceMobile, Check, Users, EnvelopeSimple } from '@phosphor-icons/react';
+import { Bell, PaperPlaneTilt, DeviceMobile, Check, Users, EnvelopeSimple, Funnel, CaretDown } from '@phosphor-icons/react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Select,
@@ -27,6 +27,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface Notification {
   id: string;
@@ -53,6 +58,7 @@ export default function NotificationSettings() {
   const [adminId, setAdminId] = useState<string | null>(null);
   const [recipientCount, setRecipientCount] = useState({ users: 0, devices: 0 });
   const [showEmailConfirm, setShowEmailConfirm] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     message: '',
@@ -60,7 +66,80 @@ export default function NotificationSettings() {
     type: 'info',
     sendPush: true,
     sendEmail: false,
+    filterIncompleteProfile: false,
+    filterPlanType: 'all',
+    filterRegisteredAfter: '',
   });
+
+  const hasActiveFilters = formData.filterIncompleteProfile || formData.filterPlanType !== 'all' || formData.filterRegisteredAfter !== '';
+
+  // Returns filtered user_ids based on space + advanced filters
+  const getFilteredUserIds = useCallback(async (): Promise<string[]> => {
+    // 1. Base: space filter
+    let baseIds: string[];
+
+    if (formData.space_id === 'all') {
+      const { data } = await supabase.from('profiles').select('id');
+      baseIds = data?.map(u => u.id) || [];
+    } else {
+      const { data } = await supabase
+        .from('user_space_subscriptions')
+        .select('user_id')
+        .eq('space_id', formData.space_id);
+      baseIds = data?.map(u => u.user_id) || [];
+    }
+
+    if (baseIds.length === 0) return [];
+
+    // 2. Incomplete profile filter
+    if (formData.filterIncompleteProfile) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', baseIds)
+        .or('full_name.is.null,city.is.null,occupation_type.is.null');
+      baseIds = data?.map(u => u.id) || [];
+    }
+
+    if (baseIds.length === 0) return [];
+
+    // 3. Plan type filter
+    if (formData.filterPlanType !== 'all') {
+      if (formData.filterPlanType === 'none') {
+        // Users WITHOUT active subscription
+        const { data: activeSubs } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .eq('status', 'active')
+          .in('user_id', baseIds);
+        const activeUserIds = new Set(activeSubs?.map(s => s.user_id) || []);
+        baseIds = baseIds.filter(id => !activeUserIds.has(id));
+      } else {
+        // Users WITH specific plan type and active status
+        const { data: planSubs } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .eq('status', 'active')
+          .eq('plan_type', formData.filterPlanType)
+          .in('user_id', baseIds);
+        baseIds = planSubs?.map(s => s.user_id) || [];
+      }
+    }
+
+    if (baseIds.length === 0) return [];
+
+    // 4. Registration date filter
+    if (formData.filterRegisteredAfter) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', baseIds)
+        .gte('created_at', formData.filterRegisteredAfter);
+      baseIds = data?.map(u => u.id) || [];
+    }
+
+    return baseIds;
+  }, [formData.space_id, formData.filterIncompleteProfile, formData.filterPlanType, formData.filterRegisteredAfter]);
 
   useEffect(() => {
     const getAdmin = async () => {
@@ -74,11 +153,12 @@ export default function NotificationSettings() {
     if (adminId) fetchData();
   }, [adminId]);
 
-  // Recipient count effect
+  // Recipient count effect — reacts to all filters
   useEffect(() => {
     const fetchRecipientCount = async () => {
       try {
-        if (formData.space_id === 'all') {
+        if (!hasActiveFilters && formData.space_id === 'all') {
+          // No filters, all users — fast path
           const { count: userCount } = await supabase
             .from('profiles')
             .select('*', { count: 'exact', head: true });
@@ -89,23 +169,19 @@ export default function NotificationSettings() {
 
           setRecipientCount({ users: userCount || 0, devices: deviceCount || 0 });
         } else {
-          const { data: spaceUsers, count: userCount } = await supabase
-            .from('user_space_subscriptions')
-            .select('user_id', { count: 'exact' })
-            .eq('space_id', formData.space_id);
-
-          const userIds = spaceUsers?.map(u => u.user_id) || [];
+          // Filtered path
+          const filteredIds = await getFilteredUserIds();
 
           let deviceCount = 0;
-          if (userIds.length > 0) {
+          if (filteredIds.length > 0) {
             const { count } = await supabase
               .from('push_subscriptions')
               .select('*', { count: 'exact', head: true })
-              .in('user_id', userIds);
+              .in('user_id', filteredIds);
             deviceCount = count || 0;
           }
 
-          setRecipientCount({ users: userCount || 0, devices: deviceCount });
+          setRecipientCount({ users: filteredIds.length, devices: deviceCount });
         }
       } catch (error) {
         console.error('Error fetching recipient count:', error);
@@ -113,7 +189,7 @@ export default function NotificationSettings() {
     };
 
     fetchRecipientCount();
-  }, [formData.space_id]);
+  }, [formData.space_id, formData.filterIncompleteProfile, formData.filterPlanType, formData.filterRegisteredAfter, hasActiveFilters, getFilteredUserIds]);
 
   const selectedSpaceName = useMemo(() => {
     if (formData.space_id === 'all') return null;
@@ -213,11 +289,21 @@ export default function NotificationSettings() {
       const { data: userData } = await supabase.auth.getUser();
       const currentUserId = userData.user?.id;
 
-      // Collect subscribers for space-specific targeting (shared between in-app and email)
-      let subscribers: { user_id: string }[] | null = null;
+      const isBroadcast = formData.space_id === 'all' && !hasActiveFilters;
 
-      if (formData.space_id === 'all') {
-        // Broadcast: INSERT with user_id = null
+      // Get filtered user ids when not broadcasting
+      let filteredIds: string[] = [];
+      if (!isBroadcast) {
+        filteredIds = await getFilteredUserIds();
+        if (filteredIds.length === 0) {
+          toast.warning('Nenhum usuário corresponde aos filtros selecionados');
+          setSending(false);
+          return;
+        }
+      }
+
+      // In-app notifications
+      if (isBroadcast) {
         const { error } = await supabase.from('notifications').insert({
           title: formData.title,
           message: formData.message || null,
@@ -228,28 +314,12 @@ export default function NotificationSettings() {
         });
         if (error) throw error;
       } else {
-        // Space-specific: fetch subscribers and insert individual notifications
-        const { data: subs, error: subError } = await supabase
-          .from('user_space_subscriptions')
-          .select('user_id')
-          .eq('space_id', formData.space_id);
-
-        if (subError) throw subError;
-
-        if (!subs || subs.length === 0) {
-          toast.warning('Nenhum usuário inscrito neste espaço');
-          setSending(false);
-          return;
-        }
-
-        subscribers = subs;
-
-        const notificationRecords = subs.map(sub => ({
+        const notificationRecords = filteredIds.map(userId => ({
           title: formData.title,
           message: formData.message || null,
           type: formData.type,
-          space_id: formData.space_id,
-          user_id: sub.user_id,
+          space_id: formData.space_id !== 'all' ? formData.space_id : null,
+          user_id: userId,
           sender_id: currentUserId || null
         }));
 
@@ -270,6 +340,7 @@ export default function NotificationSettings() {
             url: '/'
           };
 
+          // Push doesn't support userIds filtering — use space/broadcast
           if (formData.space_id !== 'all') {
             pushPayload.spaceId = formData.space_id;
           } else {
@@ -293,14 +364,9 @@ export default function NotificationSettings() {
       // Send email if enabled
       if (formData.sendEmail) {
         try {
-          let emailUserIds: string[];
-
-          if (formData.space_id === 'all') {
-            const { data: allUsers } = await supabase.from('profiles').select('id');
-            emailUserIds = allUsers?.map(u => u.id) || [];
-          } else {
-            emailUserIds = subscribers?.map(s => s.user_id) || [];
-          }
+          const emailUserIds = isBroadcast
+            ? ((await supabase.from('profiles').select('id')).data?.map(u => u.id) || [])
+            : filteredIds;
 
           if (emailUserIds.length > 0) {
             const { data: emailResult, error: emailError } = await supabase.functions.invoke('send-bulk-email', {
@@ -347,7 +413,11 @@ export default function NotificationSettings() {
         toast.success('Notificação enviada!');
       }
 
-      setFormData({ title: '', message: '', space_id: 'all', type: 'info', sendPush: true, sendEmail: false });
+      setFormData({
+        title: '', message: '', space_id: 'all', type: 'info',
+        sendPush: true, sendEmail: false,
+        filterIncompleteProfile: false, filterPlanType: 'all', filterRegisteredAfter: '',
+      });
       fetchData();
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -532,6 +602,89 @@ export default function NotificationSettings() {
             </Select>
           </div>
 
+          {/* Advanced Filters */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors pt-2"
+              >
+                <Funnel className="w-4 h-4" />
+                Filtros de destinatários
+                {hasActiveFilters && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary text-primary-foreground">
+                    ATIVO
+                  </span>
+                )}
+                <CaretDown
+                  className={`w-3 h-3 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-lg border border-border bg-muted/30">
+                {/* Filter 1: Incomplete profile */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="filterIncompleteProfile"
+                      checked={formData.filterIncompleteProfile}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, filterIncompleteProfile: checked })
+                      }
+                    />
+                    <Label htmlFor="filterIncompleteProfile" className="text-sm cursor-pointer">
+                      Apenas perfis incompletos
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground pl-10">
+                    Sem nome, cidade ou ocupação
+                  </p>
+                </div>
+
+                {/* Filter 2: Plan type */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Plano de assinatura
+                  </label>
+                  <Select
+                    value={formData.filterPlanType}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, filterPlanType: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="none">Sem assinatura (freemium)</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="yearly">Anual</SelectItem>
+                      <SelectItem value="lifetime">Vitalício</SelectItem>
+                      <SelectItem value="trial">Trial</SelectItem>
+                      <SelectItem value="promo">Promo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter 3: Registration date */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Cadastrado a partir de
+                  </label>
+                  <Input
+                    type="date"
+                    value={formData.filterRegisteredAfter}
+                    onChange={(e) =>
+                      setFormData({ ...formData, filterRegisteredAfter: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Push notification toggle */}
           <div className="flex items-center gap-3 pt-2">
             <Switch
@@ -573,10 +726,17 @@ export default function NotificationSettings() {
             <span>
               Esta notificação será enviada para {recipientCount.users} usuários
               {selectedSpaceName && ` inscritos em ${selectedSpaceName}`}
+              {hasActiveFilters && ' (filtrados)'}
               {formData.sendPush && ` + push para ${recipientCount.devices} dispositivos`}
               {formData.sendEmail && ` + email para ${recipientCount.users} destinatários`}
             </span>
           </div>
+
+          {hasActiveFilters && formData.sendPush && (
+            <p className="text-xs text-amber-500">
+              ⚠ Push notifications não suportam filtros avançados — serão enviados por espaço/broadcast normalmente.
+            </p>
+          )}
 
           <Button onClick={handleSendClick} disabled={sending} variant="glow">
             <PaperPlaneTilt className="w-4 h-4 mr-2" />
