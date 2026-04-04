@@ -57,6 +57,8 @@ export default function Login() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as any)?.returnTo || '/home';
   const { signIn, signInWithGoogle, resendConfirmationEmail } = useAuth();
   const { refetch } = useSubscription();
 
