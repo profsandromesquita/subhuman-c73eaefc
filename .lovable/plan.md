@@ -1,106 +1,109 @@
 
 
-# Plano: Fase 2 — Envio de email em massa na página de notificações
+# Plano: Fase 3 — Filtros avançados de destinatários
 
-## Arquivo 1 (NOVO): `supabase/functions/send-bulk-email/index.ts`
+## Arquivo ÚNICO: `src/pages/admin/settings/Notifications.tsx`
 
-Edge Function que recebe `{ user_ids, title, message }`, valida auth + role admin/moderator, e envia emails sequencialmente com delay de 100ms.
+Nenhuma migration necessária. Nenhuma Edge Function alterada.
 
-- Copiar literalmente `generateNotificationEmail()`, `generatePlainText()` e `convertMarkdownToHtml()` do `send-user-notification/index.ts`
-- Mesmos `corsHeaders`
-- Auth: Bearer token → `anonClient.auth.getUser()` → check `user_roles` admin/moderator
-- Loop sequencial: para cada `user_id`, buscar email via `auth.admin.getUserById()`, buscar `full_name` via `profiles`, gerar HTML/text, enviar via Resend com tags `[{ name: 'type', value: 'bulk-notification' }]`
-- Delay 100ms entre envios (`await new Promise(resolve => setTimeout(resolve, 100))`)
-- Retorno: `{ sent, failed, errors }`
+---
 
-### Config: `supabase/config.toml`
+### Conceito
 
-Adicionar:
-```toml
-[functions.send-bulk-email]
-  verify_jwt = false
+Adicionar uma seção colapsável "Filtros de destinatários" no formulário, com 3 filtros que refinam a lista de user_ids **antes** do envio. Os filtros são aplicados via queries ao Supabase e se combinam com o filtro de espaço já existente (interseção).
+
+---
+
+### Novos campos no formData
+
+```typescript
+filterIncompleteProfile: false,    // boolean
+filterPlanType: 'all',             // 'all' | 'none' | 'monthly' | 'yearly' | 'lifetime' | 'trial' | 'promo'
+filterRegisteredAfter: '',         // ISO date string ou ''
 ```
 
 ---
 
-## Arquivo 2 (ALTERADO): `src/pages/admin/settings/Notifications.tsx`
+### Nova seção na UI: "Filtros de destinatários"
 
-### Edição 1 — Novo campo `sendEmail` no formData (linha 51)
+Posição: após o select de Tipo e antes dos toggles de push/email.
 
-Adicionar `sendEmail: false` ao estado inicial e ao reset (linha 265).
+Usar um `Collapsible` (shadcn) com trigger "Filtros de destinatários" + ícone `Funnel` (Phosphor).
 
-### Edição 2 — Novo toggle de email na UI (após linha 465, antes da contagem)
+Conteúdo colapsável com 3 filtros em grid:
 
-Toggle idêntico ao de push:
-```tsx
-<div className="flex items-center gap-3 pt-2">
-  <Switch id="sendEmail" checked={formData.sendEmail}
-    onCheckedChange={(checked) => setFormData({ ...formData, sendEmail: checked })} />
-  <Label htmlFor="sendEmail" className="text-sm cursor-pointer">
-    Enviar também por email
-    <span className="text-xs text-muted-foreground ml-2">({recipientCount.users} destinatários)</span>
-  </Label>
-</div>
-```
+1. **Perfil incompleto** — Switch toggle  
+   Label: "Apenas perfis incompletos"  
+   Sublabel: "Usuários sem nome, cidade ou ocupação preenchidos"
 
-### Edição 3 — Atualizar texto da contagem (linhas 468-475)
+2. **Plano de assinatura** — Select  
+   Opções: Todos (default) | Sem assinatura (freemium) | Mensal | Anual | Vitalício | Trial | Promo
 
-Adicionar `{formData.sendEmail && ` + email para ${recipientCount.users} destinatários`}` ao texto.
+3. **Cadastrado após** — Input type="date"  
+   Label: "Cadastrado a partir de"  
+   Placeholder: vazio (sem filtro)
 
-### Edição 4 — Importar AlertDialog (topo do arquivo)
+---
 
-Importar `AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle` de `@/components/ui/alert-dialog`.
+### Lógica de filtragem — nova função `getFilteredUserIds()`
 
-Adicionar state: `const [showEmailConfirm, setShowEmailConfirm] = useState(false);`
+Função assíncrona que retorna `string[]` de user_ids filtrados:
 
-### Edição 5 — Lógica de confirmação no botão
+1. **Base**: Se espaço específico → buscar user_ids de `user_space_subscriptions`. Se "todos" → buscar todos os `id` de `profiles`.
 
-Substituir o `onClick={handleSend}` do botão por lógica condicional:
-- Se `sendEmail` ativo e `recipientCount.users > 10`: abrir dialog de confirmação
-- Senão: chamar `handleSend()` direto
+2. **Filtro perfil incompleto**: Se ativo, filtrar profiles onde `full_name IS NULL OR city IS NULL OR occupation_type IS NULL`.
 
-Adicionar AlertDialog no JSX com mensagem "Você está prestes a enviar email para X usuários. Deseja continuar?" e botões Cancelar/Confirmar.
+3. **Filtro plano**: 
+   - `'all'`: sem filtro de plano
+   - `'none'`: user_ids que **NÃO** têm registro em `subscriptions` com `status = 'active'`
+   - Outros: user_ids que **têm** registro em `subscriptions` com `plan_type = X` e `status = 'active'`
 
-### Edição 6 — Envio de email no handleSend (após push, ~linha 263)
+4. **Filtro data de cadastro**: Se preenchido, filtrar `profiles.created_at >= data`.
 
-Reorganizar o handleSend para que a variável `subscribers` (do bloco space-specific) fique acessível no escopo do email. Após push:
+5. Retornar a interseção de todos os filtros ativos.
 
-```typescript
-if (formData.sendEmail) {
-  try {
-    let emailUserIds: string[];
-    if (formData.space_id === 'all') {
-      const { data: allUsers } = await supabase.from('profiles').select('id');
-      emailUserIds = allUsers?.map(u => u.id) || [];
-    } else {
-      emailUserIds = subscribers?.map(s => s.user_id) || [];
-    }
-    if (emailUserIds.length > 0) {
-      const { data: emailResult, error: emailError } = 
-        await supabase.functions.invoke('send-bulk-email', {
-          body: { user_ids: emailUserIds, title: formData.title, message: formData.message || null }
-        });
-      // handle result...
-    }
-  } catch { ... }
-}
-```
+---
 
-A variável `subscribers` precisa ser elevada para fora do bloco `else` atual — declarar `let subscribers` antes do `if/else` e atribuir dentro do `else`.
+### Atualização do `recipientCount`
 
-### Edição 7 — Toast dinâmico (substituir toasts atuais ~linhas 254-263)
+O `useEffect` existente (linhas 78-116) será refatorado para usar `getFilteredUserIds()`. A contagem de usuários será o `.length` do array filtrado. A contagem de dispositivos push será feita com `.in('user_id', filteredIds)`.
 
-Construir mensagem de toast baseada nos canais usados:
-- `pushOk` e `emailOk` como flags
-- Toast final: "Notificação enviada!" / "...com push!" / "...com email!" / "...com push e email!"
+O useEffect deve reagir a **todos** os campos de filtro além de `space_id`.
+
+---
+
+### Atualização do `handleSend`
+
+Substituir a lógica atual de buscar user_ids (tanto para in-app quanto para email) por `getFilteredUserIds()`:
+
+- **In-app (espaço = all + sem filtros)**: manter broadcast (`user_id: null`).
+- **In-app (qualquer filtro ativo OU espaço específico)**: batch insert com user_ids filtrados.
+- **Push**: se filtros ativos, enviar com `userIds` array para a Edge Function (novo campo no payload). Se broadcast sem filtros, manter comportamento atual.
+- **Email**: usar os mesmos user_ids filtrados.
+
+**Atenção sobre push**: A Edge Function `send-push-notification` atualmente aceita `broadcast: true` ou `spaceId`. Para suportar filtros, será necessário verificar se ela aceita um array de `userIds`. Se não aceitar, o push continuará como broadcast/space e apenas in-app e email serão filtrados. O push será documentado como limitação desta fase.
+
+---
+
+### Reset dos filtros
+
+No reset do formData (linha 350), incluir os novos campos com valores default.
+
+---
+
+### Importações adicionais
+
+- `Collapsible, CollapsibleContent, CollapsibleTrigger` de `@/components/ui/collapsible`
+- `Funnel` de `@phosphor-icons/react`
 
 ---
 
 ## O que NÃO muda
 
-- `send-user-notification` (template individual)
-- `send-push-notification`, `send-daily-digest`
-- Lógica de INSERT de notificações in-app (Fase 1)
-- Nenhuma tabela do banco
-- Nenhum outro arquivo além dos 2 especificados + config.toml
+- Edge Functions (`send-bulk-email`, `send-push-notification`, `send-user-notification`)
+- Tabelas do banco (sem migrations)
+- Nenhum outro arquivo
+- Toggles de push e email (mantidos)
+- Histórico de envios (mantido)
+- Dialog de confirmação de email (mantido)
 
