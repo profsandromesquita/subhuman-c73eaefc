@@ -9,9 +9,10 @@ interface PostHeaderProps {
   onSaveToggle: () => void;
   title: string;
   isGuest?: boolean;
+  spaceSlug?: string;
 }
 
-export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeaderProps) {
+export function PostHeader({ isSaved, onSaveToggle, title, isGuest, spaceSlug }: PostHeaderProps) {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
 
