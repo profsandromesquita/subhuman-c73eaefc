@@ -239,14 +239,16 @@ export default function PostDetail() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-background pt-safe flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Post não encontrado</p>
-          <button onClick={() => navigate(`/spaces/${spaceSlug}`)} className="text-primary">
-            Voltar para o espaço
-          </button>
+      <AppLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">Post não encontrado</p>
+            <button onClick={() => navigate(`/spaces/${spaceSlug}`)} className="text-primary">
+              Voltar para o espaço
+            </button>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
