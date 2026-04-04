@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
 import { ArrowLeft, Eye, EyeSlash, LockSimple } from "@phosphor-icons/react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -57,6 +57,8 @@ export default function Login() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as any)?.returnTo || '/home';
   const { signIn, signInWithGoogle, resendConfirmationEmail } = useAuth();
   const { refetch } = useSubscription();
 
@@ -157,6 +159,9 @@ export default function Login() {
       await new Promise(resolve => setTimeout(resolve, 500));
       const result = await refetch();
 
+      // Clear sessionStorage returnTo since we're handling it via location.state
+      sessionStorage.removeItem('returnTo');
+
       const workshopIntent = sessionStorage.getItem('workshop_intent');
       if (workshopIntent) {
         sessionStorage.removeItem('workshop_intent');
@@ -172,7 +177,7 @@ export default function Login() {
           });
         }, 500);
       } else {
-        navigate("/home", { replace: true });
+        navigate(returnTo, { replace: true });
       }
     } catch (err) {
       toast.error("Erro inesperado ao fazer login");

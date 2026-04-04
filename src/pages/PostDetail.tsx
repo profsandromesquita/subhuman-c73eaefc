@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { AppLayout } from "@/components/AppLayout";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { PostHeader } from "@/components/post/PostHeader";
@@ -223,37 +224,43 @@ export default function PostDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background pt-safe">
-        <div className="pt-14 px-5 max-w-2xl mx-auto space-y-4">
-          <Skeleton className="w-full aspect-video" />
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-4 w-48" />
+      <AppLayout>
+        <div className="min-h-screen bg-background">
+          <div className="pt-14 px-5 max-w-2xl mx-auto space-y-4">
+            <Skeleton className="w-full aspect-video" />
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-4 w-48" />
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-background pt-safe flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Post não encontrado</p>
-          <button onClick={() => navigate(`/spaces/${spaceSlug}`)} className="text-primary">
-            Voltar para o espaço
-          </button>
+      <AppLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">Post não encontrado</p>
+            <button onClick={() => navigate(`/spaces/${spaceSlug}`)} className="text-primary">
+              Voltar para o espaço
+            </button>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pt-safe">
+    <AppLayout>
+    <div className="min-h-screen bg-background">
       <PostHeader
         isSaved={isSaved}
         onSaveToggle={handleSaveToggle}
         title={post.title}
         isGuest={!user}
+        spaceSlug={spaceSlug}
       />
 
       {!user && (
@@ -402,5 +409,6 @@ export default function PostDetail() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 }

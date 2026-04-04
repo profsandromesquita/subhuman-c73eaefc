@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SubscriptionGuardProps {
@@ -9,6 +9,7 @@ interface SubscriptionGuardProps {
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (authLoading) {
     return (
@@ -18,9 +19,11 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     );
   }
 
-  // If not logged in, redirect to login
+  // If not logged in, save current URL and redirect to login
   if (!user) {
-    navigate('/login', { replace: true });
+    const returnTo = location.pathname + location.search;
+    sessionStorage.setItem('returnTo', returnTo);
+    navigate('/login', { replace: true, state: { returnTo } });
     return null;
   }
 

@@ -9,9 +9,10 @@ interface PostHeaderProps {
   onSaveToggle: () => void;
   title: string;
   isGuest?: boolean;
+  spaceSlug?: string;
 }
 
-export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeaderProps) {
+export function PostHeader({ isSaved, onSaveToggle, title, isGuest, spaceSlug }: PostHeaderProps) {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
 
@@ -46,7 +47,7 @@ export function PostHeader({ isSaved, onSaveToggle, title, isGuest }: PostHeader
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => isGuest ? navigate("/") : navigate(-1)}
+          onClick={() => isGuest ? navigate("/") : navigate(`/spaces/${spaceSlug || ''}`)}
           className="text-foreground hover:bg-secondary"
         >
           <ArrowLeft className="w-5 h-5" weight="bold" />
