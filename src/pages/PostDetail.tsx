@@ -255,6 +255,7 @@ export default function PostDetail() {
         onSaveToggle={handleSaveToggle}
         title={post.title}
         isGuest={!user}
+        spaceSlug={spaceSlug}
       />
 
       {!user && (

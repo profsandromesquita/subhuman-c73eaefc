@@ -159,6 +159,9 @@ export default function Login() {
       await new Promise(resolve => setTimeout(resolve, 500));
       const result = await refetch();
 
+      // Clear sessionStorage returnTo since we're handling it via location.state
+      sessionStorage.removeItem('returnTo');
+
       const workshopIntent = sessionStorage.getItem('workshop_intent');
       if (workshopIntent) {
         sessionStorage.removeItem('workshop_intent');
@@ -174,7 +177,7 @@ export default function Login() {
           });
         }, 500);
       } else {
-        navigate("/home", { replace: true });
+        navigate(returnTo, { replace: true });
       }
     } catch (err) {
       toast.error("Erro inesperado ao fazer login");

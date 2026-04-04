@@ -31,7 +31,13 @@ export default function Landing() {
     
     if (user) {
       hasRedirected.current = true;
-      navigate('/home', { replace: true });
+      const returnTo = sessionStorage.getItem('returnTo');
+      if (returnTo) {
+        sessionStorage.removeItem('returnTo');
+        navigate(returnTo, { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
     }
   }, [user, authLoading, status, subLoading, navigate]);
 

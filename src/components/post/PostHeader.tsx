@@ -47,7 +47,7 @@ export function PostHeader({ isSaved, onSaveToggle, title, isGuest, spaceSlug }:
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => isGuest ? navigate("/") : navigate(-1)}
+          onClick={() => isGuest ? navigate("/") : navigate(`/spaces/${spaceSlug || ''}`)}
           className="text-foreground hover:bg-secondary"
         >
           <ArrowLeft className="w-5 h-5" weight="bold" />
