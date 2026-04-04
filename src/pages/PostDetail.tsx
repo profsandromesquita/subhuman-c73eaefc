@@ -253,7 +253,8 @@ export default function PostDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-safe">
+    <AppLayout>
+    <div className="min-h-screen bg-background">
       <PostHeader
         isSaved={isSaved}
         onSaveToggle={handleSaveToggle}
