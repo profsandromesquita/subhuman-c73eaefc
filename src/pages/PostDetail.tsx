@@ -409,5 +409,6 @@ export default function PostDetail() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 }
