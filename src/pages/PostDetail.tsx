@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { AppLayout } from "@/components/AppLayout";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { PostHeader } from "@/components/post/PostHeader";
