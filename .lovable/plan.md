@@ -1,127 +1,75 @@
 
 
-# Plano final: SEO canônico por rota + sitemap + padronização de URLs
+# Plano: SSG leve + validação obrigatória em produção
 
-## Ajustes aplicados (vs versão anterior)
+## Estratégia (inalterada)
 
-1. **`sitemap.xml`**: removidos `changefreq` e `priority`. Mantenho apenas `<loc>`. Não incluo `lastmod` nesta fase porque as rotas listadas (Home, Plans, Contato, Termos, Privacidade) são páginas de marketing/institucionais sem fonte de dado confiável e versionada para data de modificação. Em fase futura, quando o sitemap for dinâmico (artigos/podcasts), `lastmod` vem de `updated_at` do banco.
-2. **`public/robots.txt`**: linha em texto puro, sem markdown:
-   ```
-   Sitemap: https://subhumano.ia.br/sitemap.xml
-   ```
+Plugin Vite custom no hook `closeBundle` gera `dist/{rota}/index.html` para 7 rotas com `<title>`, `<meta description>`, `<link rel="canonical">`, `<meta robots>`, `og:*` e `twitter:*` injetados no `<head>`. Body permanece o shell SPA. Zero dependências novas.
 
-## Confirmações solicitadas
+## Arquivos
 
-### 3. Conteúdo visivelmente distinto nas páginas públicas indexáveis
+**Novos (2):**
+- `scripts/prerender-routes.ts` — tabela única (path, title, description, robots, ogType) para 7 rotas: `/`, `/plans`, `/contato`, `/termos`, `/privacidade`, `/login`, `/register`.
+- `scripts/vite-plugin-prerender.ts` — plugin que lê `dist/index.html`, clona e injeta head específico por rota, escreve `dist{path}/index.html`.
 
-**Confirmado.** As 5 rotas públicas indexáveis já possuem conteúdo único e substancialmente distinto na renderização (não apenas nos metadados). Verificação por arquivo:
+**Alterado (1):**
+- `vite.config.ts` — registra o plugin.
 
-| Rota | Componente | Conteúdo único renderizado |
-|---|---|---|
-| `/` | `src/pages/Landing.tsx` | Hero, LandingProblem, LandingMethod, LandingFeatures, LandingSpaces, LandingEvents, LandingAuthor, LandingSocialProof, LandingFAQ, LandingCTA, LandingFooter — landing page completa |
-| `/plans` | `src/pages/Plans.tsx` | Tabela de planos, preços, benefícios, CTAs de checkout Ticto |
-| `/contato` | `src/pages/Contact.tsx` | Formulário de contato + informações institucionais |
-| `/termos` | `src/pages/TermsOfUse.tsx` | Texto legal completo dos termos de uso |
-| `/privacidade` | `src/pages/PrivacyPolicy.tsx` | Política de privacidade LGPD completa |
+## Validação obrigatória em produção (parte do plano, não opcional)
 
-Cada página tem H1 próprio, copy original e estrutura de seções diferente. Não há risco de "thin content" ou conteúdo duplicado entre elas. O Google verá 5 páginas semanticamente independentes, cada uma com seu próprio canonical autorreferente.
+Após implementação e publicação, executo via `code--exec` com `curl -A "Googlebot/2.1"` contra a URL publicada (`https://subhuman.lovable.app` enquanto o domínio canônico não está conectado, e depois `https://subhumano.ia.br` quando o Cloudflare Worker apontar).
 
-### 4. Sitemap e isolamento de rotas com noindex
+**Matriz de testes (7 URLs × 4 verificações):**
 
-**Confirmado em duas dimensões:**
-
-**a) Nenhuma rota `noindex` entra no sitemap.xml.** O sitemap contém estritamente as 5 URLs marcadas como `index,follow` na tabela de rotas. Auth (`/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`), utilitárias (`/payment-success`, `/setup-admin`), autenticadas (`/home`, `/spaces`, `/podcasts`, etc.) e admin (`/admin/*`) ficam **fora** do sitemap.
-
-**b) Rotas privadas/admin/auth não recebem links públicos fortes.**
-- **Landing page (única página pública com navegação primária)**: revisei `LandingHero`, `LandingFooter`, `LandingCTA`, `LandingMethod`, `StickyBottomCTA`, `LoginHero`. Os CTAs externos apontam para `/register` e `/login` — ambas marcadas `noindex,follow`, então o sinal de link não é amplificado, e como `follow` ainda é respeitado, a equity passa adiante sem indexar a auth em si. Isso é o padrão recomendado.
-- **Footer**: contém apenas links para `/termos`, `/privacidade`, `/contato`, `/plans` (todas indexáveis) — nenhum link direto para área autenticada ou admin.
-- **Admin (`/admin/*`)**: marcado `noindex,nofollow`. Não há links de páginas públicas apontando para `/admin`.
-- **Robots.txt**: continua com `Allow: /` global (necessário para crawlers das redes sociais lerem OG tags). A proteção contra indexação de áreas privadas é feita via `<meta name="robots" content="noindex,...">` por rota — abordagem correta para SPAs, já que o Google executa JS e respeita meta robots renderizada.
-
----
-
-## Arquivos NOVOS (4)
-
-### 1. `src/lib/constants/site.ts`
-```ts
-export const SITE_URL = "https://subhumano.ia.br";
-export const SITE_NAME = "Subhumano";
-export const SITE_DESCRIPTION = "Curadoria de inteligência artificial validada por especialistas. Notícias, ferramentas, comunidade e podcast para profissionais que precisam de foco, não de ruído.";
-export const SITE_OG_IMAGE = "https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/ecossistema-subhumano-inteligencia-artificial-prof-sandro-mesquita.webp";
+```
+para cada rota em [/, /plans, /contato, /termos, /privacidade, /login, /register]:
+  curl -sA "Googlebot/2.1" https://<host><rota> | grep -E '<title>|name="description"|rel="canonical"|name="robots"'
 ```
 
-### 2. `supabase/functions/_shared/site.ts`
-```ts
-export const SITE_URL = "https://subhumano.ia.br";
-export const SITE_NAME = "Subhumano";
-export const SITE_FROM_EMAIL = "Subhumano <noreply@subhumano.ia.br>";
-export const SITE_CONTACT_EMAIL = "contato@subhumano.ia.br";
-```
+Critério de aprovação por rota:
 
-### 3. `src/components/SEO.tsx`
-Wrapper sobre `react-helmet-async`. Props: `title`, `description`, `path`, `noindex?`, `nofollow?`, `ogImage?`. Renderiza `<title>`, `<meta name="description">`, `<link rel="canonical" href="${SITE_URL}${path}">`, `<meta name="robots">` (apenas quando `noindex` ou `nofollow`), `og:url|title|description|image`, `twitter:title|description|image`.
+| Rota | Title esperado contém | Canonical esperado | Robots esperado |
+|---|---|---|---|
+| `/` | "Assuma o Comando da IA" | `https://subhumano.ia.br/` | (ausente = index,follow) |
+| `/plans` | "Planos e Assinatura" | `https://subhumano.ia.br/plans` | (ausente) |
+| `/contato` | "Contato" | `https://subhumano.ia.br/contato` | (ausente) |
+| `/termos` | "Termos de Uso" | `https://subhumano.ia.br/termos` | (ausente) |
+| `/privacidade` | "Política de Privacidade" | `https://subhumano.ia.br/privacidade` | (ausente) |
+| `/login` | "Entrar" | `https://subhumano.ia.br/login` | `noindex,follow` |
+| `/register` | "Criar Conta" | `https://subhumano.ia.br/register` | `noindex,follow` |
 
-### 4. `public/sitemap.xml`
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://subhumano.ia.br/</loc></url>
-  <url><loc>https://subhumano.ia.br/plans</loc></url>
-  <url><loc>https://subhumano.ia.br/contato</loc></url>
-  <url><loc>https://subhumano.ia.br/termos</loc></url>
-  <url><loc>https://subhumano.ia.br/privacidade</loc></url>
-</urlset>
-```
+Entrego o relatório bruto (output do curl) das 7 rotas como evidência.
 
----
+## Cenários possíveis e plano de contingência
 
-## Arquivos ALTERADOS
+**Cenário A — Lovable serve `dist/{rota}/index.html` corretamente (esperado).**
+SPA fallback do Lovable é descrito na doc como "checks whether the path maps to a real file. If no file is found... serves index.html". Como o build gera `dist/plans/index.html` real, a infraestrutura serve esse arquivo antes do fallback. Validação confirma → plano aprovado, encerro.
 
-### Estruturais
-| Arquivo | Alteração |
-|---|---|
-| `package.json` | Adicionar `react-helmet-async` |
-| `src/main.tsx` | Envolver `<App />` em `<HelmetProvider>` |
-| `index.html` | Remover `<title>`, `<meta name="description">`, `<meta property="og:*">`, `<meta name="twitter:*">`. Manter apenas: charset, viewport, theme-color, apple-*, favicon, manifest, preconnects, fonts, facebook-domain-verification, Meta Pixel, fallback `<noscript>`. **Não** adicionar canonical global. |
-| `public/robots.txt` | Adicionar linha: `Sitemap: https://subhumano.ia.br/sitemap.xml` |
+**Cenário B — Lovable serve sempre `dist/index.html` raiz (ignora subpastas).**
+Validação mostra todas as rotas com mesmo `<title>Subhumano</title>`. Neste caso, ativo a contingência:
 
-### Páginas com `<SEO />`
-- **Públicas indexáveis (5)**: `Landing`, `Plans`, `Contact`, `TermsOfUse`, `PrivacyPolicy`.
-- **Públicas noindex (7)**: `Login`, `Register`, `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `PaymentSuccess`, `SetupAdmin`.
-- **Autenticadas noindex,follow (~20)**: `Home`, `Highlights`, `Spaces`, `SpaceDetail`, `PostDetail`, `Podcasts`, `PodcastDetail`, `Channels`, `ChannelDetail`, `ChannelPostDetail`, `Notifications`, `Profile` + subrotas, `Search`, `AIAssistant`, `Events`, `EventDetail`, `Messages`, `ConversationDetail`, `CompanyProfile`.
-- **Admin noindex,nofollow**: aplicar no `AdminLayout` para cobrir todas as subrotas de uma vez.
+- **B1 (preferida)**: Solicitar ao Sandro alteração no Cloudflare Worker (fora deste repo) para detectar User-Agent de bots (`Googlebot|bingbot|Slackbot|facebookexternalhit|Twitterbot|LinkedInBot|WhatsApp|TelegramBot`) e fazer fetch interno de `/{rota}/index.html` do origin Lovable, retornando esse HTML. Usuários comuns continuam recebendo SPA. Esta é a abordagem "ambos defensivo" originalmente aprovada.
+- **B2 (fallback)**: Migrar pré-renderização para uma Edge Function Supabase nova (`prerender`) que serve HTML por rota; Worker roteia bots para essa função. Maior complexidade, só se B1 não for viável.
 
-### Tabela final de rotas indexáveis (title, description, canonical, robots)
+**Cenário C — Lovable serve HTML mas remove/reescreve tags do head.**
+Improvável (host estático normal não toca em HTML), mas a validação detecta. Reporto e adapto.
 
-| Rota | Title | Description | Canonical | Robots |
-|---|---|---|---|---|
-| `/` | Subhumano — Assuma o Comando da IA Sem Perder Seu Tempo | Curadoria de inteligência artificial validada por especialistas. Notícias, ferramentas, comunidade e podcast para profissionais que precisam de foco, não de ruído. | `https://subhumano.ia.br/` | `index,follow` |
-| `/plans` | Planos e Assinatura — Subhumano | Escolha o plano ideal para acessar conteúdos premium, mentorias e a comunidade Subhumano. | `https://subhumano.ia.br/plans` | `index,follow` |
-| `/contato` | Contato — Subhumano | Fale com o time do Subhumano. Suporte, parcerias e dúvidas sobre nosso ecossistema de inteligência artificial. | `https://subhumano.ia.br/contato` | `index,follow` |
-| `/termos` | Termos de Uso — Subhumano | Leia os termos de uso da plataforma Subhumano, mantida pelo ITIA. | `https://subhumano.ia.br/termos` | `index,follow` |
-| `/privacidade` | Política de Privacidade — Subhumano | Política de privacidade do Subhumano em conformidade com a LGPD. | `https://subhumano.ia.br/privacidade` | `index,follow` |
+## Sequência de execução
 
-### Hardcodes substituídos (mantido das fases anteriores)
-| Arquivo | Alteração |
-|---|---|
-| `src/hooks/useAuth.ts` | 4 strings → `SITE_URL` |
-| `src/pages/Plans.tsx` | `window.location.origin` → `SITE_URL` (3x) |
-| `src/components/landing/LandingEvents.tsx` | `window.location.origin` → `SITE_URL` |
-| `src/pages/admin/settings/Payments.tsx` | `webhookUrl` informativo → `${SITE_URL}/api/webhooks` |
-| `public/manifest.json` | Shortcuts `/espacos`→`/spaces`, `/canais`→`/channels` |
-| `supabase/functions/og-meta/index.ts` | Usar `_shared/site.ts` |
-| `supabase/functions/send-user-notification/index.ts` | Usar `SITE_URL` + `SITE_FROM_EMAIL` |
-| `supabase/functions/send-bulk-email/index.ts` | Idem |
-| `supabase/functions/send-daily-digest/index.ts` | Idem |
-| `supabase/functions/send-push-notification/index.ts` | `mailto:` → `SITE_CONTACT_EMAIL` |
-| `supabase/functions/auth-email-hook/index.ts` | Usar shared (mantém `SAMPLE_PROJECT_URL` placeholder) |
+1. Criar `scripts/prerender-routes.ts` e `scripts/vite-plugin-prerender.ts`.
+2. Editar `vite.config.ts`.
+3. Sandro publica via botão Publish do Lovable.
+4. Eu rodo a matriz de validação com curl contra `https://subhuman.lovable.app/{rota}` (host publicado atual).
+5. Entrego output bruto + tabela de pass/fail por rota.
+6. Se Cenário A → encerro. Se Cenário B → aciono contingência B1.
 
----
+## O que NÃO muda
 
-## Não muda
-- Nenhum redirect de infra (http/https, www) — Cloudflare cuida.
-- Nenhuma migration, tabela, webhook ou Edge Function nova.
-- Sitemap dinâmico para artigos/podcasts/eventos — fase posterior (vai exigir Edge Function que consulta `posts`/`podcasts` e gera XML).
-- Structured data (JSON-LD) — fase posterior.
-- `robots.txt` mantém `Allow: /` global (necessário para OG crawlers).
+- `src/components/SEO.tsx`, `react-helmet-async`, `public/sitemap.xml` (5 URLs), `public/robots.txt`.
+- Nenhuma rota dinâmica pré-renderizada (artigos/podcasts/eventos seguem com Edge Function `og-meta` para crawlers sociais).
+- Sem novas dependências npm.
+
+## Total
+
+2 arquivos novos + 1 alterado + ciclo obrigatório de validação em produção com evidência curl antes de considerar aprovado.
 
