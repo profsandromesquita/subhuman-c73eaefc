@@ -22,26 +22,26 @@ function buildHeadTags(route: PrerenderRoute): string {
   const canonical = `${SITE_URL}${route.path === "/" ? "/" : route.path}`;
   const tags: string[] = [];
 
-  tags.push(`<meta name="description" content="${escapeHtml(route.description)}" />`);
-  tags.push(`<link rel="canonical" href="${escapeHtml(canonical)}" />`);
+  tags.push(`<meta name="description" content="${escapeHtml(route.description)}" data-rh="true" />`);
+  tags.push(`<link rel="canonical" href="${escapeHtml(canonical)}" data-rh="true" />`);
 
   if (route.robots) {
-    tags.push(`<meta name="robots" content="${escapeHtml(route.robots)}" />`);
+    tags.push(`<meta name="robots" content="${escapeHtml(route.robots)}" data-rh="true" />`);
   }
 
   // Open Graph
-  tags.push(`<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`);
-  tags.push(`<meta property="og:type" content="${escapeHtml(route.ogType)}" />`);
-  tags.push(`<meta property="og:url" content="${escapeHtml(canonical)}" />`);
-  tags.push(`<meta property="og:title" content="${escapeHtml(route.title)}" />`);
-  tags.push(`<meta property="og:description" content="${escapeHtml(route.description)}" />`);
-  tags.push(`<meta property="og:image" content="${escapeHtml(SITE_OG_IMAGE)}" />`);
+  tags.push(`<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" data-rh="true" />`);
+  tags.push(`<meta property="og:type" content="${escapeHtml(route.ogType)}" data-rh="true" />`);
+  tags.push(`<meta property="og:url" content="${escapeHtml(canonical)}" data-rh="true" />`);
+  tags.push(`<meta property="og:title" content="${escapeHtml(route.title)}" data-rh="true" />`);
+  tags.push(`<meta property="og:description" content="${escapeHtml(route.description)}" data-rh="true" />`);
+  tags.push(`<meta property="og:image" content="${escapeHtml(SITE_OG_IMAGE)}" data-rh="true" />`);
 
   // Twitter
-  tags.push(`<meta name="twitter:card" content="summary_large_image" />`);
-  tags.push(`<meta name="twitter:title" content="${escapeHtml(route.title)}" />`);
-  tags.push(`<meta name="twitter:description" content="${escapeHtml(route.description)}" />`);
-  tags.push(`<meta name="twitter:image" content="${escapeHtml(SITE_OG_IMAGE)}" />`);
+  tags.push(`<meta name="twitter:card" content="summary_large_image" data-rh="true" />`);
+  tags.push(`<meta name="twitter:title" content="${escapeHtml(route.title)}" data-rh="true" />`);
+  tags.push(`<meta name="twitter:description" content="${escapeHtml(route.description)}" data-rh="true" />`);
+  tags.push(`<meta name="twitter:image" content="${escapeHtml(SITE_OG_IMAGE)}" data-rh="true" />`);
 
   return tags.map((t) => `    ${t}`).join("\n");
 }
@@ -52,7 +52,7 @@ function buildHeadTags(route: PrerenderRoute): string {
  */
 function injectSeoIntoHtml(template: string, route: PrerenderRoute): string {
   const headBlock = buildHeadTags(route);
-  const newTitle = `<title>${escapeHtml(route.title)}</title>`;
+  const newTitle = `<title data-rh="true">${escapeHtml(route.title)}</title>`;
 
   // Substitui o primeiro <title>...</title> encontrado
   let html = template.replace(/<title>[\s\S]*?<\/title>/i, newTitle);
