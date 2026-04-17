@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
         const plainText = generatePlainText(digest.full_name, groupedUpdates);
 
         const { error: emailError } = await resend.emails.send({
-          from: 'Subhumano <noreply@subhumano.ia.br>',
+          from: SITE_FROM_EMAIL,
           to: [digest.email],
           subject: `📬 Resumo do dia - ${userUpdateCount} ${userUpdateCount === 1 ? 'nova atualização' : 'novas atualizações'}`,
           html: htmlContent,
@@ -317,13 +317,13 @@ function generatePlainText(userName: string | null, groupedUpdates: Record<strin
     for (const update of updates) {
       const spaceInfo = getSpaceInfo(update.spaces);
       lines.push(`• ${update.title}`);
-      lines.push(`  https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`);
+      lines.push(`  ${SITE_URL}/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`);
     }
     lines.push('');
   }
   lines.push('---');
-  lines.push('Explorar Subhumano: https://subhumano.ia.br/login');
-  lines.push('Gerenciar preferências: https://subhumano.ia.br/profile/notifications');
+  lines.push('Explorar Subhumano: ${SITE_URL}/login');
+  lines.push('Gerenciar preferências: ${SITE_URL}/profile/notifications');
   return lines.join('\n');
 }
 
@@ -344,7 +344,7 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
 
     for (const update of spaceUpdates) {
       const spaceInfo = getSpaceInfo(update.spaces);
-      const articleUrl = `https://subhumano.ia.br/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`;
+      const articleUrl = `${SITE_URL}/spaces/${spaceInfo?.slug || 'home'}/post/${update.slug}`;
       const excerpt = extractExcerpt(update.content);
 
       const thumbnailRow = update.thumbnail_url
@@ -400,7 +400,7 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
           <!-- Banner -->
           <tr>
             <td style="padding:16px 0 0;">
-              <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
+              <a href="${SITE_URL}/login" style="text-decoration:none;">
                 <img src="https://akkbfzfjappludgsrwsw.supabase.co/storage/v1/object/public/email-assets/banner-email-subhumano.png" width="600" height="200" alt="Subhumano - Ecossistema de Inteligência Artificial" style="display:block;width:100%;height:auto;border-radius:0;">
               </a>
             </td>
@@ -418,7 +418,7 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
           <!-- CTA -->
           <tr>
             <td align="center" style="padding:32px 40px;">
-              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Explorar Subhumano</a>
+              <a href="${SITE_URL}/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Explorar Subhumano</a>
             </td>
           </tr>
           <!-- Footer -->
@@ -433,13 +433,13 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
           <tr>
             <td align="center" style="padding:16px 40px 0;">
               <p style="margin:0;font-size:12px;font-family:${fontFamily};">
-                <a href="https://subhumano.ia.br/login" style="color:#6b7280;text-decoration:underline;">Site</a>
+                <a href="${SITE_URL}/login" style="color:#6b7280;text-decoration:underline;">Site</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/spaces" style="color:#6b7280;text-decoration:underline;">Espaços</a>
+                <a href="${SITE_URL}/spaces" style="color:#6b7280;text-decoration:underline;">Espaços</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/channels" style="color:#6b7280;text-decoration:underline;">Canais</a>
+                <a href="${SITE_URL}/channels" style="color:#6b7280;text-decoration:underline;">Canais</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/podcasts" style="color:#6b7280;text-decoration:underline;">Podcasts</a>
+                <a href="${SITE_URL}/podcasts" style="color:#6b7280;text-decoration:underline;">Podcasts</a>
               </p>
             </td>
           </tr>
@@ -457,7 +457,7 @@ function generateEmailHtml(userName: string | null, groupedUpdates: Record<strin
           <tr>
             <td align="center" style="padding:16px 40px 0;">
               <p style="margin:0 0 8px;font-size:11px;color:#9ca3af;font-family:${fontFamily};">Você está recebendo este email porque habilitou o resumo diário nas suas preferências.</p>
-              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:11px;color:#6b7280;text-decoration:underline;font-family:${fontFamily};">Gerenciar preferências</a>
+              <a href="${SITE_URL}/profile/notifications" style="font-size:11px;color:#6b7280;text-decoration:underline;font-family:${fontFamily};">Gerenciar preferências</a>
             </td>
           </tr>
           <tr>
