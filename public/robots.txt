@@ -18,3 +18,5 @@ Allow: /
 
 User-agent: WhatsApp
 Allow: /
+
+Sitemap: https://subhumano.ia.br/sitemap.xml
