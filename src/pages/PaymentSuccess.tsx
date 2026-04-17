@@ -5,6 +5,7 @@ import { CheckCircle, SpinnerGap, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/hooks/useAuth";
+import { SEO } from "@/components/SEO";
 
 export default function PaymentSuccess() {
   const navigate = useNavigate();

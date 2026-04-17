@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { GoogleButton } from "@/components/GoogleButton";
 import { AuthDivider } from "@/components/AuthDivider";
+import { SEO } from "@/components/SEO";
 
 const BLOCKED_DOMAINS = [
   "mailinator.com", "tempmail.com", "guerrillamail.com", "yopmail.com",

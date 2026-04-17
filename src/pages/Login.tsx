@@ -13,6 +13,7 @@ import { AuthDivider } from "@/components/AuthDivider";
 import { LoginHero } from "@/components/landing/LoginHero";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { DottedSurface } from "@/components/ui/dotted-surface";
+import { SEO } from "@/components/SEO";
 
 // --- Rate limiting helpers ---
 const STORAGE_KEYS = {

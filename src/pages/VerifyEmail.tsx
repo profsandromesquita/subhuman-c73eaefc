@@ -5,6 +5,7 @@ import { Envelope, ArrowLeft, ArrowClockwise, CheckCircle } from "@phosphor-icon
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { SEO } from "@/components/SEO";
 
 export default function VerifyEmail() {
   const [isResending, setIsResending] = useState(false);
