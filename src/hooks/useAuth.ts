@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { SITE_URL } from '@/lib/constants/site';
 
 export function useAuth() {
   const { user, session, loading } = useAuthContext();
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
-    const redirectUrl = 'https://subhumano.ia.br/';
+    const redirectUrl = `${SITE_URL}/`;
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -53,7 +54,7 @@ export function useAuth() {
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    const redirectUrl = 'https://subhumano.ia.br/reset-password';
+    const redirectUrl = `${SITE_URL}/reset-password`;
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl
@@ -65,14 +66,14 @@ export function useAuth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://subhumano.ia.br/',
+        redirectTo: `${SITE_URL}/`,
       }
     });
     return { error };
   }, []);
 
   const resendConfirmationEmail = useCallback(async (email: string) => {
-    const redirectUrl = 'https://subhumano.ia.br/';
+    const redirectUrl = `${SITE_URL}/`;
     
     const { error } = await supabase.auth.resend({
       type: 'signup',

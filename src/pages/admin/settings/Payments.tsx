@@ -13,6 +13,7 @@ import {
   EyeSlash
 } from '@phosphor-icons/react';
 import { supabase } from '@/integrations/supabase/client';
+import { SITE_URL } from '@/lib/constants/site';
 import { toast } from 'sonner';
 
 interface PaymentIntegration {
