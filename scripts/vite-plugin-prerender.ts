@@ -52,7 +52,7 @@ function buildHeadTags(route: PrerenderRoute): string {
  */
 function injectSeoIntoHtml(template: string, route: PrerenderRoute): string {
   const headBlock = buildHeadTags(route);
-  const newTitle = `<title>${escapeHtml(route.title)}</title>`;
+  const newTitle = `<title data-rh="true">${escapeHtml(route.title)}</title>`;
 
   // Substitui o primeiro <title>...</title> encontrado
   let html = template.replace(/<title>[\s\S]*?<\/title>/i, newTitle);
