@@ -1,4 +1,5 @@
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { SEO } from "@/components/SEO";
 import {
   Accordion,
   AccordionContent,

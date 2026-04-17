@@ -1,9 +1,15 @@
 import { User, Mail, Phone, Building2, Handshake, Globe, FileText, ExternalLink } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { SEO } from "@/components/SEO";
 
 export default function Contact() {
   return (
     <PublicPageLayout>
+      <SEO
+        title="Contato — Subhumano"
+        description="Fale com o time do Subhumano. Suporte, parcerias e dúvidas sobre nosso ecossistema de inteligência artificial."
+        path="/contato"
+      />
       <h1 className="text-3xl font-bold tracking-tight mb-8">Contato</h1>
 
       <div className="space-y-8">

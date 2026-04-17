@@ -1,4 +1,5 @@
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { SEO } from "@/components/SEO";
 import {
   Accordion,
   AccordionContent,
@@ -9,6 +10,11 @@ import {
 export default function PrivacyPolicy() {
   return (
     <PublicPageLayout>
+      <SEO
+        title="Política de Privacidade — Subhumano"
+        description="Política de privacidade do Subhumano em conformidade com a LGPD."
+        path="/privacidade"
+      />
       <h1 className="text-3xl font-bold tracking-tight mb-2">Política de Privacidade</h1>
       <p className="text-sm text-muted-foreground mb-8">
         Última atualização: 20 de fevereiro de 2026

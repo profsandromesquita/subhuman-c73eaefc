@@ -18,6 +18,7 @@ import { GradientOrbs } from "@/components/landing/GradientOrbs";
 import { StickyBottomCTA } from "@/components/landing/StickyBottomCTA";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { DottedSurface } from "@/components/ui/dotted-surface";
+import { SEO } from "@/components/SEO";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -46,6 +47,11 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
+      <SEO
+        title="Subhumano — Assuma o Comando da IA Sem Perder Seu Tempo"
+        description="Curadoria de inteligência artificial validada por especialistas. Notícias, ferramentas, comunidade e podcast para profissionais que precisam de foco, não de ruído."
+        path="/"
+      />
       <ShaderBackground />
       <DottedSurface
         className="fixed inset-0 z-[1] pointer-events-none"
