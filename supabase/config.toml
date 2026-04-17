@@ -43,3 +43,5 @@ project_id = "akkbfzfjappludgsrwsw"
     verify_jwt = false
   [functions.send-bulk-email]
     verify_jwt = false
+  [functions.sitemap]
+    verify_jwt = false
