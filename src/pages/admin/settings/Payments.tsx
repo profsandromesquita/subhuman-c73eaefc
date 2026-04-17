@@ -106,7 +106,7 @@ export default function PaymentSettings() {
     toast.success('Copiado!');
   };
 
-  const webhookUrl = `${window.location.origin}/api/webhooks`;
+  const webhookUrl = `${SITE_URL}/api/webhooks`;
 
   const renderIntegrationCard = (
     provider: 'stripe' | 'ticto',

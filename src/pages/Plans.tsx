@@ -12,6 +12,8 @@ import { useRedeemCoupon } from "@/hooks/useCoupons";
 import { useEvents } from "@/hooks/useEvents";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SEO } from "@/components/SEO";
+import { SITE_URL } from "@/lib/constants/site";
 
 interface PlanFeature {
   label: string;
@@ -130,7 +132,7 @@ export default function Plans() {
     const checkoutUrl = new URL(plan.checkoutUrl);
     if (user?.email) checkoutUrl.searchParams.set('email', user.email);
     if (user?.id) checkoutUrl.searchParams.set('src', user.id);
-    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    checkoutUrl.searchParams.set('redirect_url', `${SITE_URL}/payment-success`);
     window.location.href = checkoutUrl.toString();
   };
 
@@ -143,7 +145,7 @@ export default function Plans() {
     const checkoutUrl = new URL(eventCheckoutUrl);
     if (user?.email) checkoutUrl.searchParams.set('email', user.email);
     if (user?.id) checkoutUrl.searchParams.set('src', user.id);
-    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    checkoutUrl.searchParams.set('redirect_url', `${SITE_URL}/payment-success`);
     window.location.href = checkoutUrl.toString();
   };
 
@@ -182,7 +184,7 @@ export default function Plans() {
     const checkoutUrl = new URL(TRIAL_CHECKOUT_URL);
     if (user.email) checkoutUrl.searchParams.set('email', user.email);
     if (user.id) checkoutUrl.searchParams.set('src', user.id);
-    checkoutUrl.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    checkoutUrl.searchParams.set('redirect_url', `${SITE_URL}/payment-success`);
     window.location.href = checkoutUrl.toString();
   };
 
@@ -196,6 +198,11 @@ export default function Plans() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Planos e Assinatura — Subhumano"
+        description="Escolha o plano ideal para acessar conteúdos premium, mentorias e a comunidade Subhumano."
+        path="/plans"
+      />
       {/* Glow effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />

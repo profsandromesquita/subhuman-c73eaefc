@@ -7,6 +7,7 @@ import { useEvents } from "@/hooks/useEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SITE_URL } from "@/lib/constants/site";
 
 export function LandingEvents() {
   const { data: events } = useEvents({ period: "future" });
@@ -21,7 +22,7 @@ export function LandingEvents() {
     const url = new URL(checkoutUrl);
     if (user?.email) url.searchParams.set('email', user.email);
     if (user?.id) url.searchParams.set('src', user.id);
-    url.searchParams.set('redirect_url', `${window.location.origin}/payment-success`);
+    url.searchParams.set('redirect_url', `${SITE_URL}/payment-success`);
     window.location.href = url.toString();
   };
 
