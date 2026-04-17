@@ -34,9 +34,10 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   reauthentication: ReauthenticationEmail,
 }
 
-// Configuration
-const SITE_NAME = "Subhumano"
-const ROOT_DOMAIN = "subhumano.ia.br"
+// Configuration (centralizado em _shared/site.ts)
+import { SITE_URL as SHARED_SITE_URL, SITE_NAME as SHARED_SITE_NAME } from '../_shared/site.ts'
+const SITE_NAME = SHARED_SITE_NAME
+const ROOT_DOMAIN = new URL(SHARED_SITE_URL).hostname
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.

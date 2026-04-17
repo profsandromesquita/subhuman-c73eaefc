@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { Resend } from "resend";
+import { SITE_URL, SITE_FROM_EMAIL } from "../_shared/site.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,7 +102,7 @@ Deno.serve(async (req) => {
           console.log('Tentando enviar email para:', userData.user.email);
 
           const sendResult = await resend.emails.send({
-            from: 'Subhumano <noreply@subhumano.ia.br>',
+            from: SITE_FROM_EMAIL,
             to: [userData.user.email],
             subject: `📣 ${title}`,
             html: htmlContent,
@@ -149,10 +150,10 @@ function generatePlainText(userName: string | null, title: string, message: stri
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
   return [
     greeting, '', title, '', message || '', '',
-    'Ver na plataforma: https://subhumano.ia.br/login', '',
+    `Ver na plataforma: ${SITE_URL}/login`, '',
     '---',
     'Você recebeu esta mensagem da equipe Subhumano.',
-    'Gerenciar preferências: https://subhumano.ia.br/profile/notifications',
+    `Gerenciar preferências: ${SITE_URL}/profile/notifications`,
   ].join('\n');
 }
 
@@ -178,7 +179,7 @@ function generateNotificationEmail(userName: string | null, title: string, messa
           <!-- Banner -->
           <tr>
             <td style="padding:16px 0 0;">
-              <a href="https://subhumano.ia.br/login" style="text-decoration:none;">
+              <a href="${SITE_URL}/login" style="text-decoration:none;">
                 <img src="${bannerUrl}" width="600" height="200" alt="Subhumano - Ecossistema de Inteligência Artificial" style="display:block;width:100%;height:auto;border-radius:0;">
               </a>
             </td>
@@ -199,7 +200,7 @@ function generateNotificationEmail(userName: string | null, title: string, messa
           </tr>
           <tr>
             <td align="center" style="padding:24px 40px;">
-              <a href="https://subhumano.ia.br/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;font-family:${fontFamily};">Ver na plataforma</a>
+              <a href="${SITE_URL}/login" style="display:inline-block;background:#000000;color:#ffffff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;font-family:${fontFamily};">Ver na plataforma</a>
             </td>
           </tr>
           <!-- Footer -->
@@ -214,13 +215,13 @@ function generateNotificationEmail(userName: string | null, title: string, messa
           <tr>
             <td align="center" style="padding:16px 40px 0;">
               <p style="margin:0;font-size:12px;font-family:${fontFamily};">
-                <a href="https://subhumano.ia.br/login" style="color:#6b7280;text-decoration:underline;">Site</a>
+                <a href="${SITE_URL}/login" style="color:#6b7280;text-decoration:underline;">Site</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/spaces" style="color:#6b7280;text-decoration:underline;">Espaços</a>
+                <a href="${SITE_URL}/spaces" style="color:#6b7280;text-decoration:underline;">Espaços</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/channels" style="color:#6b7280;text-decoration:underline;">Canais</a>
+                <a href="${SITE_URL}/channels" style="color:#6b7280;text-decoration:underline;">Canais</a>
                 <span style="color:#d1d5db;"> · </span>
-                <a href="https://subhumano.ia.br/podcasts" style="color:#6b7280;text-decoration:underline;">Podcasts</a>
+                <a href="${SITE_URL}/podcasts" style="color:#6b7280;text-decoration:underline;">Podcasts</a>
               </p>
             </td>
           </tr>
@@ -238,7 +239,7 @@ function generateNotificationEmail(userName: string | null, title: string, messa
           <tr>
             <td align="center" style="padding:16px 40px 0;">
               <p style="margin:0 0 8px;font-size:11px;color:#9ca3af;font-family:${fontFamily};">Você recebeu esta mensagem da equipe Subhumano.</p>
-              <a href="https://subhumano.ia.br/profile/notifications" style="font-size:11px;color:#6b7280;text-decoration:underline;font-family:${fontFamily};">Gerenciar preferências</a>
+              <a href="${SITE_URL}/profile/notifications" style="font-size:11px;color:#6b7280;text-decoration:underline;font-family:${fontFamily};">Gerenciar preferências</a>
             </td>
           </tr>
           <tr>

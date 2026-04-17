@@ -13,6 +13,7 @@ import { AuthDivider } from "@/components/AuthDivider";
 import { LoginHero } from "@/components/landing/LoginHero";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { DottedSurface } from "@/components/ui/dotted-surface";
+import { SEO } from "@/components/SEO";
 
 // --- Rate limiting helpers ---
 const STORAGE_KEYS = {
@@ -202,6 +203,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Entrar — Subhumano"
+        description="Acesse sua conta no Subhumano."
+        path="/login"
+        noindex
+      />
       {/* ── DESKTOP layout ── */}
       <div className="hidden lg:flex min-h-screen">
         {/* Left: form */}

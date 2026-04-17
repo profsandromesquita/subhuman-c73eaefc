@@ -42,13 +42,13 @@
     {
       "name": "Espaços",
       "short_name": "Espaços",
-      "url": "/espacos",
+      "url": "/spaces",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Canais",
       "short_name": "Canais",
-      "url": "/canais",
+      "url": "/channels",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

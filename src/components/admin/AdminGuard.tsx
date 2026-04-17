@@ -1,7 +1,9 @@
 import { ReactNode, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Spinner } from '@phosphor-icons/react';
+import { SEO } from '@/components/SEO';
+import { SITE_NAME } from '@/lib/constants/site';
 
 interface AdminGuardProps {
   children: ReactNode;
@@ -11,6 +13,7 @@ interface AdminGuardProps {
 export function AdminGuard({ children, requireAdmin = false }: AdminGuardProps) {
   const { user, isAdmin, isAdminOrModerator, loading } = useAdminAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (loading) return;
@@ -41,5 +44,16 @@ export function AdminGuard({ children, requireAdmin = false }: AdminGuardProps) 
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <SEO
+        title={`Admin — ${SITE_NAME}`}
+        description="Painel administrativo do Subhumano."
+        path={location.pathname}
+        noindex
+        nofollow
+      />
+      {children}
+    </>
+  );
 }

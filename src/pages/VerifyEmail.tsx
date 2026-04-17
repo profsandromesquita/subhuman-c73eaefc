@@ -5,6 +5,7 @@ import { Envelope, ArrowLeft, ArrowClockwise, CheckCircle } from "@phosphor-icon
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { SEO } from "@/components/SEO";
 
 export default function VerifyEmail() {
   const [isResending, setIsResending] = useState(false);
@@ -68,6 +69,12 @@ export default function VerifyEmail() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Verificar Email — Subhumano"
+        description="Confirme seu endereço de email para ativar sua conta."
+        path="/verify-email"
+        noindex
+      />
       {/* Glow effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />

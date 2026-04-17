@@ -1,4 +1,5 @@
 import { PublicPageLayout } from "@/components/PublicPageLayout";
+import { SEO } from "@/components/SEO";
 import {
   Accordion,
   AccordionContent,
@@ -84,6 +85,11 @@ const sections = [
 export default function TermsOfUse() {
   return (
     <PublicPageLayout>
+      <SEO
+        title="Termos de Uso — Subhumano"
+        description="Leia os termos de uso da plataforma Subhumano, mantida pelo ITIA."
+        path="/termos"
+      />
       <h1 className="text-3xl font-bold tracking-tight mb-2">Termos de Uso</h1>
       <p className="text-sm text-muted-foreground mb-8">
         Última atualização: 26 de fevereiro de 2026

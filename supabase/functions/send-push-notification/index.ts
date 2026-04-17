@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import webpush from "npm:web-push@3.6.7";
+import { SITE_CONTACT_EMAIL } from "../_shared/site.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
 
     // Configure web-push
     webpush.setVapidDetails(
-      'mailto:contato@subhumano.ia.br',
+      `mailto:${SITE_CONTACT_EMAIL}`,
       vapidPublicKey,
       vapidPrivateKey
     );
