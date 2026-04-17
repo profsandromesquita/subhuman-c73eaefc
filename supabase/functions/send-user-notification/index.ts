@@ -149,10 +149,10 @@ function generatePlainText(userName: string | null, title: string, message: stri
   const greeting = userName ? `Olá, ${userName.split(' ')[0]}!` : 'Olá!';
   return [
     greeting, '', title, '', message || '', '',
-    'Ver na plataforma: ${SITE_URL}/login', '',
+    `Ver na plataforma: ${SITE_URL}/login`, '',
     '---',
     'Você recebeu esta mensagem da equipe Subhumano.',
-    'Gerenciar preferências: ${SITE_URL}/profile/notifications',
+    `Gerenciar preferências: ${SITE_URL}/profile/notifications`,
   ].join('\n');
 }
 

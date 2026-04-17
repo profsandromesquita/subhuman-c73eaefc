@@ -322,8 +322,8 @@ function generatePlainText(userName: string | null, groupedUpdates: Record<strin
     lines.push('');
   }
   lines.push('---');
-  lines.push('Explorar Subhumano: ${SITE_URL}/login');
-  lines.push('Gerenciar preferências: ${SITE_URL}/profile/notifications');
+  lines.push(`Explorar Subhumano: ${SITE_URL}/login`);
+  lines.push(`Gerenciar preferências: ${SITE_URL}/profile/notifications`);
   return lines.join('\n');
 }
 

@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
     // Configure web-push
     webpush.setVapidDetails(
-      'mailto:${SITE_CONTACT_EMAIL}',
+      `mailto:${SITE_CONTACT_EMAIL}`,
       vapidPublicKey,
       vapidPrivateKey
     );
