@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { SEO } from '@/components/SEO';
+import { SITE_NAME, SITE_DESCRIPTION } from '@/lib/constants/site';
 
 interface SubscriptionGuardProps {
   children: ReactNode;
@@ -28,5 +30,16 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   }
 
   // Freemium users can now access the app — restrictions are handled by useUserAccess + ContentPaywall
-  return <>{children}</>;
+  // SEO blanket: rotas autenticadas não devem ser indexadas (conteúdo restrito)
+  return (
+    <>
+      <SEO
+        title={`${SITE_NAME} — Área de Membros`}
+        description={SITE_DESCRIPTION}
+        path={location.pathname}
+        noindex
+      />
+      {children}
+    </>
+  );
 }
