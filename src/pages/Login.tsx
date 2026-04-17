@@ -203,6 +203,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Entrar — Subhumano"
+        description="Acesse sua conta no Subhumano."
+        path="/login"
+        noindex
+      />
       {/* ── DESKTOP layout ── */}
       <div className="hidden lg:flex min-h-screen">
         {/* Left: form */}

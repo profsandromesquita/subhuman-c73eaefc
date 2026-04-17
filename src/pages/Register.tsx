@@ -141,6 +141,12 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-background pt-safe">
+      <SEO
+        title="Criar Conta — Subhumano"
+        description="Crie sua conta no Subhumano e comece a explorar a plataforma."
+        path="/register"
+        noindex
+      />
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
       </div>

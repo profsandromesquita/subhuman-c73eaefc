@@ -88,6 +88,12 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Redefinir Senha — Subhumano"
+        description="Defina uma nova senha para sua conta."
+        path="/reset-password"
+        noindex
+      />
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-foreground/5 to-transparent rounded-full blur-3xl" />
       </div>

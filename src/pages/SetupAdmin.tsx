@@ -88,6 +88,13 @@ export default function SetupAdmin() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <SEO
+        title="Configuração Admin — Subhumano"
+        description="Configuração inicial de administrador."
+        path="/setup-admin"
+        noindex
+        nofollow
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
