@@ -1922,6 +1922,7 @@ export type Database = {
         }[]
       }
       generate_slug: { Args: { title: string }; Returns: string }
+      get_my_company_cnpj: { Args: { _company_id: string }; Returns: string }
       get_unread_notifications_count: {
         Args: { p_user_id: string }
         Returns: number
