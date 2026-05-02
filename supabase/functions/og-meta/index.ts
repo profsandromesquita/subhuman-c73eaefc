@@ -31,6 +31,23 @@ function getImageUrl(thumbnailUrl: string | null): string {
   return thumbnailUrl;
 }
 
+function getRenderImageUrl(thumbnailUrl: string | null): string {
+  const sourceUrl = (!thumbnailUrl || thumbnailUrl.trim() === '')
+    ? DEFAULT_IMAGE
+    : thumbnailUrl;
+
+  if (sourceUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = sourceUrl.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    );
+    const separator = renderUrl.includes('?') ? '&' : '?';
+    return `${renderUrl}${separator}width=1200&height=630&resize=cover&quality=85`;
+  }
+
+  return sourceUrl;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
