@@ -22,6 +22,11 @@ export interface Company {
   updated_at: string;
 }
 
+// Fields safe to read for any caller. CNPJ is intentionally excluded — it is
+// fetched separately by the owner via the get_my_company_cnpj RPC.
+const COMPANY_PUBLIC_FIELDS =
+  "id, owner_id, name, slug, description, logo_url, website, industry, city, state, instagram_url, linkedin_url, is_verified, is_active, created_at, updated_at";
+
 export function useMyCompany() {
   const { user } = useAuth();
 
@@ -31,11 +36,18 @@ export function useMyCompany() {
       if (!user) return null;
       const { data, error } = await supabase
         .from("companies")
-        .select("*")
+        .select(COMPANY_PUBLIC_FIELDS)
         .eq("owner_id", user.id)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      // Owner can read their own CNPJ via SECURITY DEFINER RPC
+      const { data: cnpj } = await supabase.rpc("get_my_company_cnpj", {
+        _company_id: data.id,
+      });
+
+      return { ...(data as any), cnpj: (cnpj as string | null) ?? null } as Company;
     },
     enabled: !!user,
   });
@@ -48,11 +60,12 @@ export function useCompanyBySlug(slug: string | undefined) {
       if (!slug) return null;
       const { data, error } = await supabase
         .from("companies")
-        .select("*")
+        .select(COMPANY_PUBLIC_FIELDS)
         .eq("slug", slug)
         .single();
       if (error) throw error;
-      return data;
+      // CNPJ is never exposed via public lookup
+      return { ...(data as any), cnpj: null } as Company;
     },
     enabled: !!slug,
   });
@@ -68,7 +81,7 @@ export function useCreateCompany() {
       const { data: company, error } = await supabase
         .from("companies")
         .insert([{ ...data, owner_id: user.id, slug: data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }])
-        .select()
+        .select(COMPANY_PUBLIC_FIELDS)
         .single();
       if (error) throw error;
       return company;
@@ -88,7 +101,7 @@ export function useUpdateCompany() {
         .from("companies")
         .update(data)
         .eq("id", id)
-        .select()
+        .select(COMPANY_PUBLIC_FIELDS)
         .single();
       if (error) throw error;
       return company;
