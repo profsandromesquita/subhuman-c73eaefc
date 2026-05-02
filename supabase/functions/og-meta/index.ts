@@ -31,6 +31,23 @@ function getImageUrl(thumbnailUrl: string | null): string {
   return thumbnailUrl;
 }
 
+function getRenderImageUrl(thumbnailUrl: string | null): string {
+  const sourceUrl = (!thumbnailUrl || thumbnailUrl.trim() === '')
+    ? DEFAULT_IMAGE
+    : thumbnailUrl;
+
+  if (sourceUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = sourceUrl.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    );
+    const separator = renderUrl.includes('?') ? '&' : '?';
+    return `${renderUrl}${separator}width=1200&height=630&resize=cover&quality=85`;
+  }
+
+  return sourceUrl;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
@@ -64,9 +81,10 @@ function buildHtml(meta: {
   <meta property="og:title" content="${esc(meta.title)}" />
   <meta property="og:description" content="${esc(meta.description)}" />
   <meta property="og:image" content="${esc(meta.image)}" />
+  <meta property="og:image:secure_url" content="${esc(meta.image)}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/webp" />
+  <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:url" content="${esc(meta.url)}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="${SITE_NAME}" />
@@ -116,7 +134,7 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null),
+          image: getRenderImageUrl(null),
           url: SITE_URL,
         }, bot),
         { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=3600' } }
@@ -147,7 +165,7 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null),
+          image: getRenderImageUrl(null),
           url: SITE_URL,
         }, bot),
         { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=60' } }
@@ -161,7 +179,7 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: getImageUrl(post.thumbnail_url),
+        image: getRenderImageUrl(post.thumbnail_url),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
       }, bot),
@@ -174,7 +192,7 @@ serve(async (req) => {
       buildHtml({
         title: SITE_NAME,
         description: DEFAULT_DESCRIPTION,
-        image: getImageUrl(null),
+        image: getRenderImageUrl(null),
         url: SITE_URL,
       }, catchBot),
       { headers: htmlHeaders }

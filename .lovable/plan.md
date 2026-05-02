@@ -1,126 +1,102 @@
+## Objetivo
 
+Restaurar a conversão para JPEG via Supabase Render API na Edge Function `og-meta`, servindo a mesma URL transformada para TODOS os bots. A imagem original WebP no bucket permanece intacta — apenas a URL emitida nas meta tags muda.
 
-# Plano: sitemap.xml confiável para produção
+## Arquivo único tocado
 
-## Contexto atual
+`supabase/functions/og-meta/index.ts`
 
-`public/sitemap.xml` hoje é estático e lista apenas 5 URLs institucionais. Isso é correto e seguro como base, mas não cobre **rotas dinâmicas públicas indexáveis** que existem no projeto:
+Nenhum outro arquivo do repositório será modificado. Sem migrations, sem mudanças em `src/`, sem alterações em `BOT_PATTERNS` / `isBot` / Cloudflare / DNS / robots.txt.
 
-- **Artigos editoriais** (`/spaces/{space-slug}/post/{post-slug}`) — públicos quando `is_premium = false` (paywall via `ContentPaywall` para premium, mas a página/SEO existe).
-- **Listagens de espaços** (`/spaces/{space-slug}`).
-- **Podcasts** (`/podcasts/{podcast-slug}`) — públicos.
-- **Eventos** (`/events/{event-slug}`) — públicos.
+## Confirmação prévia (já validada)
 
-O que **NÃO entra** (já alinhado com decisões anteriores):
-- `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email` (noindex).
-- `/admin/*`, `/profile/*`, `/messages`, `/notifications`, `/highlights`, `/ai-assistant`, `/search`, `/payment-success`, `/setup-admin` (privadas/sem valor SEO).
-- `/channels/*` (fórum da comunidade — conteúdo gerado por usuário, fora do escopo SEO institucional desta fase).
-- Rotas com query params, previews, duplicatas.
+Inspecionei `supabase/functions/og-meta/index.ts` e confirmo:
 
-## Estratégia: sitemap dinâmico via Edge Function + sitemap estático fallback
+- `BOT_PATTERNS` existe (linha 15)
+- `isBot(ua)` existe (linha 22)
+- `getImageUrl(thumbnailUrl)` existe (linha 27) — atualmente retorna a URL crua
+- `buildHtml(...)` existe (linha 47)
+- `getImageUrl` é chamada em 4 pontos: linhas 119, 150, 164, 177
+- `og:image:type` está como `image/webp` na linha 69
 
-Como o host serve apenas arquivos estáticos do `dist/`, a forma confiável de manter o sitemap sempre atualizado **sem depender do build** é:
+Estrutura compatível com o plano. Prosseguir.
 
-1. **Edge Function `sitemap`** (Supabase) — consulta as tabelas `space_updates` (artigos publicados não-rascunho), `spaces`, `podcasts`, `events` e gera o XML em tempo real com `Content-Type: application/xml`. Cache HTTP de 1 hora (`Cache-Control: public, max-age=3600`).
+## Operações sequenciais
 
-2. **Cloudflare Worker** (já existe, fora do repo — apenas nota de coordenação) — adiciona uma regra: `GET /sitemap.xml` faz fetch da Edge Function `https://akkbfzfjappludgsrwsw.supabase.co/functions/v1/sitemap` e retorna a resposta. Sandro precisa adicionar essa rota ao Worker.
+### 1. Adicionar helper `getRenderImageUrl`
 
-3. **`public/sitemap.xml`** — mantido como **fallback estático** com as 5 URLs institucionais. Se o Worker não estiver atualizado, o Lovable serve esse arquivo. Se o Worker estiver atualizado, ele intercepta antes.
+Logo após `getImageUrl` (após linha ~33):
 
-4. **`public/robots.txt`** — já contém `Sitemap: https://subhumano.ia.br/sitemap.xml`. Sem mudança.
+```typescript
+function getRenderImageUrl(thumbnailUrl: string | null): string {
+  const sourceUrl = (!thumbnailUrl || thumbnailUrl.trim() === '')
+    ? DEFAULT_IMAGE
+    : thumbnailUrl;
 
-## Por que essa abordagem
+  if (sourceUrl.includes('/storage/v1/object/public/')) {
+    const renderUrl = sourceUrl.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    );
+    const separator = renderUrl.includes('?') ? '&' : '?';
+    return `${renderUrl}${separator}width=1200&height=630&resize=cover&quality=85`;
+  }
 
-- **Atualização automática**: novo artigo/podcast/evento publicado pelo admin aparece no sitemap em até 1h (cache TTL), sem build/deploy.
-- **Confiável**: a Edge Function lê do mesmo banco que serve o app — fonte única de verdade.
-- **Sem dependência de Cloudflare na fase 1**: enquanto Sandro não atualiza o Worker, o sitemap estático com 5 URLs continua válido (Google já o conhece). Quando Sandro atualizar o Worker, o sitemap dinâmico assume.
-
-## Arquivos
-
-**Novo (1):**
-- `supabase/functions/sitemap/index.ts` — Edge Function que:
-  - Consulta `space_updates` (filtros: `is_published = true`, `status = 'published'`, traz `slug`, `updated_at`, e join com `spaces.slug`).
-  - Consulta `spaces` (todos os ativos).
-  - Consulta `podcasts` (publicados).
-  - Consulta `events` (publicados, futuros e passados — Google ainda valoriza histórico).
-  - Monta XML com `<url><loc>...</loc><lastmod>...</lastmod></url>` por item, usando `updated_at` como `lastmod` (formato `YYYY-MM-DD`). Sem `changefreq` nem `priority` (decisão prévia).
-  - Inclui as 5 URLs institucionais fixas no topo.
-  - Retorna `200` com `Content-Type: application/xml; charset=utf-8` e `Cache-Control: public, max-age=3600`.
-  - `verify_jwt = false` (precisa ser público — adiciona bloco em `supabase/config.toml`).
-
-**Alterado (1):**
-- `supabase/config.toml` — adicionar bloco `[functions.sitemap] verify_jwt = false`.
-
-**Sem mudança:**
-- `public/sitemap.xml` (fallback estático).
-- `public/robots.txt`.
-- Cloudflare Worker (mudança fora do repo, comunicada ao Sandro).
-
-## Conteúdo final esperado do sitemap.xml (servido pela Edge Function)
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Institucionais -->
-  <url><loc>https://subhumano.ia.br/</loc></url>
-  <url><loc>https://subhumano.ia.br/plans</loc></url>
-  <url><loc>https://subhumano.ia.br/contato</loc></url>
-  <url><loc>https://subhumano.ia.br/termos</loc></url>
-  <url><loc>https://subhumano.ia.br/privacidade</loc></url>
-
-  <!-- Espaços (listagens) -->
-  <url><loc>https://subhumano.ia.br/spaces/produtividade</loc><lastmod>2026-04-10</lastmod></url>
-  <url><loc>https://subhumano.ia.br/spaces/marketing</loc><lastmod>2026-04-08</lastmod></url>
-  <!-- ...demais espaços ativos... -->
-
-  <!-- Artigos publicados -->
-  <url><loc>https://subhumano.ia.br/spaces/programacao/post/claude-3-5-sonnet-vibe-coding</loc><lastmod>2026-04-15</lastmod></url>
-  <!-- ...todos os space_updates publicados... -->
-
-  <!-- Podcasts -->
-  <url><loc>https://subhumano.ia.br/podcasts/episodio-42-ia-no-brasil</loc><lastmod>2026-04-12</lastmod></url>
-  <!-- ...todos os podcasts publicados... -->
-
-  <!-- Eventos -->
-  <url><loc>https://subhumano.ia.br/events/workshop-cursor-2026</loc><lastmod>2026-04-01</lastmod></url>
-  <!-- ...todos os eventos publicados... -->
-</urlset>
+  return sourceUrl;
+}
 ```
 
-## Estratégia de atualização contínua
+Sem `format=jpg` na querystring (parâmetro inválido — Render API converte para JPEG automaticamente quando há transformações).
 
-Zero intervenção manual:
-- **Novo artigo publicado pelo admin** → aparece no sitemap em ≤1h (próxima request após expiração do cache).
-- **Novo podcast/evento** → idem.
-- **Conteúdo despublicado/excluído** → desaparece do sitemap em ≤1h.
-- **Novas rotas institucionais** (raras) → exigem editar a constante `INSTITUTIONAL_URLS` na Edge Function. Documentado em comentário no topo do arquivo.
+### 2. Substituir as 4 chamadas
 
-Após implementação:
-1. Sandro publica o projeto (deploy frontend é automático para Edge Functions).
-2. Sandro adiciona rota no Cloudflare Worker para proxy `/sitemap.xml` → Edge Function.
-3. Eu valido com `curl https://subhumano.ia.br/sitemap.xml` confirmando XML válido com URLs dinâmicas.
-4. Sandro ressubmete o sitemap no Google Search Console (URL inalterada — apenas força reindexação).
+Trocar `getImageUrl(` por `getRenderImageUrl(` nas linhas 119, 150, 164 e 177. Mesmos argumentos.
 
-## Validação obrigatória pós-deploy
+### 3. Corrigir `og:image:type` em `buildHtml`
 
-```bash
-curl -s https://subhumano.ia.br/sitemap.xml | head -50
-curl -sI https://subhumano.ia.br/sitemap.xml | grep -E "content-type|cache-control"
+Linha 69:
+
+```html
+<meta property="og:image:type" content="image/webp" />
 ```
 
-Critérios:
-- HTTP 200, `Content-Type: application/xml`.
-- Contém as 5 URLs institucionais.
-- Contém ao menos 1 artigo, 1 podcast, 1 evento (se houver no banco).
-- Nenhuma URL `/login`, `/register`, `/admin/*`, `/profile/*`, `/messages`, `/channels/*`.
-- Todas as URLs começam com `https://subhumano.ia.br`.
-- XML válido (sem caracteres não-escapados em slugs).
+Vira:
 
-## Total
+```html
+<meta property="og:image:type" content="image/jpeg" />
+```
 
-- **1 arquivo novo** (`supabase/functions/sitemap/index.ts`)
-- **1 arquivo alterado** (`supabase/config.toml`)
-- **Zero novas dependências**
-- **Zero migrations**
-- **Cloudflare Worker**: 1 regra a adicionar fora do repo (instruções entregues ao Sandro)
+### 4. Adicionar `og:image:secure_url` em `buildHtml`
 
+Imediatamente após a linha do `og:image` (linha ~63), adicionar:
+
+```html
+<meta property="og:image:secure_url" content="${esc(meta.image)}" />
+```
+
+Usa `esc(meta.image)` por consistência com o template existente (que já escapa todas as variáveis interpoladas).
+
+### 5. Verificação visual no diff
+
+- 4 chamadas a `getRenderImageUrl` (zero a `getImageUrl` restantes)
+- `og:image:type` = `image/jpeg`
+- `og:image:secure_url` presente
+- `twitter:image` continua usando `meta.image` (mesma URL Render)
+- `DEFAULT_IMAGE`, `BOT_PATTERNS`, `isBot` intactos
+
+## Deploy e validação
+
+Após aplicar o patch, fazer deploy de `og-meta` e executar os 5 testes via curl exatamente como especificado, retornando a saída literal de cada um.
+
+Critérios de sucesso:
+
+- Testes 1, 2: `og:image` contém `/render/image/public/` + `width=1200&height=630&resize=cover&quality=85`, sem `format=jpg`
+- Teste 3: contém `image/jpeg`
+- Teste 4: retorna linha com `og:image:secure_url`
+- Teste 5: HTTP 200 + `content-type: image/jpeg`
+
+Se qualquer teste falhar, reverter e alertar — sem tentativas incrementais.
+
+## O que NÃO será feito
+
+Nenhuma alteração em: `src/**`, `BOT_PATTERNS`, `isBot`, bifurcação por UA, Cloudflare, robots.txt, DNS, buckets, Storage, migrations, `DEFAULT_IMAGE`, criação de novos arquivos, inclusão de `format=jpg`.
