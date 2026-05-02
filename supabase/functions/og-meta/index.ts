@@ -134,7 +134,7 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null),
+          image: getRenderImageUrl(null),
           url: SITE_URL,
         }, bot),
         { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=3600' } }
@@ -165,7 +165,7 @@ serve(async (req) => {
         buildHtml({
           title: `${SITE_NAME} — Inteligência que Acompanha seu Ritmo`,
           description: DEFAULT_DESCRIPTION,
-          image: getImageUrl(null),
+          image: getRenderImageUrl(null),
           url: SITE_URL,
         }, bot),
         { headers: { ...htmlHeaders, 'Cache-Control': 'public, max-age=60' } }
@@ -179,7 +179,7 @@ serve(async (req) => {
       buildHtml({
         title: post.title,
         description,
-        image: getImageUrl(post.thumbnail_url),
+        image: getRenderImageUrl(post.thumbnail_url),
         url: articleUrl,
         publishedTime: post.published_at ?? undefined,
       }, bot),
@@ -192,7 +192,7 @@ serve(async (req) => {
       buildHtml({
         title: SITE_NAME,
         description: DEFAULT_DESCRIPTION,
-        image: getImageUrl(null),
+        image: getRenderImageUrl(null),
         url: SITE_URL,
       }, catchBot),
       { headers: htmlHeaders }
