@@ -81,9 +81,10 @@ function buildHtml(meta: {
   <meta property="og:title" content="${esc(meta.title)}" />
   <meta property="og:description" content="${esc(meta.description)}" />
   <meta property="og:image" content="${esc(meta.image)}" />
+  <meta property="og:image:secure_url" content="${esc(meta.image)}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/webp" />
+  <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:url" content="${esc(meta.url)}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="${SITE_NAME}" />
