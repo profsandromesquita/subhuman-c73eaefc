@@ -81,7 +81,7 @@ export function useCreateCompany() {
       const { data: company, error } = await supabase
         .from("companies")
         .insert([{ ...data, owner_id: user.id, slug: data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }])
-        .select()
+        .select(COMPANY_PUBLIC_FIELDS)
         .single();
       if (error) throw error;
       return company;
