@@ -101,7 +101,7 @@ export function useUpdateCompany() {
         .from("companies")
         .update(data)
         .eq("id", id)
-        .select()
+        .select(COMPANY_PUBLIC_FIELDS)
         .single();
       if (error) throw error;
       return company;
