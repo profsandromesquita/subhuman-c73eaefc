@@ -8,16 +8,9 @@ export function useUserBadge(userId: string | undefined): BadgeType {
     queryKey: ["user-badge", userId],
     queryFn: async (): Promise<BadgeType> => {
       if (!userId) return null;
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("plan_type")
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .in("plan_type", ["yearly", "lifetime"])
-        .maybeSingle();
-
+      const { data } = await supabase.rpc("get_user_badge", { _user_id: userId });
       if (!data) return null;
-      return data.plan_type === "lifetime" ? "gold" : "blue";
+      return data === "lifetime" ? "gold" : "blue";
     },
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,

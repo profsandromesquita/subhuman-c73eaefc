@@ -1923,10 +1923,12 @@ export type Database = {
       }
       generate_slug: { Args: { title: string }; Returns: string }
       get_my_company_cnpj: { Args: { _company_id: string }; Returns: string }
+      get_saved_updates_count: { Args: { _update_id: string }; Returns: number }
       get_unread_notifications_count: {
         Args: { p_user_id: string }
         Returns: number
       }
+      get_user_badge: { Args: { _user_id: string }; Returns: string }
       get_user_emails_admin: {
         Args: never
         Returns: {
