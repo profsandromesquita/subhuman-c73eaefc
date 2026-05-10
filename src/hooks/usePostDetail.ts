@@ -90,10 +90,7 @@ export function usePostDetail(spaceSlug: string | undefined, postSlug: string | 
             .from("update_likes")
             .select("id", { count: "exact", head: true })
             .eq("update_id", postData.id),
-          supabase
-            .from("saved_updates")
-            .select("id", { count: "exact", head: true })
-            .eq("update_id", postData.id),
+          supabase.rpc("get_saved_updates_count", { _update_id: postData.id }),
           supabase
             .from("space_update_media")
             .select("*")
